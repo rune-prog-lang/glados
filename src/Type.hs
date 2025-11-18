@@ -6,14 +6,13 @@
 -}
 
 module Type
-  ( Parser (..)
-  , Format (..)
-  , Config (..)
-  , (<|>)
-  ) where
+  ( Parser (..),
+    Format (..),
+    (<|>),
+  )
+where
 
 import Control.Applicative (Alternative (..))
-import Data.List (intercalate)
 
 data Format = XML | JSON | Markdown deriving (Eq)
 
