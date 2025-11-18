@@ -37,13 +37,13 @@ parseChar c = Parser parse
     parse [] = Left "Empty String"
     parse (s : str)
       | c == s = Right (c, str)
-      | otherwise = Left "Not found"
+      | otherwise = Left "Not Found"
 
 parseOr :: Parser a -> Parser a -> Parser a
 parseOr a b = a <|> b
 
 parseAnyChar :: String -> Parser Char
-parseAnyChar = foldr ((<|>) . parseChar) (Parser $ const $ Left "Not found")
+parseAnyChar = foldr ((<|>) . parseChar) (Parser $ const $ Left "Not Found")
 
 parseAndWith :: (a -> b -> c) -> Parser a -> Parser b -> Parser c
 parseAndWith f a b = f <$> a <*> b
@@ -68,7 +68,7 @@ parseDouble = do
   a <- parseInt
   _ <- parseChar '.'
   b <- parseUInt
-  case a > 0 of
+  case a >= 0 of
     True -> return $ fromIntegral a + (fromIntegral b / 10 ^ length (show b))
     False -> return $ fromIntegral a - (fromIntegral b / 10 ^ length (show b))
 
@@ -90,7 +90,7 @@ parseTruple = do
   return (a, b, c)
 
 parseWord :: Parser String
-parseWord = parseSome . parseAnyChar $ ['a' .. 'z'] ++ ['A' .. 'Z']
+parseWord = parseSome . parseAnyChar $ ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9']
 
 parseIgnoreSpaces :: Parser ()
 parseIgnoreSpaces = (parseMany . parseAnyChar $ " \n\t") $> ()
