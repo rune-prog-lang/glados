@@ -94,7 +94,7 @@ parseSpaces :: Parser String
 parseSpaces = parseMany (parseAnyChar " \n\t")
 
 parseWord :: Parser String
-parseWord = parseSome . parseAnyChar $ ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['-', '+', '*', '/', '_', '=','<','>','!','?']
+parseWord = parseSome . parseAnyChar $ ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['#', '<', '-', '+', '*', '/', '_', '=','>','!','?']
 
 parseIgnoreSpaces :: Parser ()
 parseIgnoreSpaces = (parseMany . parseAnyChar $ " \n\t") $> ()
