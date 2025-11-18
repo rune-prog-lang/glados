@@ -1,6 +1,6 @@
 STACK           := stack
 STACK_WORK_DIR  := .stack-work
-STACK_BUILD_FLAGS := --jobs $$(nproc)
+STACK_BUILD_FLAGS := --jobs $$(nproc 2>/dev/null || sysctl -n hw.ncpu)
 
 STACK_BINARY_NAME := glados-exe
 NAME := glados
