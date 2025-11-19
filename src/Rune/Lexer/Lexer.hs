@@ -16,7 +16,7 @@ import Rune.Lexer.LexerParser
     Parser,
   )
 import Rune.Lexer.LexerPrimitives (primitive)
-import Rune.Lexer.Tokens (Token (..), TokenKind (..)) -- Import TokenKind
+import Rune.Lexer.Tokens (Token (..), TokenKind (..))
 import Text.Megaparsec
   ( MonadParsec (eof),
     choice,
@@ -38,7 +38,6 @@ import qualified Text.Megaparsec.Char.Lexer as L
 -- public
 --
 
--- lexical analyzer that converts source code into a list of tokens.
 lexer :: String -> Either LexerError [Token]
 lexer = runParser tokens "<source>"
 
