@@ -26,7 +26,15 @@ source-repository head
 library
   exposed-modules:
       Lib
+      Logger
       ParserLib
+      Rune.AST
+      Rune.CodeGen
+      Rune.IR
+      Rune.Lexer
+      Rune.Parser
+      Rune.Pipeline
+      Rune.Semantics
       Type
   other-modules:
       Paths_glados
@@ -42,6 +50,7 @@ library
 executable glados-exe
   main-is: Main.hs
   other-modules:
+      CLI
       Paths_glados
   autogen-modules:
       Paths_glados
