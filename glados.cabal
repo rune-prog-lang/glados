@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      CLI
       Lib
       Logger
       Rune.Lexer.Lexer
@@ -53,7 +54,6 @@ library
 executable glados-exe
   main-is: Main.hs
   other-modules:
-      CLI
       Paths_glados
   autogen-modules:
       Paths_glados
@@ -70,6 +70,7 @@ test-suite glados-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      CLISpec
       LexerSpec
       PipelinesSpec
       Paths_glados
