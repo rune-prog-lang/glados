@@ -50,9 +50,8 @@ data TokenKind
   | OpGt -- >
   | OpGte -- >=
   | OpAnd -- &&
-  | OpOr
-  | -- | |
-    OpErrorProp -- ?
+  | OpOr -- ||
+  | OpErrorProp -- ?
   | OpArrow -- ->
   | OpSquigArrow -- ~>
   | -- delimiters
