@@ -6,6 +6,7 @@ module CLI
 where
 
 import System.Exit (exitSuccess)
+import Data.Maybe (fromMaybe)
 import Rune.Pipelines (compilePipeline, interpretPipeline)
 
 data Action
@@ -41,7 +42,7 @@ runCLI (Interpret inFile) = do
   print tokens
 
 runCLI (Compile inFile maybeOutFile) = do
-  let outFile = maybe "out" id maybeOutFile
+  let outFile = fromMaybe "out" maybeOutFile
   tokens <- compilePipeline inFile outFile
   print tokens
 
