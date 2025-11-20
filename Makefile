@@ -17,7 +17,7 @@ clean:
 	$(STACK) clean
 
 fclean: clean
-	rm -rf $(STACK_WORK_DIR)
+	rm -rf $(STACK_WORK_DIR) $(NAME)
 
 re: fclean all
 
