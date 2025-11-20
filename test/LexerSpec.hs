@@ -12,7 +12,7 @@ import Test.Tasty.HUnit
 lexerTests :: TestTree
 lexerTests =
   testGroup
-    "Rune Lexer Tests"
+    "Rune lexer Tests"
     [ exampleTests,
       unitTests,
       positionTests
@@ -24,14 +24,14 @@ lexerTests =
 
 checkLexer :: String -> [TokenKind] -> Assertion
 checkLexer input expectedKinds =
-  case lexer input of
+  case lexer "<test>" input of
     Left err -> assertFailure $ "Lexing failed:\n" ++ show err
     Right tokens ->
       assertEqual "Token kinds mismatch" expectedKinds (map tokenKind tokens)
 
 checkLexerError :: String -> Assertion
 checkLexerError input =
-  case lexer input of
+  case lexer "<test>" input of
     Left _ -> assertBool "Lexing failed as expected" True
     Right tokens -> assertFailure $ "Lexing succeeded, but should have failed. Tokens:\n" ++ show tokens
 
@@ -228,14 +228,14 @@ positionTests =
   testGroup
     "Position Tests"
     [ testCase "single token (1, 1)" $
-        case lexer "def" of
+        case lexer "<test>" "def" of
           Right [tdef, _] -> do
             assertEqual "Def line" 1 (tokenLine tdef)
             assertEqual "Def col" 1 (tokenColumn tdef)
           Left err -> assertFailure $ show err
           Right tokens -> assertFailure $ "Expected 2 tokens, got " ++ show (length tokens),
       testCase "tokens with space (1, 1) and (1, 5)" $
-        case lexer "def main" of
+        case lexer "<test>" "def main" of
           Right [tdef, tmain, _] -> do
             assertEqual "Def line" 1 (tokenLine tdef)
             assertEqual "Def col" 1 (tokenColumn tdef)
@@ -244,7 +244,7 @@ positionTests =
           Left err -> assertFailure $ show err
           Right tokens -> assertFailure $ "Expected 3 tokens, got " ++ show (length tokens),
       testCase "tokens on new line" $
-        case lexer "def\nmain" of
+        case lexer "<test>" "def\nmain" of
           Right [tdef, tmain, _] -> do
             assertEqual "Def line" 1 (tokenLine tdef)
             assertEqual "Def col" 1 (tokenColumn tdef)
@@ -253,7 +253,7 @@ positionTests =
           Left err -> assertFailure $ show err
           Right tokens -> assertFailure $ "Expected 3 tokens, got " ++ show (length tokens),
       testCase "tokens after comment" $
-        case lexer "// comment\nmain" of
+        case lexer "<test>" "// comment\nmain" of
           Right [tmain, _] -> do
             assertEqual "Main line" 2 (tokenLine tmain)
             assertEqual "Main col" 1 (tokenColumn tmain)
