@@ -1,20 +1,41 @@
 module Rune.Pipelines (compilePipeline, interpretPipeline) where
 
+import Control.Exception (IOException, try)
+import Logger (logError)
+import Rune.AST.Parser (parseRune)
+import Rune.AST.Printer (prettyPrint)
 import Rune.Lexer.Lexer (lexer)
-import Rune.Lexer.Tokens (Token)
+import Rune.AST.Nodes (Program)
+import Text.Megaparsec (errorBundlePretty)
 
 --
 -- public
 --
 
-compilePipeline :: FilePath -> FilePath -> IO [Token]
-compilePipeline inFile _ =
-  readFile inFile
-    >>= either (error . show) pure . lexer inFile
+compilePipeline :: FilePath -> FilePath -> IO ()
+compilePipeline inFile outFile = do
+  fileResult <- try (readFile inFile) :: IO (Either IOException String)
+  case fileResult of
+    Left ex -> logError $ "Failed to read input file: " ++ show ex
+    Right content -> processContent inFile content $ \ast ->
+      writeFile outFile (prettyPrint ast)
 
--- NOTE: maybe in the future, when we call interpretPipeline with an REPL, inFile -> "<repl>"
-interpretPipeline :: FilePath -> IO [Token]
-interpretPipeline inFile =
-  readFile inFile
-    >>= either (error . show) pure . lexer inFile
+interpretPipeline :: FilePath -> IO ()
+interpretPipeline inFile = do
+  fileResult <- try (readFile inFile) :: IO (Either IOException String)
+  case fileResult of
+    Left ex -> logError $ "Failed to read input file: " ++ show ex
+    Right content -> processContent inFile content $ \ast ->
+      putStrLn (prettyPrint ast)
 
+--
+-- private
+--
+
+processContent :: FilePath -> String -> (Program -> IO ()) -> IO ()
+processContent filename content onSuccess =
+  case lexer filename content of
+    Left err -> logError (errorBundlePretty err)
+    Right tokens -> case parseRune filename tokens of
+      Left err -> logError err
+      Right ast -> onSuccess ast
