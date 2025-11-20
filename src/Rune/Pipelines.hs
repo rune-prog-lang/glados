@@ -1,6 +1,5 @@
 module Rune.Pipelines (compilePipeline, interpretPipeline) where
 
-import Control.Monad ((>=>))
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
 
@@ -11,8 +10,11 @@ import Rune.Lexer.Tokens (Token)
 compilePipeline :: FilePath -> FilePath -> IO [Token]
 compilePipeline inFile _ =
   readFile inFile
-    >>= either (error . show) pure . lexer
+    >>= either (error . show) pure . lexer inFile
 
+-- NOTE: maybe in the future, when we call interpretPipeline with an REPL, inFile -> "<repl>"
 interpretPipeline :: FilePath -> IO [Token]
-interpretPipeline =
-  readFile >=> either (error . show) pure . lexer
+interpretPipeline inFile =
+  readFile inFile
+    >>= either (error . show) pure . lexer inFile
+

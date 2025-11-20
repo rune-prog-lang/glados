@@ -38,9 +38,8 @@ import qualified Text.Megaparsec.Char.Lexer as L
 -- public
 --
 
---TODO: <source> should be the actual filename
-lexer :: String -> Either LexerError [Token]
-lexer = runParser tokens "<source>"
+lexer :: String -> String -> Either LexerError [Token]
+lexer = runParser tokens
 
 --
 -- private
