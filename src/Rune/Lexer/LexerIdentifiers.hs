@@ -1,6 +1,4 @@
-module Rune.Lexer.LexerIdentifiers
-  ( identifier,
-) where
+module Rune.Lexer.LexerIdentifiers ( identifier ) where
 
 import Rune.Lexer.LexerParser ( Parser,)
 import Rune.Lexer.Tokens ( Token (..), TokenKind (..),)
