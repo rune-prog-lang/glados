@@ -1,5 +1,4 @@
-module Rune.Pipelines (compilePipeline, interpretPipeline
-) where
+module Rune.Pipelines (compilePipeline, interpretPipeline) where
 
 import Control.Monad ((>=>))
 import Rune.Lexer.Lexer (lexer)
