@@ -5,7 +5,7 @@ module Rune.Lexer.Tokens
 where
 
 data TokenKind
-  = -- kewords
+  = -- keywords
     KwDef
   | KwReturn
   | KwStruct
