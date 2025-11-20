@@ -28,7 +28,7 @@ data TokenKind
   | TypeString
   | TypeAny
   | TypeNull
-  | -- litterals
+  | -- literals
     LitInt Int
   | LitFloat Double
   | LitString String
