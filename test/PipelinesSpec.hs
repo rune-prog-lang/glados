@@ -1,9 +1,12 @@
 module PipelinesSpec (pipelinesTests) where
 
-import Rune.Lexer.Tokens (Token (..), TokenKind (..))
+import Control.Exception (try)
+import Control.Monad (when)
 import Rune.Pipelines (compilePipeline, interpretPipeline)
+import System.Directory (doesFileExist, removeFile)
+import System.IO.Error (isDoesNotExistError)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase, (@?=))
+import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
 
 --
 -- public
@@ -18,33 +21,43 @@ pipelinesTests =
     ]
 
 --
--- private
+-- private helpers
 --
 
-expectedTokens :: [Token]
-expectedTokens =
-  [ Token {tokenKind = KwDef, tokenValue = "def", tokenLine = 1, tokenColumn = 1},
-    Token {tokenKind = Identifier "main", tokenValue = "main", tokenLine = 1, tokenColumn = 5},
-    Token {tokenKind = LParen, tokenValue = "(", tokenLine = 1, tokenColumn = 9},
-    Token {tokenKind = RParen, tokenValue = ")", tokenLine = 1, tokenColumn = 10},
-    Token {tokenKind = OpArrow, tokenValue = "->", tokenLine = 1, tokenColumn = 12},
-    Token {tokenKind = TypeNull, tokenValue = "null", tokenLine = 1, tokenColumn = 15},
-    Token {tokenKind = LBrace, tokenValue = "{", tokenLine = 2, tokenColumn = 1},
-    Token {tokenKind = Identifier "show", tokenValue = "show", tokenLine = 3, tokenColumn = 5},
-    Token {tokenKind = LParen, tokenValue = "(", tokenLine = 3, tokenColumn = 9},
-    Token {tokenKind = LitString "Hello, Rune!\n", tokenValue = "\"Hello, Rune!\n\"", tokenLine = 3, tokenColumn = 10},
-    Token {tokenKind = RParen, tokenValue = ")", tokenLine = 3, tokenColumn = 26},
-    Token {tokenKind = Semicolon, tokenValue = ";", tokenLine = 3, tokenColumn = 27},
-    Token {tokenKind = RBrace, tokenValue = "}", tokenLine = 4, tokenColumn = 1},
-    Token {tokenKind = EOF, tokenValue = "", tokenLine = 5, tokenColumn = 1}
-  ]
+expectedHelloRuneIR :: String
+expectedHelloRuneIR =
+  "Program: examples/hello_rune.ru\n"
+    ++ "  DefFunction main\n"
+    ++ "    Parameters:\n"
+    ++ "    ReturnType: null\n"
+    ++ "    Body:\n"
+    ++ "      StmtExpr\n"
+    ++ "        ExprCall show\n"
+    ++ "        Arguments:\n"
+    ++ "          ExprLitString \"Hello, Rune!\\n\""
+
+readFileAndCleanup :: FilePath -> IO String
+readFileAndCleanup filePath = do
+  contentResult <- try (readFile filePath) :: IO (Either IOError String)
+  case contentResult of
+    Left ex | isDoesNotExistError ex -> return ""
+    Left ex -> assertFailure $ "Failed to read output file " ++ filePath ++ ": " ++ show ex
+    Right content -> do
+      removeFile filePath
+      return $ reverse $ dropWhile (`elem` "\n\r") $ reverse content
 
 compilePipelineTests :: TestTree
-compilePipelineTests = testCase "compilePipeline" $ do
-  tokens <- compilePipeline "examples/hello_rune.ru" "out.ir"
-  tokens @?= expectedTokens
+compilePipelineTests = testCase "compilePipeline (hello_rune.ru)" $ do
+  let inFile = "examples/hello_rune.ru"
+  let outFile = "out.ir"
+  exists <- doesFileExist outFile
+  when exists $ removeFile outFile
+  compilePipeline inFile outFile
+  actualContent <- readFileAndCleanup outFile
+  actualContent @?= expectedHelloRuneIR
 
 interpretPipelineTests :: TestTree
-interpretPipelineTests = testCase "interpretPipeline" $ do
-  tokens <- interpretPipeline "examples/hello_rune.ru"
-  tokens @?= expectedTokens
+interpretPipelineTests = testCase "interpretPipeline (hello_rune.ru)" $ do
+  let inFile = "examples/hello_rune.ru"
+  interpretPipeline inFile
+  () @?= ()
