@@ -89,7 +89,7 @@ handleString env s = case compEnv env s of
     _          -> Just (AstSymbol s)
 
 handleCall :: Environment -> String -> [Ast] -> Maybe Ast
-handleCall env op (x:y:_) | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] = do
+handleCall env op [x, y] | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] = do
     a <- extractInteger env x
     b <- extractInteger env y
     case op of
@@ -100,6 +100,7 @@ handleCall env op (x:y:_) | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] 
         "mod" -> if b /= 0 then Just (AstInteger (a `mod` b)) else Nothing
         "eq?" -> Just (AstBoolean (a == b))
         "<" -> Just (AstBoolean (a < b))
+        _ -> Nothing
 handleCall _ _ _ = Nothing
 
 handleCondition :: Environment -> Ast -> Ast -> Ast -> Maybe Ast

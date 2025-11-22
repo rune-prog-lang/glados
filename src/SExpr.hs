@@ -1,16 +1,13 @@
 {-
 -- EPITECH PROJECT, 2025
--- Parser.hs
+-- SExpr.hs
 -- File description:
--- Parser.hs
+-- SExpr.hs
+
+
+ Defines the SExpr type for representing S-expressions, along with
+ helper functions for working with SExpr values.
 -}
-
--- Requirement in the file :
-
--- - Contains a common interface for parsers:
--- - each parser (XML, JSON, Markdown) must implement a function
--- - `parseDocument :: String -> Either String Document`
--- - This module defines the `Parser` type and some potential helpers.
 
 module SExpr (
     SExpr(..),
@@ -22,7 +19,7 @@ module SExpr (
     describeListRest
 ) where
 
--- Pandoc Value
+-- SExpr represents S-expressions for a Lisp interpreter
 data SExpr = Integer Int
     | Symbol String
     | List [SExpr]
