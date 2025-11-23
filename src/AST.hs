@@ -16,9 +16,11 @@ module AST (
 
 import SExpr (SExpr(..))
 
-data Ast = Define Ast Ast
+type Environment = [(String, Ast)]
+
+data Ast = Define String Ast
     | Call String [Ast]
-    | Lambda [Ast] Ast
+    | Lambda [String] Ast Environment
     | If Ast Ast Ast
     | AstInteger Int
     | AstSymbol String
@@ -29,15 +31,26 @@ data Ast = Define Ast Ast
 sexprToAST :: SExpr -> Maybe Ast
 sexprToAST (Integer n) = Just (AstInteger n)
 sexprToAST (Symbol s) = Just (AstSymbol s)
+sexprToAST (List [Symbol "define", List (Symbol funcName : params), body]) = do
+    astBody <- sexprToAST body
+    let extractParam se = case se of
+            Symbol s -> Just s
+            _ -> Nothing
+    paramNames <- mapM extractParam params
+    Just (Define funcName (Lambda paramNames astBody []))
 sexprToAST (List [Symbol "define", varName, valueExpr]) = do
     astValue <- sexprToAST valueExpr
-    astVarName <- sexprToAST varName
-    Just (Define astVarName astValue)
+    case varName of
+        Symbol s -> Just (Define s astValue)
+        _ -> Nothing
 sexprToAST (List (Symbol "define" : _)) = Nothing
 sexprToAST (List [Symbol "lambda", List args, body]) = do
     astValue <- sexprToAST body
-    astArgs <- mapM sexprToAST args
-    Just (Lambda astArgs astValue)
+    let extractParam se = case se of
+            Symbol s -> Just s
+            _ -> Nothing
+    astArgs <- mapM extractParam args
+    Just (Lambda astArgs astValue [])
 sexprToAST (List (Symbol "lambda" : _)) = Nothing
 sexprToAST (List [Symbol "if", condExpr, thenExpr, elseExpr]) = do
     astCond <- sexprToAST condExpr
@@ -58,19 +71,9 @@ sexprToAST (List exprs) = do
 -----------------------------------------------------------------------------------------------
 -- Evaluation of AST
 -----------------------------------------------------------------------------------------------
-
-type Environment = [(Ast, Ast)]
-
-extractString :: Environment -> Ast -> Maybe String
-extractString env (AstSymbol val) = Just val
-extractString _ _ = Nothing
-
-compEnv :: Environment -> [(Ast, Ast)] -> String -> Maybe Ast
-compEnv _ [] _ = Nothing
-compEnv env ((symbol, value):xs) str = do
-    strSymbol <- extractString env symbol
-    if strSymbol == str then Just value
-    else compEnv env xs str
+compEnv :: Environment -> String -> Maybe Ast
+compEnv [] _ = Nothing
+compEnv ((name, value):xs) str = if name == str then Just value else compEnv xs str
 
 extractInteger :: Environment -> Ast -> Maybe Int
 extractInteger env ast = case evalAST env ast of
@@ -80,7 +83,7 @@ extractInteger env ast = case evalAST env ast of
 handleString :: Environment -> String -> Maybe Ast
 handleString _ "#t" = Just (AstBoolean True)
 handleString _ "#f" = Just (AstBoolean False)
-handleString env s = case compEnv env env s of
+handleString env s = case compEnv env s of
     Just value -> evalAST env value
     _          -> Just (AstSymbol s)
 
@@ -125,15 +128,13 @@ evalASTWithEnv env (expr:exprs) =
                 Nothing -> Nothing
 
 evalAST :: Environment -> Ast -> Maybe Ast
-evalAST env (Define varName value) = do
-    evaluatedValue <- evalAST env value
-    Just evaluatedValue
+evalAST env (Define _ _) = Just (AstSymbol "")
 evalAST env (Call func args) = handleCall env func args
 evalAST env (AstInteger n) = Just (AstInteger n)
 evalAST env (AstSymbol s) = handleString env s
 evalAST env (AstBoolean b) = Just (AstBoolean b)
 evalAST env (If cond thenExpr elseExpr) = handleCondition env cond thenExpr elseExpr
-evalAST env (Lambda params body) = Just (Lambda params body)
+evalAST env (Lambda params body _) = Just (Lambda params body env)
 evalAST env (AstList []) = Just (AstList [])
 evalAST env (AstList [expr]) = evalAST env expr
 evalAST env (AstList (func:args)) = do
@@ -141,4 +142,11 @@ evalAST env (AstList (func:args)) = do
     case evaluatedFunc of
         AstSymbol op | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] ->
             handleCall env op args
+        Lambda params body closureEnv -> do
+            evaluatedArgs <- mapM (evalAST env) args
+            if length params /= length evaluatedArgs then Nothing
+            else do
+                let bindings = zip params evaluatedArgs
+                let newEnv = bindings ++ closureEnv
+                evalAST newEnv body
         _ -> evalASTWithEnv env (func:args)
