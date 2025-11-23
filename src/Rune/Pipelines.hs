@@ -18,7 +18,7 @@ compilePipeline inFile outFile = do
   case fileResult of
     Left ex -> logError $ "Failed to read input file: " ++ show ex
     Right content -> processContent inFile content $ \ast ->
-      writeFile outFile (prettyPrint ast)
+      writeFile outFile $ prettyPrint ast
 
 interpretPipeline :: FilePath -> IO ()
 interpretPipeline inFile = do
@@ -26,7 +26,7 @@ interpretPipeline inFile = do
   case fileResult of
     Left ex -> logError $ "Failed to read input file: " ++ show ex
     Right content -> processContent inFile content $ \ast ->
-      putStrLn (prettyPrint ast)
+      putStrLn $ prettyPrint ast
 
 --
 -- private
@@ -35,7 +35,7 @@ interpretPipeline inFile = do
 processContent :: FilePath -> String -> (Program -> IO ()) -> IO ()
 processContent filename content onSuccess =
   case lexer filename content of
-    Left err -> logError (errorBundlePretty err)
+    Left err -> logError $ errorBundlePretty err
     Right tokens -> case parseRune filename tokens of
       Left err -> logError err
       Right ast -> onSuccess ast
