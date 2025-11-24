@@ -4,6 +4,7 @@ module Rune.AST.ParserTypes
   )
 where
 
+import Control.Applicative (Alternative (..))
 import qualified Rune.Lexer.Tokens as T
 
 --
@@ -40,3 +41,10 @@ instance Monad Parser where
   (Parser p) >>= f = Parser $ \s -> case p s of
     Left err -> Left err
     Right (x, s') -> runParser (f x) s'
+
+instance Alternative Parser where
+  empty = Parser $ \_ -> Left "Parser empty"
+  (Parser p1) <|> (Parser p2) = Parser $ \s ->
+    case p1 s of
+      Right res -> Right res
+      Left _ -> p2 s
