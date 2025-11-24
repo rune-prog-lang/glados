@@ -31,21 +31,31 @@ parseProgram :: Parser Program
 parseProgram =
   Program
     <$> (psFilePath <$> getParserState)
-    <*> many parseTopLevelDef
+    <*> parseTopLevels
     <* expect T.EOF
+
+parseTopLevels :: Parser [TopLevelDef]
+parseTopLevels = do
+  isEof <- check T.EOF
+  if isEof
+    then pure []
+    else do
+      def <- parseTopLevelDef
+      defs <- parseTopLevels
+      pure (def : defs)
 
 --
 -- Top Level
 --
 
 parseTopLevelDef :: Parser TopLevelDef
-parseTopLevelDef =
-  choice
-    [ parseFunction,
-      parseStruct,
-      parseOverride
-    ]
-    <|> failParse "Expected top-level definition (def, struct, override)"
+parseTopLevelDef = do
+  t <- peek
+  case T.tokenKind t of
+    T.KwDef -> parseFunction
+    T.KwStruct -> parseStruct
+    T.KwOverride -> parseOverride
+    _ -> failParse "Expected top-level definition (def, struct, override)"
 
 parseFunction :: Parser TopLevelDef
 parseFunction =
@@ -64,15 +74,26 @@ parseStruct = do
 
 parseStructBody :: Parser ([Field], [TopLevelDef])
 parseStructBody = do
-  items <- many parseStructItem <* expect T.RBrace
+  items <- parseStructItemsLoop
   pure $ partitionEithers items
 
+parseStructItemsLoop :: Parser [Either Field TopLevelDef]
+parseStructItemsLoop = do
+  isEnd <- check T.RBrace
+  if isEnd
+    then advance >> pure []
+    else do
+      item <- parseStructItem
+      rest <- parseStructItemsLoop
+      pure (item : rest)
+
 parseStructItem :: Parser (Either Field TopLevelDef)
-parseStructItem =
-  choice
-    [ Right <$> parseFunction,
-      Left <$> parseField <* expect T.Semicolon
-    ]
+parseStructItem = do
+  t <- peek
+  case T.tokenKind t of
+    T.KwDef -> Right <$> parseFunction
+    T.Identifier _ -> Left <$> parseField <* expect T.Semicolon
+    _ -> failParse "Expected struct field or method"
 
 parseOverride :: Parser TopLevelDef
 parseOverride =
@@ -111,17 +132,27 @@ parseField = Field <$> parseIdentifier <*> (expect T.Colon *> parseType)
 --
 
 parseBlock :: Parser Block
-parseBlock = between (expect T.LBrace) (expect T.RBrace) (many parseStatement)
+parseBlock = expect T.LBrace *> parseBlockLoop
+
+parseBlockLoop :: Parser Block
+parseBlockLoop = do
+  isEnd <- check T.RBrace
+  if isEnd
+    then advance >> pure []
+    else do
+      stmt <- parseStatement
+      stmts <- parseBlockLoop
+      pure (stmt : stmts)
 
 parseStatement :: Parser Statement
-parseStatement =
-  choice
-    [ parseReturn,
-      parseIf,
-      parseFor,
-      parseForEach,
-      parseVarDeclOrExpr
-    ]
+parseStatement = do
+  t <- peek
+  case T.tokenKind t of
+    T.KwReturn -> withContext "Return statement" parseReturn
+    T.KwIf -> withContext "If statement" parseIf
+    T.KwFor -> withContext "For loop" parseFor
+    T.Identifier _ -> parseVarDeclOrExpr
+    _ -> withContext "Statement" parseExprStmt
 
 parseReturn :: Parser Statement
 parseReturn =
@@ -139,7 +170,7 @@ parseIf =
 parseFor :: Parser Statement
 parseFor = do
   _ <- expect T.KwFor
-  try (parseForRange) <|> parseForEachBody
+  try parseForRange <|> parseForEach
 
 parseForRange :: Parser Statement
 parseForRange =
@@ -150,17 +181,28 @@ parseForRange =
     <*> parseBlock
 
 parseForEach :: Parser Statement
-parseForEach = expect T.KwFor *> parseForEachBody
-
-parseForEachBody :: Parser Statement
-parseForEachBody =
+parseForEach =
   StmtForEach
     <$> parseIdentifier
     <*> (expect T.KwIn *> parseExpression)
     <*> parseBlock
 
 parseVarDeclOrExpr :: Parser Statement
-parseVarDeclOrExpr = try parseVarDecl <|> parseExprStmt
+parseVarDeclOrExpr = do
+  isDecl <- lookAheadIsVarDecl
+  if isDecl
+    then withContext "Variable declaration" parseVarDecl
+    else withContext "Expression statement" parseExprStmt
+
+lookAheadIsVarDecl :: Parser Bool
+lookAheadIsVarDecl = Parser $ \s ->
+  let p = do
+        _ <- parseIdentifier
+        t <- peek
+        pure $ T.tokenKind t `elem` [T.Colon, T.OpAssign]
+   in case runParser p s of
+        Right (result, _) -> Right (result, s)
+        Left _ -> Right (False, s)
 
 parseVarDecl :: Parser Statement
 parseVarDecl =
@@ -265,6 +307,7 @@ parsePrimary =
       parseStructInitOrVar,
       between (expect T.LParen) (expect T.RParen) parseExpression
     ]
+    <|> failParse "Expected the start of an expression"
 
 parseLitInt :: Parser Expression
 parseLitInt =
@@ -334,6 +377,7 @@ parseType =
       TypeNull <$ expect T.TypeNull,
       TypeCustom <$> parseIdentifier
     ]
+    <|> failParse "Expected type"
 
 parseIdentifier :: Parser String
 parseIdentifier =
