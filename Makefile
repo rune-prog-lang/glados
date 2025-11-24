@@ -22,6 +22,13 @@ tests:
 		$(STACK) test $(STACK_BUILD_FLAGS); \
 	fi
 
+coverage:
+	@if grep -q 'ID=nixos' /etc/os-release; then \
+		$(STACK) test $(STACK_BUILD_FLAGS) $(STACK_NIX_FLAGS) --coverage; \
+	else \
+		$(STACK) test $(STACK_BUILD_FLAGS) --coverage; \
+	fi
+
 clean:
 	@if grep -q 'ID=nixos' /etc/os-release; then \
 		$(STACK) clean $(STACK_NIX_FLAGS); \
