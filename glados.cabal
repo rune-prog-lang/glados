@@ -29,6 +29,8 @@ library
       Logger
       Rune.AST.Nodes
       Rune.AST.Parser
+      Rune.AST.ParserHelper
+      Rune.AST.ParserTypes
       Rune.AST.Printer
       Rune.AST.Visitor
       Rune.Lexer.Lexer
@@ -72,6 +74,7 @@ test-suite glados-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      ASTParserSpec
       CLISpec
       LexerSpec
       PipelinesSpec
