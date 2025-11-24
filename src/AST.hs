@@ -124,10 +124,7 @@ evalASTWithEnv env ((Define varName value):exprs) =
                 let newEnv = (varName, evaluatedValue) : env
                 in evalASTWithEnv newEnv exprs
             Nothing -> Nothing
-evalASTWithEnv env (expr:exprs) =
-            case evalAST env expr of
-                Just _ -> evalASTWithEnv env exprs
-                Nothing -> Nothing
+evalASTWithEnv env (expr:exprs) = evalASTWithEnv env exprs
 
 evalAST :: Environment -> Ast -> Maybe Ast
 evalAST _ (Define _ _) = Just (AstSymbol "")
