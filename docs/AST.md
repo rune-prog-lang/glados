@@ -28,7 +28,7 @@ Each constructor handles a specific type of expression:
 
 ## Converting S-expressions to AST
 
-The main function `sexprToAST :: SExpr -> Maybe Ast` return the result of Lisp code
+The main function `sexprToAST :: SExpr -> Maybe Ast` returns the result of Lisp code
 
 ### Simple cases
 

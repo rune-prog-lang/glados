@@ -1,11 +1,11 @@
 {-
 -- EPITECH PROJECT, 2025
--- Executer.hs
+-- Executor.hs
 -- File description:
--- Executer.hs
+-- Executor.hs
 -}
 
-module Executer (
+module Executor (
     executeLisp
 ) where
 

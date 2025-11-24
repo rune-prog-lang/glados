@@ -17,7 +17,7 @@ S-expressions are the direct representation of code that is composed of differen
 data SExpr = Integer Int
     | Symbol String
     | List [SExpr]
-    deriving Show
+    deriving (Show, Eq)
 ```
 
 S-expressions are pretty simple. Each type of data represent one or several things:
@@ -121,8 +121,8 @@ Handles integers, including negative ones:
 ```haskell
 parseLispNumber = do
     spaces
-    sign <- optionMaybe (char '-')    -- Maybe a minus sign
-    digits <- many1 digit             -- At least one digit
+    sign <- optional (char '-')       -- Maybe a minus sign
+    digits <- some digitChar          -- At least one digit
     let num = read digits :: Int
     return $ Integer $ case sign of
         Just _ -> -num
@@ -138,7 +138,7 @@ Parses symbols and identifiers:
 ```haskell
 parseLispString = do
     spaces
-    word <- many1 (oneOf validChars)
+    word <- some (oneOf validChars)
     return (Symbol word)
   where
     validChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['#', '<', '-', '+', '*', '/', '_', '=', '>', '!', '?']

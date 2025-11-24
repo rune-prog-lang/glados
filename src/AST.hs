@@ -86,7 +86,6 @@ handleString :: Environment -> String -> Maybe Ast
 handleString _ "#t" = Just (AstBoolean True)
 handleString _ "#f" = Just (AstBoolean False)
 handleString env s = case compEnv env s of
-handleString env s = case compEnv env s of
     Just value -> evalAST env value
     _          -> Just (AstSymbol s)
 
