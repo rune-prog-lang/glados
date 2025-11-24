@@ -3,6 +3,7 @@
 module Rune.AST.Parser (parseRune) where
 
 import Control.Applicative (Alternative (..), optional)
+import Data.Either (partitionEithers)
 import Rune.AST.Nodes
 import Rune.AST.ParserHelper
 import Rune.AST.ParserTypes (Parser (..), ParserState (..))
@@ -30,29 +31,21 @@ parseProgram :: Parser Program
 parseProgram =
   Program
     <$> (psFilePath <$> getParserState)
-    <*> parseTopLevelDefs
+    <*> many parseTopLevelDef
     <* expect T.EOF
-
-parseTopLevelDefs :: Parser [TopLevelDef]
-parseTopLevelDefs =
-  []
-    <$ expect T.EOF
-      <|> (:)
-    <$> parseTopLevelDef
-    <*> parseTopLevelDefs
 
 --
 -- Top Level
 --
 
 parseTopLevelDef :: Parser TopLevelDef
-parseTopLevelDef = do
-  t <- peek
-  case T.tokenKind t of
-    T.KwDef -> parseFunction
-    T.KwStruct -> parseStruct
-    T.KwOverride -> parseOverride
-    _ -> failParse "Expected top-level definition (def, struct, override)"
+parseTopLevelDef =
+  choice
+    [ parseFunction,
+      parseStruct,
+      parseOverride
+    ]
+    <|> failParse "Expected top-level definition (def, struct, override)"
 
 parseFunction :: Parser TopLevelDef
 parseFunction =
@@ -70,20 +63,16 @@ parseStruct = do
   pure $ DefStruct name fields methods
 
 parseStructBody :: Parser ([Field], [TopLevelDef])
-parseStructBody = go [] []
-  where
-    go fs ms = do
-      t <- peek
-      case T.tokenKind t of
-        T.RBrace -> advance >> pure (reverse fs, reverse ms)
-        T.KwDef -> do
-          m <- parseFunction
-          go fs (m : ms)
-        T.Identifier _ -> do
-          f <- parseField
-          _ <- expect T.Semicolon
-          go (f : fs) ms
-        _ -> failParse "Expected '}', 'def' (method), or Identifier (field)"
+parseStructBody = do
+  items <- many parseStructItem <* expect T.RBrace
+  pure $ partitionEithers items
+
+parseStructItem :: Parser (Either Field TopLevelDef)
+parseStructItem =
+  choice
+    [ Right <$> parseFunction,
+      Left <$> parseField <* expect T.Semicolon
+    ]
 
 parseOverride :: Parser TopLevelDef
 parseOverride =
@@ -104,9 +93,11 @@ parseSelfParam =
   Parameter "self" TypeAny <$ expectIdent "self"
 
 parseTypedParam :: Parser Parameter
-parseTypedParam = do
-  name <- parseIdentifier
-  Parameter name <$> (expect T.Colon *> parseType)
+parseTypedParam =
+  Parameter
+    <$> parseIdentifier
+    <*> (expect T.Colon *> parseType)
+      <|> failParse "Expected typed parameter"
 
 parseReturnType :: Parser Type
 parseReturnType =
@@ -169,29 +160,29 @@ parseForEachBody =
     <*> parseBlock
 
 parseVarDeclOrExpr :: Parser Statement
-parseVarDeclOrExpr = do
-  try parseVarDecl <|> parseExprStmt
+parseVarDeclOrExpr = try parseVarDecl <|> parseExprStmt
 
 parseVarDecl :: Parser Statement
-parseVarDecl = do
-  name <- parseIdentifier
-  typeAnn <- optional (expect T.Colon *> parseType)
-  _ <- expect T.OpAssign
-  val <- parseExpression
-  _ <- expect T.Semicolon
-  pure $ StmtVarDecl name typeAnn val
+parseVarDecl =
+  StmtVarDecl
+    <$> parseIdentifier
+    <*> optional (expect T.Colon *> parseType)
+    <* expect T.OpAssign
+    <*> parseExpression
+    <* expect T.Semicolon
 
 parseExprStmt :: Parser Statement
 parseExprStmt = do
   expr <- parseExpression
-  isSemi <- match T.Semicolon
-  if isSemi
-    then pure $ StmtExpr expr
-    else do
-      isEnd <- check T.RBrace
-      if isEnd
-        then pure $ StmtReturn (Just expr)
-        else failParse "Expected ';' after expression"
+  choice
+    [ StmtExpr expr <$ expect T.Semicolon,
+      do
+        isEnd <- check T.RBrace
+        if isEnd
+          then pure (StmtReturn (Just expr))
+          else empty,
+      failParse "Expected ';' after expression or implicit return at block end"
+    ]
 
 --
 -- Expressions
@@ -276,32 +267,35 @@ parsePrimary =
     ]
 
 parseLitInt :: Parser Expression
-parseLitInt = do
-  t <- peek
-  case T.tokenKind t of
-    T.LitInt n -> advance >> pure (ExprLitInt n)
-    _ -> empty
+parseLitInt =
+  tokenMap $ \case
+    T.LitInt n -> Just (ExprLitInt n)
+    _ -> Nothing
 
 parseLitFloat :: Parser Expression
-parseLitFloat = do
-  t <- peek
-  case T.tokenKind t of
-    T.LitFloat f -> advance >> pure (ExprLitFloat f)
-    _ -> empty
+parseLitFloat =
+  tokenMap $ \case
+    T.LitFloat f -> Just (ExprLitFloat f)
+    _ -> Nothing
 
 parseLitString :: Parser Expression
-parseLitString = do
-  t <- peek
-  case T.tokenKind t of
-    T.LitString s -> advance >> pure (ExprLitString s)
-    _ -> empty
+parseLitString =
+  tokenMap $ \case
+    T.LitString s -> Just (ExprLitString s)
+    _ -> Nothing
 
 parseLitBool :: Parser Expression
-parseLitBool = do
+parseLitBool =
+  tokenMap $ \case
+    T.LitBool b -> Just (ExprLitBool b)
+    _ -> Nothing
+
+tokenMap :: (T.TokenKind -> Maybe a) -> Parser a
+tokenMap f = do
   t <- peek
-  case T.tokenKind t of
-    T.LitBool b -> advance >> pure (ExprLitBool b)
-    _ -> empty
+  case f (T.tokenKind t) of
+    Just val -> advance >> pure val
+    Nothing -> empty
 
 parseStructInitOrVar :: Parser Expression
 parseStructInitOrVar = try parseStructInit <|> (ExprVar <$> parseIdentifier)
@@ -313,16 +307,7 @@ parseStructInit =
     <*> between (expect T.LBrace) (expect T.RBrace) parseStructFields
 
 parseStructFields :: Parser [(String, Expression)]
-parseStructFields = do
-  isEnd <- check T.RBrace
-  if isEnd
-    then pure []
-    else do
-      f <- parseStructField
-      isComma <- match T.Comma
-      if isComma
-        then (f :) <$> parseStructFields
-        else pure [f]
+parseStructFields = sepEndBy parseStructField (expect T.Comma)
 
 parseStructField :: Parser (String, Expression)
 parseStructField = (,) <$> parseIdentifier <*> (expect T.Colon *> parseExpression)
@@ -351,8 +336,7 @@ parseType =
     ]
 
 parseIdentifier :: Parser String
-parseIdentifier = do
-  t <- peek
-  case T.tokenKind t of
-    T.Identifier s -> advance >> pure s
-    _ -> empty
+parseIdentifier =
+  tokenMap $ \case
+    T.Identifier s -> Just s
+    _ -> Nothing
