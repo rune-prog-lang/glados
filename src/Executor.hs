@@ -10,9 +10,8 @@ module Executor (
 ) where
 
 import AST (Ast(..), evalAST, sexprToAST)
-import SExpr (SExpr)
 import Parser (parseLispDocument)
-import Text.Parsec (parse)
+import Text.Megaparsec (parse)
 
 executeLisp :: String -> Maybe Ast
 executeLisp input = case parse parseLispDocument "" input of
