@@ -18,7 +18,7 @@ module Rune.AST.ParserHelper
 where
 
 import Control.Applicative (Alternative (..))
-import Control.Monad (guard, when)
+import Control.Monad (when)
 import Rune.AST.ParserTypes (Parser (..), ParserState (..))
 import qualified Rune.Lexer.Tokens as T
 
@@ -72,7 +72,9 @@ advance = Parser $ \s -> Right ((), s {psPosition = psPosition s + 1})
 expect :: T.TokenKind -> Parser T.Token
 expect kind = do
   t <- peek
-  guard (T.tokenKind t == kind)
+  when (T.tokenKind t /= kind) $
+    failParse $
+      "Expected " ++ show kind
   advance
   pure t
 
