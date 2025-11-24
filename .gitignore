@@ -23,3 +23,4 @@ cabal.project.local~
 .ghc.environment.*
 *.lock
 glados
+.stack-root
