@@ -14,7 +14,7 @@ clean:
 fclean:
 	@$(MAKE) -C $(LISP_DIRECTORY) fclean
 	@$(MAKE) -C $(RUNE_DIRECTORY) fclean
- 	rm -f glados # rune
+	rm -f glados rune
 
 re: fclean all
 

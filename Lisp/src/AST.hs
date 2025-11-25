@@ -1,10 +1,3 @@
-{-
--- EPITECH PROJECT, 2025
--- AST.hs
--- File description:
--- AST.hs
--}
-
 module AST (
     Ast(..),
     sexprToAST,
@@ -72,6 +65,7 @@ sexprToAST (List exprs) = do
 -----------------------------------------------------------------------------------------------
 -- Evaluation of AST
 -----------------------------------------------------------------------------------------------
+
 compEnv :: Environment -> String -> Maybe Ast
 compEnv [] _ = Nothing
 compEnv ((name, value):xs) str = if name == str then Just value else compEnv xs str

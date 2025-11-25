@@ -1,10 +1,3 @@
-{-
--- EPITECH PROJECT, 2025
--- Executor.hs
--- File description:
--- Executor.hs
--}
-
 module Executor (
     executeLisp,
     astToString

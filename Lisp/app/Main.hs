@@ -1,10 +1,3 @@
-{-
--- EPITECH PROJECT, 2025
--- Main.hs
--- File description:
--- Main.hs
--}
-
 module Main (main) where
 
 import System.Environment (getArgs)
@@ -30,4 +23,3 @@ processInput input = do
         Right result -> do
             putStrLn (astToString result)
             return ()
-
