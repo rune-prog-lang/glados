@@ -142,7 +142,8 @@ data Statement
     | StmtAssignment
       { assignLValue :: Expression, -- << LValue (variable, field access, etc.)
         assignRValue :: Expression  -- << RValue (result of operation, e.g., x + 5 for x += 5)
-      }    -- | return statement
+      }
+    -- | return statement
     -- {
     --     return expression;
     -- }
