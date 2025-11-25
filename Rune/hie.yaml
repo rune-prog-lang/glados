@@ -1,4 +1,4 @@
-radle:
+cradle:
   multi:
     - path: "src"
       config: { cradle: { stack: { component: "rune:lib" } } }
