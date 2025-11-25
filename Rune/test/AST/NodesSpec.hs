@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ASTNodesSpec (astNodesTests) where
+module AST.NodesSpec (astNodesTests) where
 
 import Control.Exception (evaluate)
 import Rune.AST.Nodes

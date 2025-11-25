@@ -73,10 +73,10 @@ test-suite rune-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      ASTNodesSpec
-      ASTParserSpec
+      AST.NodesSpec
+      AST.ParserSpec
       CLISpec
-      LexerSpec
+      Lexer.LexerSpec
       LoggerSpec
       PipelinesSpec
       Paths_rune

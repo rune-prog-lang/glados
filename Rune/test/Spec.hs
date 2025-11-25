@@ -1,7 +1,7 @@
-import ASTNodesSpec (astNodesTests)
-import ASTParserSpec (astParserTests)
+import AST.NodesSpec (astNodesTests)
+import AST.ParserSpec (astParserTests)
 import CLISpec (cliTests)
-import LexerSpec (lexerTests)
+import Lexer.LexerSpec (lexerTests)
 import LoggerSpec (loggerTests)
 import PipelinesSpec (pipelinesTests)
 import Test.Tasty
