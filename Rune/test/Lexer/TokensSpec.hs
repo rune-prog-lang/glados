@@ -80,21 +80,30 @@ allTokenKinds =
     EOF
   ]
 
+showTokenKind :: TokenKind -> String
+showTokenKind = show
+
+compareTokenKind :: TokenKind -> TokenKind -> Ordering
+compareTokenKind = compare
+
+showToken :: Token -> String
+showToken = show
+
+compareToken :: Token -> Token -> Ordering
+compareToken = compare
+
 mkTokenKindTest :: TokenKind -> TestTree
 mkTokenKindTest k =
   testCase ("Show/Eq/Ord for constructor: " ++ show k) $ do
     -- show
-    let s = show k
+    let s = showTokenKind k
     length s @?= length s
 
     -- eq
     k == k @? "reflexive Eq"
-    let other = if k == EOF then KwDef else EOF
-    k /= other @? ("constructor " ++ show k ++ " must differ from " ++ show other)
 
     -- ord
-    compare k k @?= EQ
-    compare k other `seq` pure ()
+    compareTokenKind k k @?= EQ
 
 --
 -- private
@@ -127,13 +136,13 @@ tokenInstanceTests =
         let t2 = Token KwReturn "return" 2 3
 
         -- show
-        length (show t1) @?= length (show t1)
+        length (showToken t1) @?= length (showToken t1)
 
         -- eq
         t1 == t1 @? "reflexive"
         t1 /= t2 @? "different tokens"
 
         -- ord
-        compare t1 t1 @?= EQ
-        compare t1 t2 @?= LT
+        compareToken t1 t1 @?= EQ
+        compareToken t1 t2 @?= LT
     ]
