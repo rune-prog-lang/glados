@@ -49,8 +49,12 @@ data BinaryOp
   deriving (Show, Eq)
 
 data UnaryOp
-  = Negate
-  | PropagateError
+  = Negate         -- -x
+  | PropagateError -- x?
+  | PrefixInc      -- ++x
+  | PrefixDec      -- --x
+  | PostfixInc     -- x++
+  | PostfixDec     -- x--
   deriving (Show, Eq)
 
 data Program = Program 

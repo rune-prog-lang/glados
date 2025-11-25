@@ -40,10 +40,17 @@ data TokenKind
   -- | operators
   | OpPlus -- +
   | OpMinus -- -
-  | OpMul
+  | OpMul -- *
   | OpDiv -- /
   | OpMod -- %
   | OpAssign -- =
+  | OpAddAssign -- +=
+  | OpSubAssign -- -=
+  | OpMulAssign -- *=
+  | OpDivAssign -- /=
+  | OpModAssign -- %=
+  | OpInc -- ++
+  | OpDec -- --
   | OpEq -- ==
   | OpNeq -- !=
   | OpLt -- <
@@ -51,8 +58,7 @@ data TokenKind
   | OpGt -- >
   | OpGte -- >=
   | OpAnd -- &&
-  | OpOr
-  -- | | |
+  | OpOr -- ||
   | OpErrorProp -- ?
   | OpArrow -- ->
   | OpSquigArrow -- ~>

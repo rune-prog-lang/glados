@@ -172,22 +172,28 @@ parseIf =
 parseFor :: Parser Statement
 parseFor = do
   _ <- expect T.KwFor
-  try parseForRange <|> parseForEach
+  name <- parseIdentifier
+  t <- peek
+  case T.tokenKind t of
+    T.OpAssign -> parseForRangeRest name
+    T.KwIn -> parseForEachRest name
+    _ -> failParse "Expected '=' or 'in' after for loop variable"
 
-parseForRange :: Parser Statement
-parseForRange =
-  StmtFor
-    <$> parseIdentifier
-    <*> (expect T.OpAssign *> withContext "start index" parseExpression)
-    <*> (expect T.KwTo *> withContext "end index" parseExpression)
-    <*> withContext "for block" parseBlock
+parseForRangeRest :: String -> Parser Statement
+parseForRangeRest var = do
+  _ <- expect T.OpAssign
+  start <- withContext "start index" parseExpression
+  _ <- expect T.KwTo
+  end <- withContext "end index" parseExpression
+  body <- withContext "for block" parseBlock
+  pure $ StmtFor var start end body
 
-parseForEach :: Parser Statement
-parseForEach =
-  StmtForEach
-    <$> parseIdentifier
-    <*> (expect T.KwIn *> withContext "iterable expression" parseExpression)
-    <*> withContext "for-each block" parseBlock
+parseForEachRest :: String -> Parser Statement
+parseForEachRest var = do
+  _ <- expect T.KwIn
+  iterable <- withContext "iterable expression" parseExpression
+  body <- withContext "for-each block" parseBlock
+  pure $ StmtForEach var iterable body
 
 parseVarDeclOrExpr :: Parser Statement
 parseVarDeclOrExpr = do
@@ -201,19 +207,43 @@ lookAheadIsVarDecl = Parser $ \s ->
   let p = do
         _ <- parseIdentifier
         t <- peek
-        pure $ T.tokenKind t `elem` [T.Colon, T.OpAssign]
+        pure $
+          T.tokenKind t
+            `elem` [ T.Colon,
+                     T.OpAssign,
+                     T.OpAddAssign,
+                     T.OpSubAssign,
+                     T.OpMulAssign,
+                     T.OpDivAssign,
+                     T.OpModAssign
+                   ]
    in case runParser p s of
         Right (result, _) -> Right (result, s)
         Left _ -> Right (False, s)
 
 parseVarDecl :: Parser Statement
-parseVarDecl =
-  StmtVarDecl
-    <$> parseIdentifier
-    <*> optional (expect T.Colon *> parseType)
-    <* expect T.OpAssign
-    <*> withContext "assigned value" parseExpression
-    <* expect T.Semicolon
+parseVarDecl = do
+  name <- parseIdentifier
+  typeAnnot <- optional (expect T.Colon *> parseType)
+
+  t <- peek
+  (_, binOp) <- case T.tokenKind t of
+    T.OpAssign -> advance >> pure (T.OpAssign, Nothing)
+    T.OpAddAssign -> advance >> pure (T.OpAddAssign, Just Add)
+    T.OpSubAssign -> advance >> pure (T.OpSubAssign, Just Sub)
+    T.OpMulAssign -> advance >> pure (T.OpMulAssign, Just Mul)
+    T.OpDivAssign -> advance >> pure (T.OpDivAssign, Just Div)
+    T.OpModAssign -> advance >> pure (T.OpModAssign, Just Mod)
+    _ -> failParse "Expected assignment operator"
+
+  val <- withContext "assigned value" parseExpression
+  _ <- expect T.Semicolon
+
+  let finalExpr = case binOp of
+        Nothing -> val
+        Just op -> ExprBinary op (ExprVar name) val
+
+  pure $ StmtVarDecl name typeAnnot finalExpr
 
 parseExprStmt :: Parser Statement
 parseExprStmt = do
@@ -274,8 +304,12 @@ parseFactor = chainl1 parseUnary op
 
 parseUnary :: Parser Expression
 parseUnary =
-  (ExprUnary Negate <$ expect T.OpMinus <*> parseUnary)
-    <|> parsePostfix
+  choice
+    [ ExprUnary Negate <$ expect T.OpMinus <*> parseUnary,
+      ExprUnary PrefixInc <$ expect T.OpInc <*> parseUnary,
+      ExprUnary PrefixDec <$ expect T.OpDec <*> parseUnary,
+      parsePostfix
+    ]
 
 parsePostfix :: Parser Expression
 parsePostfix = chainPostfix parsePrimary op
@@ -290,7 +324,13 @@ parsePostfix = chainPostfix parsePrimary op
             pure $ \e -> ExprAccess e f,
           do
             _ <- expect T.OpErrorProp
-            pure $ \e -> ExprUnary PropagateError e
+            pure $ \e -> ExprUnary PropagateError e,
+          do
+            _ <- expect T.OpInc
+            pure $ \e -> ExprUnary PostfixInc e,
+          do
+            _ <- expect T.OpDec
+            pure $ \e -> ExprUnary PostfixDec e
         ]
 
 getExprName :: Expression -> String
