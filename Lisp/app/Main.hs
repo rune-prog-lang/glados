@@ -8,7 +8,7 @@
 module Main (main) where
 
 import System.Environment (getArgs)
-import System.IO (hPutStrLn, stderr, getContents)
+import System.IO (hPutStrLn, stderr)
 import Executor (executeLisp, astToString)
 
 main :: IO ()
