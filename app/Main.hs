@@ -5,31 +5,63 @@
 -- Main.hs
 -}
 
+{-# LANGUAGE LambdaCase #-}
 module Main (main) where
 
 -- import CLI (parseArgs, runCLI)
 -- import Logger (logError)
 import System.Environment (getArgs)
-import System.IO (hPutStrLn, stderr, getContents)
-import Executor (executeLisp, astToString)
+import System.IO (hPutStrLn, stderr, hFlush, stdout, stdin, hIsTerminalDevice)
+import Executor (executeLisp, executeLispWithEnv, astToString)
+import System.Exit (exitWith, ExitCode(..))
+import Control.Exception (catch)
+import AST (Environment)
 
 main :: IO ()
 main = do
     args <- getArgs
     case args of
         [] -> do
-            input <- getContents
-            processInput input
-        (input:_) -> do
-            processInput input
+            isTerminal <- hIsTerminalDevice stdin
+            if isTerminal
+                then lispLoop []
+                else do
+                    input <- getContents
+                    processInput input
+        [filename] -> readFile filename >>= processInput
+
+lispLoop :: Environment -> IO ()
+lispLoop env = do
+    putStr "> "
+    hFlush stdout
+    line <- getLine
+    case trim line of
+        "" -> lispLoop env
+        "exit" -> return ()
+        input -> do
+            let (newEnv, result) = executeLispWithEnv env input
+            case result of
+                Left err -> putStrLn err >> lispLoop newEnv
+                Right ast -> do
+                    let output = astToString ast
+                    unless (null output) (putStrLn output)
+                    lispLoop newEnv
 
 processInput :: String -> IO ()
 processInput input = do
-    case executeLisp input of
-        Left err -> do
-            hPutStrLn stderr err
-            return ()
-        Right result -> do
-            putStrLn (astToString result)
-            return ()
+    let (_, result) = executeLispWithEnv [] input
+    case result of
+        Left err -> hPutStrLn stderr err
+        Right ast -> putStrLn (astToString ast)
 
+unless :: Bool -> IO () -> IO ()
+unless True _ = return ()
+unless False action = action
+
+trim :: String -> String
+trim = f . f
+  where f = reverse . dropWhile (`elem` " \t\n\r")
+
+errorExit :: String -> IO a
+errorExit msg =
+  hPutStrLn stderr ("Error: " ++ msg) >> exitWith (ExitFailure 84)
