@@ -219,6 +219,7 @@ instance RuneVisitor Printer where
   visitExpression (ExprLitInt i) = emit $ "ExprLitInt " ++ show i
   visitExpression (ExprLitFloat f) = emit $ "ExprLitFloat " ++ show f
   visitExpression (ExprLitString s) = emit $ "ExprLitString " ++ show s
+  visitExpression (ExprLitChar c) = emit $ "ExprLitChar " ++ show c
   visitExpression (ExprLitBool b) = emit $ "ExprLitBool " ++ show b
   visitExpression ExprLitNull = emit "ExprLitNull"
   visitExpression (ExprVar v) = emit $ "ExprVar " ++ v

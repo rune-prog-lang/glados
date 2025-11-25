@@ -36,6 +36,7 @@ data TokenKind
   | LitInt Int
   | LitFloat Double
   | LitString String
+  | LitChar Char
   | LitBool Bool
   | LitNull
   -- | identifiers

@@ -247,6 +247,8 @@ data Expression
     | ExprLitFloat Double
     -- "hello"
     | ExprLitString String
+    -- 'c'
+    | ExprLitChar Char
     -- true | false
     | ExprLitBool Bool
     -- null

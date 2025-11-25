@@ -402,6 +402,7 @@ parsePrimary =
     [ parseLitInt,
       parseLitFloat,
       parseLitString,
+      parseChar,
       parseLitBool,
       ExprLitNull <$ expect T.LitNull,
       parseStructInitOrVar,
@@ -419,6 +420,12 @@ parseLitFloat :: Parser Expression
 parseLitFloat =
   tokenMap $ \case
     T.LitFloat f -> Just (ExprLitFloat f)
+    _ -> Nothing
+
+parseChar :: Parser Expression
+parseChar =
+  tokenMap $ \case
+    T.LitChar c -> Just (ExprLitChar c)
     _ -> Nothing
 
 parseLitString :: Parser Expression
