@@ -1,3 +1,5 @@
+import ASTNodesSpec (astNodesTests)
+import ASTParserSpec (astParserTests)
 import CLISpec (cliTests)
 import LexerSpec (lexerTests)
 import LoggerSpec (loggerTests)
@@ -12,5 +14,7 @@ main =
       [ cliTests,
         lexerTests,
         pipelinesTests,
-        loggerTests
+        loggerTests,
+        astNodesTests,
+        astParserTests
       ]
