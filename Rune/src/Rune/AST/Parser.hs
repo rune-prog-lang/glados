@@ -153,8 +153,11 @@ parseStatement = do
     T.KwReturn -> withContext "Return statement" parseReturn
     T.KwIf -> withContext "If statement" parseIf
     T.KwFor -> withContext "For loop" parseFor
-    T.Identifier _ -> parseVarDeclOrExpr
-    _ -> withContext "Statement" parseExprStmt
+    T.KwLoop -> withContext "Loop statement" parseLoop
+    T.KwStop -> withContext "Stop statement" parseStop
+    T.KwNext -> withContext "Next statement" parseNext
+    T.Identifier _ -> parseVarDeclOrAssignOrExpr
+    _ -> withContext "Expression statement" parseExprStmt
 
 parseReturn :: Parser Statement
 parseReturn =
@@ -173,44 +176,79 @@ parseFor :: Parser Statement
 parseFor = do
   _ <- expect T.KwFor
   name <- parseIdentifier
+  typeAnnot <- optional (expect T.Colon *> parseType)
+
   t <- peek
   case T.tokenKind t of
-    T.OpAssign -> parseForRangeRest name
-    T.KwIn -> parseForEachRest name
-    _ -> failParse "Expected '=' or 'in' after for loop variable"
+    T.OpAssign -> parseForRangeRest name typeAnnot
+    T.KwTo -> parseForRangeRestNoInit name typeAnnot
+    T.KwIn -> parseForEachRest name typeAnnot
+    _ -> failParse "Expected '=' or 'to' or 'in' after for loop variable"
 
-parseForRangeRest :: String -> Parser Statement
-parseForRangeRest var = do
+parseForRangeRest :: String -> Maybe Type -> Parser Statement
+parseForRangeRest var typeAnnot = do
   _ <- expect T.OpAssign
   start <- withContext "start index" parseExpression
   _ <- expect T.KwTo
   end <- withContext "end index" parseExpression
   body <- withContext "for block" parseBlock
-  pure $ StmtFor var start end body
+  pure $ StmtFor var typeAnnot (Just start) end body
 
-parseForEachRest :: String -> Parser Statement
-parseForEachRest var = do
+parseForRangeRestNoInit :: String -> Maybe Type -> Parser Statement
+parseForRangeRestNoInit var typeAnnot = do
+  _ <- expect T.KwTo
+  end <- withContext "end index" parseExpression
+  body <- withContext "for block" parseBlock
+  pure $ StmtFor var typeAnnot Nothing end body
+
+parseForEachRest :: String -> Maybe Type -> Parser Statement
+parseForEachRest var typeAnnot = do
   _ <- expect T.KwIn
   iterable <- withContext "iterable expression" parseExpression
   body <- withContext "for-each block" parseBlock
-  pure $ StmtForEach var iterable body
+  pure $ StmtForEach var typeAnnot iterable body
 
-parseVarDeclOrExpr :: Parser Statement
-parseVarDeclOrExpr = do
+parseLoop :: Parser Statement
+parseLoop =
+  StmtLoop <$> (expect T.KwLoop *> withContext "loop block" parseBlock)
+
+parseStop :: Parser Statement
+parseStop =
+  expect T.KwStop *> expect T.Semicolon *> pure StmtStop
+
+parseNext :: Parser Statement
+parseNext =
+  expect T.KwNext *> expect T.Semicolon *> pure StmtNext
+
+parseVarDeclOrAssignOrExpr :: Parser Statement
+parseVarDeclOrAssignOrExpr = do
+  isAssign <- lookAheadIsAssignment
   isDecl <- lookAheadIsVarDecl
   if isDecl
     then withContext "Variable declaration" parseVarDecl
-    else withContext "Expression statement" parseExprStmt
+    else
+      if isAssign
+        then withContext "Assignment statement" parseAssignment
+        else withContext "Expression statement" parseExprStmt
 
 lookAheadIsVarDecl :: Parser Bool
 lookAheadIsVarDecl = Parser $ \s ->
   let p = do
         _ <- parseIdentifier
         t <- peek
+        pure $ T.tokenKind t == T.Colon || T.tokenKind t == T.OpAssign
+   in case runParser p s of
+        Right (result, _) -> Right (result, s)
+        Left _ -> Right (False, s)
+
+lookAheadIsAssignment :: Parser Bool
+lookAheadIsAssignment = Parser $ \s ->
+  let p = do
+        _ <- parseLValue
+        t <- peek
         pure $
           T.tokenKind t
-            `elem` [ T.Colon,
-                     T.OpAssign,
+            `elem` [ T.OpAssign,
                      T.OpAddAssign,
                      T.OpSubAssign,
                      T.OpMulAssign,
@@ -221,29 +259,49 @@ lookAheadIsVarDecl = Parser $ \s ->
         Right (result, _) -> Right (result, s)
         Left _ -> Right (False, s)
 
+parseLValue :: Parser Expression
+parseLValue = parseAccessOrVar
+
+parseAccessOrVar :: Parser Expression
+parseAccessOrVar = chainPostfix (ExprVar <$> parseIdentifier) op
+  where
+    op =
+      choice
+        [ do
+            f <- expect T.Dot *> parseIdentifier
+            pure $ \e -> ExprAccess e f,
+          do
+            failParse "Expected L-Value (variable or field access)"
+        ]
+
+parseAssignment :: Parser Statement
+parseAssignment = do
+  lvalue <- withContext "LHS of assignment" parseLValue
+
+  opTok <- choice (map expect [T.OpAssign, T.OpAddAssign, T.OpSubAssign, T.OpMulAssign, T.OpDivAssign, T.OpModAssign])
+
+  val <- withContext "RHS of assignment" parseExpression
+  _ <- expect T.Semicolon
+
+  let finalExpr = case T.tokenKind opTok of
+        T.OpAssign -> val
+        T.OpAddAssign -> ExprBinary Add lvalue val
+        T.OpSubAssign -> ExprBinary Sub lvalue val
+        T.OpMulAssign -> ExprBinary Mul lvalue val
+        T.OpDivAssign -> ExprBinary Div lvalue val
+        T.OpModAssign -> ExprBinary Mod lvalue val
+        _ -> error "Impossible assignment operator"
+
+  pure $ StmtAssignment lvalue finalExpr
+
 parseVarDecl :: Parser Statement
 parseVarDecl = do
   name <- parseIdentifier
   typeAnnot <- optional (expect T.Colon *> parseType)
-
-  t <- peek
-  (_, binOp) <- case T.tokenKind t of
-    T.OpAssign -> advance >> pure (T.OpAssign, Nothing)
-    T.OpAddAssign -> advance >> pure (T.OpAddAssign, Just Add)
-    T.OpSubAssign -> advance >> pure (T.OpSubAssign, Just Sub)
-    T.OpMulAssign -> advance >> pure (T.OpMulAssign, Just Mul)
-    T.OpDivAssign -> advance >> pure (T.OpDivAssign, Just Div)
-    T.OpModAssign -> advance >> pure (T.OpModAssign, Just Mod)
-    _ -> failParse "Expected assignment operator"
-
+  _ <- expect T.OpAssign
   val <- withContext "assigned value" parseExpression
   _ <- expect T.Semicolon
-
-  let finalExpr = case binOp of
-        Nothing -> val
-        Just op -> ExprBinary op (ExprVar name) val
-
-  pure $ StmtVarDecl name typeAnnot finalExpr
+  pure $ StmtVarDecl name typeAnnot val
 
 parseExprStmt :: Parser Statement
 parseExprStmt = do
