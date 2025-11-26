@@ -76,9 +76,9 @@ typeOfExpr _ (ExprLitBool  _) = TypeBool
 typeOfExpr _ (ExprStructInit st _) = TypeCustom st
 typeOfExpr _ ExprLitNull = TypeNull
 typeOfExpr _ (ExprAccess _ _) = TypeAny -- don't know how to use struct
-typeOfExpr s (ExprBinary _ expr _) = typeOfExpr s expr
-typeOfExpr s (ExprUnary _ expr) = typeOfExpr s expr
-typeOfExpr (fs, _) (ExprCall fn _) = 
+typeOfExpr s (ExprBinary _ expr _) = typeOfExpr s expr -- assume both expr are of the same type
+typeOfExpr s (ExprUnary _ expr) = typeOfExpr s expr -- assume the op don't change the type
+typeOfExpr (fs, _) (ExprCall fn _) =
     case HM.lookup fn fs of
         Just (t, _) -> t
         Nothing -> TypeAny
