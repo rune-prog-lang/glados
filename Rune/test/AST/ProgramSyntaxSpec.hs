@@ -57,7 +57,8 @@ validSyntaxExamples =
     "def main() -> null { x = 10; }",
     "def main() -> null { y: f64; }",
     "def main() -> null { show(\"hi\") }",
-    "def main() -> null { }"
+    "def main() -> null { }",
+    "def main() -> null { for i to 10 { show(i); } }"
   ]
 
 invalidSyntaxExamples :: [String]
