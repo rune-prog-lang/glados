@@ -1,17 +1,10 @@
-{-
--- EPITECH PROJECT, 2025
--- Main.hs
--- File description:
--- Main.hs
--}
-
 {-# LANGUAGE LambdaCase #-}
 module Main (main) where
 
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr, hFlush, stdout, stdin, hIsTerminalDevice)
 import Executor (executeLispWithEnv, astToString)
-import AST (Environment)
+import Lisp.AST.AST (Environment)
 
 main :: IO ()
 main = do

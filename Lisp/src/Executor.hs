@@ -4,7 +4,8 @@ module Executor (
     astToString
 ) where
 
-import AST (Ast(..), evalAST, evalASTWithEnv, sexprToAST, Environment)
+import Lisp.AST.AST (Ast(..), evalAST, evalASTWithEnv, Environment)
+import Lisp.AST.SExprToAST (sexprToAST)
 import Parser (parseLispDocument)
 import SExpr (SExpr(..))
 import Text.Megaparsec (parse, errorBundlePretty)
