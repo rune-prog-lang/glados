@@ -15,9 +15,7 @@ def main() -> null
         ++i;
     }
 
-    for j: i32 = 0 to 25 {
-        j *= 2;
-    }
+    for j: i32 = 0 to 25 { j *= 2; }
     k = j;
 
     loop 
