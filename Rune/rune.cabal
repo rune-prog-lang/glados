@@ -42,6 +42,7 @@ library
       Rune.Lexer.LexerPrimitives
       Rune.Lexer.Tokens
       Rune.Pipelines
+      Rune.Semantics.Func
       Rune.Semantics.Vars
   other-modules:
       Paths_rune

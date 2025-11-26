@@ -13,7 +13,9 @@ import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
 import Text.Megaparsec (errorBundlePretty)
 
-import Rune.Semantics.Vars ( verifVars ) -- for testing purposes
+import Rune.Semantics.Vars (verifVars)  -- for testing purposes
+import Rune.Semantics.Func (findFunc)   -- for testing purposes
+import Debug.Trace (trace)
 
 --
 -- public
@@ -31,13 +33,17 @@ interpretPipeline inFile = runPipelineAction inFile (putStrLn . prettyPrint)
 
 pipeline :: (FilePath, String) -> Either String Program
 pipeline = parseLexer >=> parseAST
-  >=> testVerifVars -- for testing purposes
+    >=> testVerifVars -- for testing purposes
+    >=> testFindFunc
 
 -- for testing purposes
 testVerifVars :: Program -> Either String Program
 testVerifVars p = case verifVars p of
     Nothing -> Right p
     Just err -> Left err
+
+testFindFunc :: Program -> Either String Program
+testFindFunc p = trace (show $ findFunc p) (Right p)
 
 -- >=> analyzeSemantics
 -- >=> createIR

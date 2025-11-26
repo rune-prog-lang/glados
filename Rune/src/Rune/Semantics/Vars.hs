@@ -5,7 +5,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 
-type ScopeStack = HashMap String Type
+type VarStack = HashMap String Type
 
 -- if Nothing everything good else Error message
 verifVars :: Program -> Maybe String
@@ -18,7 +18,7 @@ verifDefs (DefOverride _ params _ body) = verifScope (HM.fromList (map (\p -> (p
 verifDefs _ = Nothing
 
 
-verifScope :: ScopeStack -> Block -> Maybe String
+verifScope :: VarStack -> Block -> Maybe String
 -- name n, type t, expr e
 verifScope s ((StmtVarDecl n t e):stmts)
     = let s' = (HM.insert n (fromMaybe TypeAny t) s)
@@ -49,7 +49,7 @@ verifScope s ((StmtExpr e):stmts)
 verifScope _ [] = Nothing
 
 
-verifExpr :: ScopeStack -> Expression -> Maybe String
+verifExpr :: VarStack -> Expression -> Maybe String
 verifExpr s (ExprBinary _ l r) = (verifExpr s l) <> (verifExpr s r)
 verifExpr s (ExprCall _ args) = foldMap (verifExpr s) args
 verifExpr s (ExprStructInit _ fields) = foldMap (verifExpr s . snd) fields
