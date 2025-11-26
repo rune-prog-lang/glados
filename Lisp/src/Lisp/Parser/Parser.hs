@@ -1,4 +1,4 @@
-module Parser (parseLispDocument,
+module Lisp.Parser.Parser (parseLispDocument,
                 parseLispArray,
                 parseLispNumber,
                 parseLispString,
@@ -7,7 +7,7 @@ module Parser (parseLispDocument,
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Data.Void (Void)
-import SExpr (SExpr(..))
+import Lisp.SExpr.SExpr (SExpr(..))
 
 type Parser = Parsec Void String
 

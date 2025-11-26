@@ -10,7 +10,7 @@ module Lisp.AST.SExprToAST (
 ) where
 
 import Lisp.AST.AST
-import SExpr (SExpr(..))
+import Lisp.SExpr.SExpr (SExpr(..))
 
 extractSymbol :: SExpr -> Maybe String
 extractSymbol (Symbol s) = Just s

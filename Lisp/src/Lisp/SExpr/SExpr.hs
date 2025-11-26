@@ -1,4 +1,4 @@
-module SExpr (
+module Lisp.SExpr.SExpr (
     SExpr(..),
     getSymbol,
     getInteger,
@@ -8,7 +8,6 @@ module SExpr (
     describeListRest
 ) where
 
--- SExpr represents S-expressions for a Lisp interpreter
 data SExpr = Integer Int
     | Symbol String
     | List [SExpr]

@@ -1,19 +1,13 @@
 module Executor (
-    executeLisp,
     executeLispWithEnv,
     astToString
 ) where
 
 import Lisp.AST.AST (Ast(..), evalAST, evalASTWithEnv, Environment)
 import Lisp.AST.SExprToAST (sexprToAST)
-import Parser (parseLispDocument)
-import SExpr (SExpr(..))
+import Lisp.Parser.Parser (parseLispDocument)
+import Lisp.SExpr.SExpr (SExpr(..))
 import Text.Megaparsec (parse, errorBundlePretty)
-
-executeLisp :: String -> Either String Ast
-executeLisp input =
-    let (_, result) = executeLispWithEnv [] input
-    in result
 
 executeLispWithEnv :: Environment -> String -> (Environment, Either String Ast)
 executeLispWithEnv env input =
