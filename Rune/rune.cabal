@@ -75,6 +75,7 @@ test-suite rune-test
   other-modules:
       AST.NodesSpec
       AST.ParserSpec
+      AST.ProgramSyntaxSpec
       CLISpec
       Lexer.LexerSpec
       Lexer.TokensSpec

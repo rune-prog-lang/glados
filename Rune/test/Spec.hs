@@ -1,5 +1,6 @@
 import AST.NodesSpec (astNodesTests)
 import AST.ParserSpec (astParserTests)
+import AST.ProgramSyntaxSpec (programSyntaxTests)
 import CLISpec (cliTests)
 import Lexer.LexerSpec (lexerTests)
 import Lexer.TokensSpec (tokensTests)
@@ -18,5 +19,6 @@ main =
         loggerTests,
         astNodesTests,
         astParserTests,
-        tokensTests
+        tokensTests,
+        programSyntaxTests
       ]
