@@ -5,6 +5,7 @@ import Lexer.LexerSpec (lexerTests)
 import Lexer.TokensSpec (tokensTests)
 import LoggerSpec (loggerTests)
 import PipelinesSpec (pipelinesTests)
+import Semantics.VarsSpec (varsSemanticsTests)
 import Test.Tasty
 
 main :: IO ()
@@ -12,7 +13,8 @@ main =
   defaultMain $
     testGroup
       "All Tests"
-      [ cliTests,
+      [ varsSemanticsTests,
+        cliTests,
         lexerTests,
         pipelinesTests,
         loggerTests,
