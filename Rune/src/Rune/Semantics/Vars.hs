@@ -6,6 +6,8 @@ import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 import Rune.Semantics.Func (findFunc, FuncStack)
 
+import Debug.Trace (trace)
+
 type VarStack = HashMap String Type
 type Stack = (FuncStack, VarStack)
 
@@ -24,7 +26,7 @@ verifDefs _ _ = Nothing
 verifScope :: Stack -> Block -> Maybe String
 -- name n, type t, expr e
 verifScope (fs, vs) ((StmtVarDecl n t e):stmts)
-    = let vs' = (HM.insert n (fromMaybe TypeAny t) vs)
+    = let vs' = (HM.insert n (fromMaybe (typeOfExpr (fs, vs) e) t) vs)
     in  verifExpr (fs, vs) e
     <>  verifScope (fs, vs') stmts
 verifScope s ((StmtReturn e):stmts)
@@ -36,13 +38,13 @@ verifScope s ((StmtIf cond thenA elseB):stmts)
     <>  maybe Nothing (verifScope s) elseB
     <>  verifScope s stmts
 verifScope (fs, vs) ((StmtFor var start end body):stmts)
-    = let vs' = HM.insert var TypeAny vs
+    = let vs' = HM.insert var TypeAny vs -- don't know how to infer type
     in  verifExpr (fs, vs') start
     <>  verifExpr (fs, vs') end
     <>  verifScope (fs, vs') body
     <>  verifScope (fs, vs) stmts
 verifScope (fs, vs) ((StmtForEach var iterable body):stmts)
-    = let vs' = HM.insert var TypeAny vs
+    = let vs' = HM.insert var TypeAny vs -- don't know how to too
     in  verifExpr (fs, vs') iterable
     <>  verifScope (fs, vs') body
     <>  verifScope (fs, vs) stmts
@@ -58,8 +60,30 @@ verifExpr s (ExprCall _ args) = foldMap (verifExpr s) args
 verifExpr s (ExprStructInit _ fields) = foldMap (verifExpr s . snd) fields
 verifExpr s (ExprAccess target _) = verifExpr s target
 verifExpr s (ExprUnary _ val) = verifExpr s val
-verifExpr s (ExprVar var) =
+verifExpr s (ExprVar var) = trace (show $ snd s) ( -- trace for debuging and seeing
     case HM.member var (snd s) of
         True -> Nothing
         False -> Just $ "\n\t" ++ var ++ " : var doesn't exist in the scope"
+    )
 verifExpr _ _ = Nothing
+
+
+typeOfExpr :: Stack -> Expression -> Type
+typeOfExpr _ (ExprLitInt _) = TypeI32
+typeOfExpr _ (ExprLitFloat  _) = TypeF32
+typeOfExpr _ (ExprLitString  _) = TypeString
+typeOfExpr _ (ExprLitBool  _) = TypeBool
+typeOfExpr _ (ExprStructInit st _) = TypeCustom st
+typeOfExpr _ ExprLitNull = TypeNull
+typeOfExpr _ (ExprAccess _ _) = TypeAny -- don't know how to use struct
+typeOfExpr s (ExprBinary _ expr _) = typeOfExpr s expr
+typeOfExpr s (ExprUnary _ expr) = typeOfExpr s expr
+typeOfExpr (fs, _) (ExprCall fn _) = 
+    case HM.lookup fn fs of
+        Just (t, _) -> t
+        Nothing -> TypeAny
+typeOfExpr (_, vs) (ExprVar name) =
+    case HM.lookup name vs of
+        Just t -> t
+        Nothing -> TypeAny
+
