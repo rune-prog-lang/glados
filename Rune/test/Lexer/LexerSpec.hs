@@ -168,7 +168,32 @@ exampleTests =
       testCase "with spaces and comments" $
         checkLexer
           "def main /* block comment */ () -> i32 // line comment\n{ 1 + 2 }"
-          [KwDef, Identifier "main", LParen, RParen, OpArrow, TypeI32, LBrace, LitInt 1, OpPlus, LitInt 2, RBrace, EOF]
+          [KwDef, Identifier "main", LParen, RParen, OpArrow, TypeI32, LBrace, LitInt 1, OpPlus, LitInt 2, RBrace, EOF],
+      testCase "strings and chars" $
+        checkLexer
+          "def main() -> null { str: string = \"Hello, \\nRune!\"; ch: u8 = '\\t'; }"
+          [ KwDef,
+            Identifier "main",
+            LParen,
+            RParen,
+            OpArrow,
+            TypeNull,
+            LBrace,
+            Identifier "str",
+            Colon,
+            TypeString,
+            OpAssign,
+            LitString "Hello, \nRune!",
+            Semicolon,
+            Identifier "ch",
+            Colon,
+            TypeU8,
+            OpAssign,
+            LitChar '\t',
+            Semicolon,
+            RBrace,
+            EOF
+          ]
     ]
 
 unitTests :: TestTree

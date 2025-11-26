@@ -120,5 +120,6 @@ escapeChar =
       char 't' >> return '\t',
       char 'r' >> return '\r',
       char '\\' >> return '\\',
-      char '"' >> return '"'
+      char '"' >> return '"',
+      char '\'' >> return '\''
     ]
