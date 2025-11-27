@@ -1,5 +1,9 @@
+module Main (main) where
+
 import AST.NodesSpec (astNodesTests)
 import AST.ParserSpec (astParserTests)
+import AST.PrinterSpec (astPrinterTests)
+import AST.ProgramSyntaxSpec (programSyntaxTests)
 import CLISpec (cliTests)
 import Lexer.LexerSpec (lexerTests)
 import Lexer.TokensSpec (tokensTests)
@@ -8,12 +12,20 @@ import PipelinesSpec (pipelinesTests)
 import Semantics.VarsSpec (varsSemanticsTests)
 import Test.Tasty
 
+--
+-- public
+--
+
 main :: IO ()
 main =
   defaultMain $
     testGroup
       "All Tests"
-      [ varsSemanticsTests,
+      [ coreSpecs,
+        lexerSpecs,
+        astSpecs,
+
+        varsSemanticsTests,
         cliTests,
         lexerTests,
         pipelinesTests,
@@ -22,3 +34,34 @@ main =
         astParserTests,
         tokensTests
       ]
+
+--
+-- private
+--
+
+coreSpecs :: TestTree
+coreSpecs =
+  testGroup
+    "Core Tests"
+    [ loggerTests,
+      pipelinesTests,
+      cliTests
+    ]
+
+lexerSpecs :: TestTree
+lexerSpecs =
+  testGroup
+    "Lexer Tests"
+    [ tokensTests,
+      lexerTests
+    ]
+
+astSpecs :: TestTree
+astSpecs =
+  testGroup
+    "AST Tests"
+    [ astNodesTests,
+      astParserTests,
+      programSyntaxTests,
+      astPrinterTests
+    ]
