@@ -138,7 +138,7 @@ instance RuneVisitor Printer where
     indent
     case mStart of
       Just start -> emitBlock "Start:" (newLine >> visitExpression start)
-      Nothing -> emit "Start: <Implicit>"
+      Nothing -> newLine >> emit "Start: <Implicit>"
     emitBlock "End:" (newLine >> visitExpression end)
     emitBlock "Body:" (visitBody body)
     dedent
