@@ -15,10 +15,11 @@ def main() -> null
         ++i;
     }
     k = i;
-    show(i);
+    show(k);
 
     for j: i32 = 0 to 25 { j *= 2; }
     k = j;
+    show(k);
 
     loop 
     {
