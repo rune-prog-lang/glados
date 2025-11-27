@@ -14,6 +14,8 @@ def main() -> null
     for i = 0 to 10 {
         ++i;
     }
+    k = i;
+    show(i);
 
     for j: i32 = 0 to 25 { j *= 2; }
     k = j;
@@ -27,7 +29,6 @@ def main() -> null
         num += 3;
     }
 
-    show(i);
     show(j);
     show(num);
 }
