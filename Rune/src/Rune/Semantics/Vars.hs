@@ -38,13 +38,13 @@ verifScope s ((StmtIf cond thenA elseB):stmts)
     <>  maybe Nothing (verifScope s) elseB
     <>  verifScope s stmts
 verifScope (fs, vs) ((StmtFor var start end body):stmts)
-    = let vs' = HM.insert var TypeAny vs -- don't know how to infer type
+    = let vs' = HM.insert var (typeOfExpr (fs, vs) start) vs
     in  verifExpr (fs, vs') start
     <>  verifExpr (fs, vs') end
     <>  verifScope (fs, vs') body
     <>  verifScope (fs, vs) stmts
 verifScope (fs, vs) ((StmtForEach var iterable body):stmts)
-    = let vs' = HM.insert var TypeAny vs -- don't know how to too
+    = let vs' = HM.insert var (typeOfExpr (fs, vs) iterable) vs
     in  verifExpr (fs, vs') iterable
     <>  verifScope (fs, vs') body
     <>  verifScope (fs, vs) stmts
