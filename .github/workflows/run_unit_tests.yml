@@ -1,8 +1,6 @@
 name: run_unit_tests
 
 on:
-  push:
-    branches: [41-fix-git-action-deprecated]
   pull_request:
     branches: [main]
 
