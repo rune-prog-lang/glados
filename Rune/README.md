@@ -73,7 +73,7 @@ num = 0; //type inferred as i32
 
 ## Functions
 
-Functions are declard using `def` keyword. Return types **must** be explicitly defined.
+Functions are declared using `def` keyword. Return types **must** be explicitly defined.
 
 ```rb
 def add(a: i32, b: i32) -> i32
@@ -165,7 +165,7 @@ for i = 0 to 10 {
 
 `+`, `-`, `*`, `/` -> Arithmetic
 <br>
-`+=`, `-=`, `*=`, `/=`, `%=` -> Arithmetic assignement
+`+=`, `-=`, `*=`, `/=`, `%=` -> Arithmetic assignment
 <br>
 `%` -> Modulus
 <br>
