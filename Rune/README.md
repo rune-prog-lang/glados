@@ -123,8 +123,6 @@ struct Vec2f
         }
     }
 }
-
-}
 ```
 
 - Methods are defined inside structs.
@@ -166,10 +164,15 @@ for i = 0 to 10 {
 ### Operators
 
 `+`, `-`, `*`, `/` -> Arithmetic
+<br>
 `+=`, `-=`, `*=`, `/=`, `%=` -> Arithmetic assignement
+<br>
 `%` -> Modulus
+<br>
 `==`, `!=`, `<`, `<=`, `>`, `>=` -> Comparison
+<br>
 `&&`, `||` -> Logical
+<br>
 `=` -> Assignement
 
 ## Built-in Functions
@@ -253,3 +256,5 @@ def main() -> null
     show(c);
 }
 ```
+
+for additional examples, click [**here**](./examples/)
