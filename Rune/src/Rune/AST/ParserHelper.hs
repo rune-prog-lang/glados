@@ -86,7 +86,7 @@ incLoopDepth (Parser p) = Parser $ \s ->
   let s' = s {psLoopDepth = psLoopDepth s + 1}
    in case p s' of
         Left err -> Left err
-        Right (x, s'') -> Right (x, s'' {psLoopDepth = psLoopDepth s'' - 1})
+        Right (x, s'') -> Right (x, s'' {psLoopDepth = psLoopDepth s})
 
 -- | check if the current loop depth is greater than zero
 checkLoopDepth :: Parser Bool
