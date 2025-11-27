@@ -173,7 +173,7 @@ data Statement
     --         ...
     --     }
     -- }
-    -- ou
+    -- or
     -- {
     --     for i to 10 { // start implicite
     --         ...
