@@ -15,14 +15,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Haskell (Stack)
+      - name: Install system GHC
         uses: haskell-actions/setup@v2
         with:
           enable-stack: true
+          system-ghc: true
           stack-version: latest
-          ghc-version: recommended
+          ghc-version: latest
 
-      - name: Cache Stack work directories (optional extra cache)
+      - name: Cache Stack
         uses: actions/cache@v4
         with:
           path: |
@@ -33,4 +34,5 @@ jobs:
             ${{ runner.os }}-stack-
 
       - name: Run tests
-        run: make tests
+        run: |
+          make tests
