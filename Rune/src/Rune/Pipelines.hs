@@ -14,8 +14,7 @@ import Rune.Lexer.Tokens (Token)
 import Text.Megaparsec (errorBundlePretty)
 
 import Rune.Semantics.Vars (verifVars)  -- for testing purposes
-import Rune.Semantics.Func (findFunc)   -- for testing purposes
-import Debug.Trace (trace)
+-- import Rune.Semantics.Func (findFunc)   -- for testing purposes
 
 --
 -- public
@@ -43,7 +42,7 @@ testVerifVars p = case verifVars p of
     Just err -> Left err
 
 testFindFunc :: Program -> Either String Program
-testFindFunc p = trace (show $ findFunc p) (Right p)
+testFindFunc p = Right p
 
 -- >=> analyzeSemantics
 -- >=> createIR

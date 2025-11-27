@@ -6,8 +6,6 @@ import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 import Rune.Semantics.Func (findFunc, FuncStack)
 
-import Debug.Trace (trace)
-
 type VarStack = HashMap String Type
 type Stack = (FuncStack, VarStack)
 
@@ -66,11 +64,10 @@ verifExpr s (ExprCall _ args) = foldMap (verifExpr s) args
 verifExpr s (ExprStructInit _ fields) = foldMap (verifExpr s . snd) fields
 verifExpr s (ExprAccess target _) = verifExpr s target
 verifExpr s (ExprUnary _ val) = verifExpr s val
-verifExpr s (ExprVar var) = trace (show $ snd s) ( -- trace for debuging and seeing
+verifExpr s (ExprVar var) =
     case HM.member var (snd s) of
         True -> Nothing
         False -> Just $ "\n\t" ++ var ++ " : var doesn't exist in the scope"
-    )
 verifExpr _ _ = Nothing
 
 
