@@ -33,4 +33,4 @@ jobs:
             ${{ runner.os }}-stack-
 
       - name: Run tests
-        run: stack test --fast
+        run: make tests
