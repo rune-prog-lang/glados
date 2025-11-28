@@ -9,6 +9,7 @@ import Lexer.LexerSpec (lexerTests)
 import Lexer.TokensSpec (tokensTests)
 import LoggerSpec (loggerTests)
 import PipelinesSpec (pipelinesTests)
+import Semantics.FuncSpec (funcSemanticsTests)
 import Semantics.VarsSpec (varsSemanticsTests)
 import Test.Tasty
 
@@ -25,6 +26,7 @@ main =
         lexerSpecs,
         astSpecs,
 
+        funcSemanticsTests,
         varsSemanticsTests,
         cliTests,
         lexerTests,

@@ -93,6 +93,7 @@ test-suite rune-test
       Lexer.TokensSpec
       LoggerSpec
       PipelinesSpec
+      Semantics.FuncSpec
       Semantics.VarsSpec
       Paths_rune
   autogen-modules:
