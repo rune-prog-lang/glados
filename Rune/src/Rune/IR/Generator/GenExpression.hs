@@ -111,11 +111,11 @@ genUnary op expr = do
 genShowCall :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
 genShowCall arg = do
   (argInstrs, argOp, argType) <- genExpression arg
-  let callName' = case argType of
+  let functionName = case argType of
         IRPtr IRU8 -> "puts"
         IRU8 -> "putchar"
         _ -> "printf"
-      callInstr = IRCALL "" callName' [argOp] Nothing
+      callInstr = IRCALL "" functionName [argOp] Nothing
   return (argInstrs ++ [callInstr], IRTemp "t_void" IRVoid, IRVoid)
 
 genCall :: String -> [Expression] -> IRGen ([IRInstruction], IROperand, IRType)
