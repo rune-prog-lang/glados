@@ -35,7 +35,6 @@ type IRGen = State GenState
 -- public
 --
 
--- TODO: handle more types
 data IRType
   = IRI32
   | IRI64
@@ -108,7 +107,6 @@ data IRInstruction
   | IRINC IROperand -- increment pointer/value
   | IRDEC IROperand -- decrement pointer/value
   | IRASSIGN String IROperand IRType -- simple assignment
-  | IREMPTYLINE -- formatting: empty line
   deriving (Show, Eq)
 
 data IRFunction = IRFunction

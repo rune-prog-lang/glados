@@ -25,7 +25,7 @@ printFunction (IRFunction name params _ body) =
   let paramStrs = map (\(n, t) -> n ++ ": " ++ printType t) params
       header = "DEF " ++ name ++ "(" ++ intercalate ", " paramStrs ++ "):"
       bodyStrs = map printInstructionWithIndent body
-   in unlines (header : bodyStrs)
+   in intercalate "\n" (header : bodyStrs)
   where
     printInstructionWithIndent instr =
       case instr of
@@ -67,11 +67,16 @@ printInstruction (IRJUMP_FALSE op (IRLabel target)) =
   "JUMP_FALSE " ++ printOperand op ++ ", " ++ target
 printInstruction (IRJUMP_EQ0 op (IRLabel target)) =
   "JUMP_EQ0 " ++ printOperand op ++ ", " ++ target
-printInstruction (IRCALL dest funcName args _) =
+printInstruction (IRCALL dest funcName args mbType) =
   let argsStr = intercalate ", " (map printOperand args)
+      callStr = "CALL " ++ funcName ++ "(" ++ argsStr ++ ")"
    in if null dest
-        then "CALL " ++ funcName ++ "(" ++ argsStr ++ ")"
-        else dest ++ " = CALL " ++ funcName ++ "(" ++ argsStr ++ ")"
+        then callStr
+        else
+          let typeStr = case mbType of
+                Just t -> ": " ++ printType t
+                Nothing -> ": i32" -- Fallback if type is missing but assignment exists
+           in dest ++ typeStr ++ " = " ++ callStr
 printInstruction (IRRET Nothing) =
   "RET"
 printInstruction (IRRET (Just op)) =
@@ -90,8 +95,6 @@ printInstruction (IRLOAD dest src typ) =
   dest ++ ": " ++ printType typ ++ " = LOAD " ++ printOperand src
 printInstruction (IRALLOC name typ) =
   "ALLOC " ++ name ++ ": " ++ printType typ
-printInstruction IREMPTYLINE =
-  ""
 
 printOperand :: IROperand -> String
 printOperand (IRConstInt n) = show n

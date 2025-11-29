@@ -197,18 +197,14 @@ genForEach var iterable body = do
   pure $
     iterInstrs
       ++ [IRASSIGN ptrTemp iterOp (IRPtr IRU8)]
-      ++ [IREMPTYLINE]
       ++ [IRLABEL headerLbl]
       ++ [IRDEREF var (IRTemp ptrTemp (IRPtr IRU8)) IRU8]
-      ++ [IREMPTYLINE]
       ++ [IRLABEL checkLbl]
       ++ [IRJUMP_EQ0 (IRTemp var IRU8) endLbl]
-      ++ [IREMPTYLINE]
       ++ [IRLABEL bodyLbl]
       ++ bodyInstrs
       ++ [IRINC (IRTemp ptrTemp (IRPtr IRU8))]
       ++ [IRJUMP headerLbl]
-      ++ [IREMPTYLINE]
       ++ [IRLABEL endLbl]
 
 --
