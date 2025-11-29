@@ -55,8 +55,8 @@ makeLabel prefix idx = IRLabel $ ".L." ++ prefix ++ show idx
 newStringGlobal :: String -> IRGen String
 newStringGlobal value = do
   counter <- gets gsStringCounter
-  funcName' <- gets gsCurrentFunc
-  let baseName = maybe "global" id funcName'
+  maybeFuncName <- gets gsCurrentFunc
+  let baseName = maybe "global" id maybeFuncName
   let name = "str_" ++ baseName ++ show counter
   modify $ \s ->
     s
