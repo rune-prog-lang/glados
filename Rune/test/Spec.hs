@@ -25,9 +25,7 @@ main =
       [ coreSpecs,
         lexerSpecs,
         astSpecs,
-
-        funcSemanticsTests,
-        varsSemanticsTests,
+        semanticsSpecs,
         cliTests,
         lexerTests,
         pipelinesTests,
@@ -66,4 +64,12 @@ astSpecs =
       astParserTests,
       programSyntaxTests,
       astPrinterTests
+    ]
+
+semanticsSpecs :: TestTree
+semanticsSpecs =
+  testGroup
+    "Semantics Tests"
+    [ funcSemanticsTests,
+      varsSemanticsTests
     ]
