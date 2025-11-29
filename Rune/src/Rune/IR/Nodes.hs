@@ -94,6 +94,9 @@ data IRInstruction
   | IRCMP_LTE String IROperand IROperand
   | IRCMP_GT String IROperand IROperand
   | IRCMP_GTE String IROperand IROperand
+  | -- logical operations
+    IRAND_OP String IROperand IROperand IRType -- t = a && b
+  | IROR_OP String IROperand IROperand IRType -- t = a || b
   | -- control flow
     IRLABEL IRLabel -- label definition
   | IRJUMP IRLabel -- unconditional jump

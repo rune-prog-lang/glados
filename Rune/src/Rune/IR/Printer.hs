@@ -63,6 +63,10 @@ printInstruction (IRCMP_GT dest left right) =
   dest ++ " = CMP_GT " ++ printOperand left ++ ", " ++ printOperand right
 printInstruction (IRCMP_GTE dest left right) =
   dest ++ " = CMP_GTE " ++ printOperand left ++ ", " ++ printOperand right
+printInstruction (IRAND_OP dest left right typ) =
+  dest ++ ": " ++ printType typ ++ " = AND " ++ printOperand left ++ ", " ++ printOperand right
+printInstruction (IROR_OP dest left right typ) =
+  dest ++ ": " ++ printType typ ++ " = OR " ++ printOperand left ++ ", " ++ printOperand right
 printInstruction (IRLABEL (IRLabel name)) =
   name ++ ":"
 printInstruction (IRJUMP (IRLabel target)) =

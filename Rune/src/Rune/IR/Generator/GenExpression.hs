@@ -43,8 +43,8 @@ binaryInstr Lt res l r _ = IRCMP_LT res l r
 binaryInstr Lte res l r _ = IRCMP_LTE res l r
 binaryInstr Gt res l r _ = IRCMP_GT res l r
 binaryInstr Gte res l r _ = IRCMP_GTE res l r
-binaryInstr And res l r _ = IRCMP_EQ res l r
-binaryInstr Or res l r _ = IRCMP_EQ res l r
+binaryInstr And res l r t = IRAND_OP res l r t
+binaryInstr Or res l r t = IROR_OP res l r t
 
 --
 -- private generators
