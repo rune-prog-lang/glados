@@ -25,7 +25,15 @@ main =
       [ coreSpecs,
         lexerSpecs,
         astSpecs,
-        semanticsSpecs
+        semanticsSpecs,
+
+        cliTests,
+        lexerTests,
+        pipelinesTests,
+        loggerTests,
+        astNodesTests,
+        astParserTests,
+        tokensTests
       ]
 
 --
@@ -65,11 +73,4 @@ semanticsSpecs =
     "Semantics Tests"
     [ funcSemanticsTests,
       varsSemanticsTests,
-      cliTests,
-      lexerTests,
-      pipelinesTests,
-      loggerTests,
-      astNodesTests,
-      astParserTests,
-      tokensTests
     ]
