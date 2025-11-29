@@ -8,11 +8,17 @@ import Rune.IR.Nodes
 --
 
 prettyPrintIR :: IRProgram -> String
-prettyPrintIR (IRProgram _ defs) = unlines $ map printTopLevel defs
+prettyPrintIR (IRProgram name defs) = printProgram (IRProgram name defs)
 
 --
 -- private
 --
+
+printProgram :: IRProgram -> String
+printProgram (IRProgram name defs) =
+  let header = "PROGRAM " ++ name ++ ":"
+      defStrs = map printTopLevel defs
+   in unlines (header : defStrs)
 
 printTopLevel :: IRTopLevel -> String
 printTopLevel (IRGlobalString name value) =
@@ -75,7 +81,7 @@ printInstruction (IRCALL dest funcName args mbType) =
         else
           let typeStr = case mbType of
                 Just t -> ": " ++ printType t
-                Nothing -> ": i32" -- Fallback if type is missing but assignment exists
+                Nothing -> ": i32" -- INFO: will be removed in the future
            in dest ++ typeStr ++ " = " ++ callStr
 printInstruction (IRRET Nothing) =
   "RET"

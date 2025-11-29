@@ -65,7 +65,8 @@ irTestShowString = do
 
   let expected =
         unlines
-          [ "GLOBAL str_main0: string = \"Hello, Rune!\\n\\0\"",
+          [ "PROGRAM test:",
+            "GLOBAL str_main0: string = \"Hello, Rune!\\n\\0\"",
             "DEF show_string(p_str: *u8):",
             "    p_ptr0: *u8 = p_str",
             ".L.loop_header0:",
@@ -103,7 +104,8 @@ irTestForTo = do
           ]
   let expected =
         unlines
-          [ "DEF main():",
+          [ "PROGRAM test:",
+            "DEF main():",
             "    i: i32 = 0",
             ".L.loop_header0:",
             "    cmp0 = CMP_LT i, 10",
@@ -138,7 +140,8 @@ irTestLoopControl = do
           ]
   let expected =
         unlines
-          [ "DEF main():",
+          [ "PROGRAM test:",
+            "DEF main():",
             "    k: f32 = 0.0",
             ".L.loop_header0:",
             "    t0: f32 = ADD k, 2",
@@ -178,7 +181,8 @@ irTestConditional = do
           ]
   let expected =
         unlines
-          [ "GLOBAL str_main0: string = \"a is true\\0\"",
+          [ "PROGRAM test:",
+            "GLOBAL str_main0: string = \"a is true\\0\"",
             "GLOBAL str_main1: string = \"b is false\\0\"",
             "DEF main():",
             "    a: i32 = 1",
