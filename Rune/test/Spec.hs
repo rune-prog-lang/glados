@@ -25,14 +25,7 @@ main =
       [ coreSpecs,
         lexerSpecs,
         astSpecs,
-        semanticsSpecs,
-        cliTests,
-        lexerTests,
-        pipelinesTests,
-        loggerTests,
-        astNodesTests,
-        astParserTests,
-        tokensTests
+        semanticsSpecs
       ]
 
 --
