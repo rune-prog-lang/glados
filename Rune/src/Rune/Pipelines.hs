@@ -32,18 +32,6 @@ interpretPipeline inFile = runPipelineAction inFile (putStrLn . prettyPrint)
 
 pipeline :: (FilePath, String) -> Either String Program
 pipeline = parseLexer >=> parseAST
-    >=> testVerifVars -- for testing purposes
-    >=> testFindFunc
-
--- for testing purposes
-testVerifVars :: Program -> Either String Program
-testVerifVars p = case verifVars p of
-    Nothing -> Right p
-    Just err -> Left err
-
-testFindFunc :: Program -> Either String Program
-testFindFunc p = Right p
-
 -- >=> analyzeSemantics
 -- >=> createIR
 -- >=> optimizeIR
