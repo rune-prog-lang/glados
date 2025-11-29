@@ -229,7 +229,7 @@ genForEach var iterable body = do
 --     JUMP .L.loop_header<n>
 -- .L.loop_end<n>:
 --     JUMP .L.loop_header<n>
--- L.Loop_end<n>:
+-- .L.Loop_end<n>:
 --
 genLoop :: [Statement] -> IRGen [IRInstruction]
 genLoop body = do
