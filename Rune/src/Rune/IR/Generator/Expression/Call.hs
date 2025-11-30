@@ -22,6 +22,7 @@ genCall genExpr funcName args = do
       (instrs, ops) = unzip $ map prepareArg argsData
       allInstrs = concat instrs
 
+      -- TODO: fix the return type detection... idk
       retType = case argsData of
         ((_, _, IRStruct s) : _) -> IRStruct s
         ((_, _, IRPtr (IRStruct s)) : _) -> IRStruct s
