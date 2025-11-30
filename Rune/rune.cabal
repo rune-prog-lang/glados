@@ -37,9 +37,15 @@ library
       Rune.AST.Printer
       Rune.AST.Types
       Rune.IR.Generator
+      Rune.IR.Generator.Expression.Binary
+      Rune.IR.Generator.Expression.Call
+      Rune.IR.Generator.Expression.Literals
+      Rune.IR.Generator.Expression.Struct
+      Rune.IR.Generator.Expression.Unary
       Rune.IR.Generator.GenExpression
       Rune.IR.Generator.GenStatement
       Rune.IR.Generator.GenTopLevel
+      Rune.IR.Generator.Statement.ControlFlow
       Rune.IR.IRHelpers
       Rune.IR.Nodes
       Rune.IR.Printer
