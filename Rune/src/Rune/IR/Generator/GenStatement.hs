@@ -7,15 +7,17 @@ import Rune.AST.Nodes (Expression, Statement (..))
 import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.IRHelpers
   ( endsWithRet,
+    getCurrentLoop,
     makeLabel,
     newTemp,
     nextLabelIndex,
+    popLoopContext,
+    pushLoopContext,
     registerVar,
   )
 import Rune.IR.Nodes
   ( IRGen,
     IRInstruction (..),
-    IRLabel (..),
     IROperand (..),
     IRType (..),
   )
@@ -34,8 +36,8 @@ genStatement (StmtIf cond t (Just e)) = genIfElse cond t e
 genStatement (StmtFor v _ s e b) = genFor v s e b
 genStatement (StmtForEach v _ it b) = genForEach v it b
 genStatement (StmtLoop body) = genLoop body
-genStatement StmtStop = pure [IRJUMP (IRLabel ".L.loop_end")]
-genStatement StmtNext = pure [IRJUMP (IRLabel ".L.loop_header")]
+genStatement StmtStop = genStop
+genStatement StmtNext = genNext
 genStatement (StmtExpr expr) = genExprStmt expr
 
 --
@@ -147,7 +149,10 @@ genFor var start end body = do
 
   (endInstrs, endOp, _) <- genExpression end
   cmpTemp <- newTemp "cmp" IRI32
+
+  pushLoopContext headerLbl endLbl
   bodyInstrs <- genBlock body
+  popLoopContext
 
   pure $
     initInstrs
@@ -192,7 +197,9 @@ genForEach var iterable body = do
 
   registerVar var (IRTemp var IRU8) IRU8
 
+  pushLoopContext headerLbl endLbl
   bodyInstrs <- genBlock body
+  popLoopContext
 
   pure $
     iterInstrs
@@ -236,12 +243,34 @@ genLoop body = do
   idx <- nextLabelIndex
   let headerLbl = makeLabel "loop_header" idx
       endLbl = makeLabel "loop_end" idx
+
+  pushLoopContext headerLbl endLbl
   bodyInstrs <- genBlock body
+  popLoopContext
+
   pure $
     [IRLABEL headerLbl]
       ++ bodyInstrs
       ++ [IRJUMP headerLbl]
       ++ [IRLABEL endLbl]
+
+--
+-- control flow
+--
+
+genStop :: IRGen [IRInstruction]
+genStop = do
+  ctx <- getCurrentLoop
+  case ctx of
+    Just (_, end) -> pure [IRJUMP end]
+    Nothing -> pure [] -- Should be handled by semantics check
+
+genNext :: IRGen [IRInstruction]
+genNext = do
+  ctx <- getCurrentLoop
+  case ctx of
+    Just (header, _) -> pure [IRJUMP header]
+    Nothing -> pure [] -- Should be handled by semantics check
 
 --
 -- expression statement
