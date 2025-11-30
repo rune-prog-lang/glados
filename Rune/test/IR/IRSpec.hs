@@ -148,7 +148,7 @@ irTestLoopControl = do
             "    k: f32 = t0",
             "    t1 = CMP_GT k, 10",
             "    JUMP_FALSE t1, .L.end1",
-            "    JUMP .L.loop_end",
+            "    JUMP .L.loop_end0",
             ".L.end1:",
             "    t2: f32 = MOD k, 4",
             "    t3 = CMP_EQ t2, 0",

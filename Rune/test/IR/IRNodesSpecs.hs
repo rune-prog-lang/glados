@@ -107,6 +107,7 @@ testGenState =
     [ testCase "Accessors" $
         let symTable = insert "x" (IRConstInt 5, IRI32) empty
             structTable = empty
+            loopStack = []
             initialState =
               GenState
                 { gsTempCounter = 5,
@@ -115,7 +116,8 @@ testGenState =
                   gsGlobals = [IRGlobalString "s0" "str"],
                   gsCurrentFunc = Just "main",
                   gsSymTable = symTable,
-                  gsStructs = structTable
+                  gsStructs = structTable,
+                  gsLoopStack = loopStack
                 }
             dummyOp :: IRGen Int
             dummyOp = return 10
@@ -127,10 +129,11 @@ testGenState =
               gsCurrentFunc initialState @?= Just "main"
               gsSymTable initialState @?= symTable
               gsStructs initialState @?= structTable
+              gsLoopStack initialState @?= loopStack
               evalState dummyOp initialState @?= 10,
       testCase "Deriving Show/Eq" $
-        let state1 = GenState 0 0 0 [] Nothing empty empty
-            state2 = GenState 0 0 0 [] Nothing empty empty
+        let state1 = GenState 0 0 0 [] Nothing empty empty []
+            state2 = GenState 0 0 0 [] Nothing empty empty []
          in state1 @?= state2
     ]
 
