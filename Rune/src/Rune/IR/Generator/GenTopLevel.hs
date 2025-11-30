@@ -47,7 +47,7 @@ genFunction (DefFunction name params retType body) = do
 
   clearFunctionState
   pure [IRFunctionDef func]
-genFunction _ = error "genFunction called on non-function"
+genFunction x = error $ "genFunction called on non-function: received " ++ show x
 
 -- | generate IR for an override function
 -- show(Vec2f) -> show_Vec2f
