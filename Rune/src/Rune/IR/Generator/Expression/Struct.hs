@@ -50,7 +50,7 @@ resolveStructPtr op (IRStruct s) = case op of
   IRTemp n t -> (s, IRTemp ("p_" ++ n) (IRPtr t), [IRADDR ("p_" ++ n) n (IRPtr t)])
   _ -> (s, op, [])
 resolveStructPtr op (IRPtr (IRStruct s)) = (s, op, [])
-resolveStructPtr _ _ = error "Access on non-struct type"
+resolveStructPtr _ tType = error $ "Access on non-struct type: " ++ show tType
 
 lookupFieldType :: String -> String -> IRGen IRType
 lookupFieldType sName fName = do
