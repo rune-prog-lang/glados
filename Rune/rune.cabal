@@ -46,6 +46,7 @@ library
       Rune.IR.Generator.GenStatement
       Rune.IR.Generator.GenTopLevel
       Rune.IR.Generator.Statement.ControlFlow
+      Rune.IR.Generator.Statement.Loops
       Rune.IR.IRHelpers
       Rune.IR.Nodes
       Rune.IR.Printer

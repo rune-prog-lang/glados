@@ -9,6 +9,7 @@ module Rune.IR.IRHelpers
     pushLoopContext,
     popLoopContext,
     getCurrentLoop,
+    mangleMethodName,
   )
 where
 
@@ -18,7 +19,7 @@ import Rune.AST.Nodes (Type (..))
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRTopLevel (..), IRType (..))
 
 --
--- public
+-- type conversion
 --
 
 astTypeToIRType :: Type -> IRType
@@ -32,36 +33,39 @@ astTypeToIRType TypeNull = IRVoid
 astTypeToIRType (TypeCustom s) = IRStruct s
 astTypeToIRType _ = IRI32
 
--- | registers a variable in the symtable
+--
+-- symbol table
+--
+
 registerVar :: String -> IROperand -> IRType -> IRGen ()
 registerVar name op typ = do
   modify $ \s -> s {gsSymTable = insert name (op, typ) (gsSymTable s)}
 
--- | generates a new temporary variable name
+--
+-- naming & globals
+--
+
 newTemp :: String -> IRType -> IRGen String
 newTemp prefix _ = do
   counter <- gets gsTempCounter
   modify $ \s -> s {gsTempCounter = counter + 1}
   return $ prefix ++ show counter
 
--- | generates the next label index
 nextLabelIndex :: IRGen Int
 nextLabelIndex = do
   counter <- gets gsLabelCounter
   modify $ \s -> s {gsLabelCounter = counter + 1}
   return counter
 
--- | makes a label from a prefix and index
 makeLabel :: String -> Int -> IRLabel
 makeLabel prefix idx = IRLabel $ ".L." ++ prefix ++ show idx
 
--- | creates a new global string and returns its name
 newStringGlobal :: String -> IRGen String
 newStringGlobal value = do
   counter <- gets gsStringCounter
   maybeFuncName <- gets gsCurrentFunc
   let baseName = maybe "global" id maybeFuncName
-  let name = "str_" ++ baseName ++ show counter
+      name = "str_" ++ baseName ++ show counter
   modify $ \s ->
     s
       { gsStringCounter = counter + 1,
@@ -69,12 +73,18 @@ newStringGlobal value = do
       }
   return name
 
--- | checks if a list of IR instructions ends with a return or jump instruction
+mangleMethodName :: String -> String -> String
+mangleMethodName structName methodName = structName ++ "_" ++ methodName
+
+--
+-- control flow
+--
+
 endsWithRet :: [IRInstruction] -> Bool
 endsWithRet [] = False
-endsWithRet xs = case reverse xs of
-  (IRRET _ : _) -> True
-  (IRJUMP _ : _) -> True
+endsWithRet xs = case last xs of
+  IRRET _ -> True
+  IRJUMP _ -> True
   _ -> False
 
 pushLoopContext :: IRLabel -> IRLabel -> IRGen ()

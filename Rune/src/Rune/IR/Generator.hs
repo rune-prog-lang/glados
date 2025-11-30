@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Rune.IR.Generator (generateIR) where
 
 import Control.Monad.State (runState)
@@ -14,7 +12,7 @@ import Rune.IR.Nodes (GenState (..), IRProgram (..))
 
 generateIR :: Program -> IRProgram
 generateIR (Program name defs) =
-  let (irDefs, finalState) = runState (mapM genTopLevel defs) genStateDefault
+  let (irDefs, finalState) = runState (mapM genTopLevel defs) initialState
       allDefs = reverse (gsGlobals finalState) ++ concat irDefs
    in IRProgram name allDefs
 
@@ -22,8 +20,8 @@ generateIR (Program name defs) =
 -- private
 --
 
-genStateDefault :: GenState
-genStateDefault =
+initialState :: GenState
+initialState =
   GenState
     { gsTempCounter = 0,
       gsLabelCounter = 0,

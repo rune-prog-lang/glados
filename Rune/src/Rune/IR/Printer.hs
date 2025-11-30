@@ -133,6 +133,7 @@ printType IRVoid = "void"
 escapeString :: String -> String
 escapeString = concatMap escapeChar
   where
+    escapeChar '\0' = "\\0"
     escapeChar '\n' = "\\n"
     escapeChar '\t' = "\\t"
     escapeChar '\r' = "\\r"

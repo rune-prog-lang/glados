@@ -28,7 +28,7 @@ data GenState = GenState
     gsCurrentFunc :: Maybe String,
     gsSymTable :: Map String (IROperand, IRType),
     gsStructs :: Map String [(String, IRType)],
-    gsLoopStack :: [(IRLabel, IRLabel)]
+    gsLoopStack :: [(IRLabel, IRLabel)] -- (header, end)
   }
   deriving (Show, Eq)
 
@@ -70,53 +70,53 @@ data IROperand
   = IRConstInt Int
   | IRConstFloat Double
   | IRConstChar Char
-  | IRTemp String IRType -- t0, t1, ...
-  | IRParam String IRType -- p_<var_name>, p_<other_var_name>, ...
-  | IRGlobal String IRType -- GLOBAL <type>_<name> = ...
+  | IRTemp String IRType
+  | IRParam String IRType
+  | IRGlobal String IRType
   deriving (Show, Eq)
 
 newtype IRLabel = IRLabel String
   deriving (Show, Eq)
 
 data IRInstruction
-  = -- memory operations
-    IRALLOC String IRType -- allocate local variable
-  | IRSTORE IROperand IROperand -- store value to address
-  | IRLOAD String IROperand IRType -- load from address to temp
-  | IRDEREF String IROperand IRType -- dereference pointer
-  | -- struct operations
-    IRGET_FIELD String IROperand String String IRType -- res = ptr->struct.field
-  | IRSET_FIELD IROperand String String IROperand -- ptr->struct.field = val
-  | -- arithmetic operations
-    IRADD_OP String IROperand IROperand IRType -- t = a + b
-  | IRSUB_OP String IROperand IROperand IRType -- t = a - b
-  | IRMUL_OP String IROperand IROperand IRType -- t = a * b
-  | IRDIV_OP String IROperand IROperand IRType -- t = a / b
-  | IRMOD_OP String IROperand IROperand IRType -- t = a % b
-  | -- comparison operations
+  = -- memory
+    IRALLOC String IRType
+  | IRSTORE IROperand IROperand
+  | IRLOAD String IROperand IRType
+  | IRDEREF String IROperand IRType
+  | -- struct
+    IRGET_FIELD String IROperand String String IRType
+  | IRSET_FIELD IROperand String String IROperand
+  | -- arithmetic
+    IRADD_OP String IROperand IROperand IRType
+  | IRSUB_OP String IROperand IROperand IRType
+  | IRMUL_OP String IROperand IROperand IRType
+  | IRDIV_OP String IROperand IROperand IRType
+  | IRMOD_OP String IROperand IROperand IRType
+  | -- comparison
     IRCMP_EQ String IROperand IROperand
   | IRCMP_NEQ String IROperand IROperand
   | IRCMP_LT String IROperand IROperand
   | IRCMP_LTE String IROperand IROperand
   | IRCMP_GT String IROperand IROperand
   | IRCMP_GTE String IROperand IROperand
-  | -- logical operations
-    IRAND_OP String IROperand IROperand IRType -- t = a && b
-  | IROR_OP String IROperand IROperand IRType -- t = a || b
+  | -- logical
+    IRAND_OP String IROperand IROperand IRType
+  | IROR_OP String IROperand IROperand IRType
   | -- control flow
-    IRLABEL IRLabel -- label definition
-  | IRJUMP IRLabel -- unconditional jump
-  | IRJUMP_TRUE IROperand IRLabel -- jump if true
-  | IRJUMP_FALSE IROperand IRLabel -- jump if false
-  | IRJUMP_EQ0 IROperand IRLabel -- jump if operand == 0
-  | -- function operations
-    IRCALL String String [IROperand] (Maybe IRType) -- result = call func(args)
-  | IRRET (Maybe IROperand) -- return value
-  | -- utility operations
-    IRADDR String String IRType -- get address of global
-  | IRINC IROperand -- increment pointer/value
-  | IRDEC IROperand -- decrement pointer/value
-  | IRASSIGN String IROperand IRType -- simple assignment
+    IRLABEL IRLabel
+  | IRJUMP IRLabel
+  | IRJUMP_TRUE IROperand IRLabel
+  | IRJUMP_FALSE IROperand IRLabel
+  | IRJUMP_EQ0 IROperand IRLabel
+  | -- function
+    IRCALL String String [IROperand] (Maybe IRType)
+  | IRRET (Maybe IROperand)
+  | -- utility
+    IRADDR String String IRType
+  | IRINC IROperand
+  | IRDEC IROperand
+  | IRASSIGN String IROperand IRType
   deriving (Show, Eq)
 
 data IRFunction = IRFunction

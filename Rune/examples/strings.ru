@@ -5,9 +5,14 @@ def show_string(str: string) -> null
     }
 }
 
+def get_string() -> string
+{
+    return "Hello, Rune!\n";
+}
+
 def main() -> null
 {
-    str: string = "Hello, Rune!\n";
+    str: string = get_string();
 
     show_string(str);
 }

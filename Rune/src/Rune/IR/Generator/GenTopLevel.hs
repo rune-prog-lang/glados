@@ -5,9 +5,9 @@ where
 
 import Control.Monad.State (modify)
 import Data.Map (empty, insert)
-import Rune.AST.Nodes (Field (..), Parameter (..), Statement, TopLevelDef (..), Type (..))
+import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..))
 import Rune.IR.Generator.GenStatement (genStatement)
-import Rune.IR.IRHelpers (astTypeToIRType, registerVar)
+import Rune.IR.IRHelpers (astTypeToIRType, mangleMethodName, registerVar)
 import Rune.IR.Nodes
   ( GenState (..),
     IRFunction (..),
@@ -23,22 +23,19 @@ import Rune.IR.Nodes
 --
 
 genTopLevel :: TopLevelDef -> IRGen [IRTopLevel]
-genTopLevel (DefFunction name params retType body) =
-  genFunction name params retType body
-genTopLevel (DefOverride name params retType body) =
-  genOverride name params retType body
-genTopLevel (DefStruct name fields methods) = do
-  let irFields = map (\(Field n t) -> (n, astTypeToIRType t)) fields
-  modify $ \s -> s {gsStructs = insert name irFields (gsStructs s)}
-  methodDefs <- concat <$> mapM (genStructMethod name) methods
-  pure $ IRStructDef name irFields : methodDefs
+genTopLevel def@DefFunction {} = genFunction def
+genTopLevel ovr@DefOverride {} = genOverride ovr
+genTopLevel str@DefStruct {} = genStruct str
 
 --
--- private generators
+-- private
 --
 
-genFunction :: String -> [Parameter] -> Type -> [Statement] -> IRGen [IRTopLevel]
-genFunction name params retType body = do
+-- | generate IR for a normal function
+-- def foo(a: i32, b: f32) -> i32 { ... }
+-- DEF foo(p_a: i32, p_b: f32)
+genFunction :: TopLevelDef -> IRGen [IRTopLevel]
+genFunction (DefFunction name params retType body) = do
   resetFunctionState name
 
   irParams <- mapM genParam params
@@ -50,22 +47,43 @@ genFunction name params retType body = do
 
   clearFunctionState
   pure [IRFunctionDef func]
+genFunction _ = error "genFunction called on non-function"
 
-genOverride :: String -> [Parameter] -> Type -> [Statement] -> IRGen [IRTopLevel]
-genOverride name params retType body = do
+-- | generate IR for an override function
+-- show(Vec2f) -> show_Vec2f
+genOverride :: TopLevelDef -> IRGen [IRTopLevel]
+genOverride (DefOverride name params retType body) = do
   let mangledName = case params of
-        (Parameter _ (TypeCustom s) : _) -> name ++ "_" ++ s
+        (Parameter _ (TypeCustom s) : _) -> mangleMethodName name s
         _ -> name
-  genFunction mangledName params retType body
+  genFunction (DefFunction mangledName params retType body)
+genOverride _ = error "genOverride called on non-override"
 
+-- | generate IR for a struct definition and its methods
+-- struct Vec2f { x: f32, y: f32 }
+-- STRUCT Vec2f { x: f32, y: f32 }
+genStruct :: TopLevelDef -> IRGen [IRTopLevel]
+genStruct (DefStruct name fields methods) = do
+  let irFields = map (\(Field n t) -> (n, astTypeToIRType t)) fields
+  modify $ \s -> s {gsStructs = insert name irFields (gsStructs s)}
+  methodDefs <- concat <$> mapM (genStructMethod name) methods
+  pure $ IRStructDef name irFields : methodDefs
+genStruct _ = pure []
+
+-- | generate IR for a struct method
+-- Vec2f.magnitude() -> magnitude_Vec2f
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]
 genStructMethod structName' (DefFunction methName params retType body) = do
-  let mangledName = structName' ++ "_" ++ methName
-  let typedParams = map (fixSelfParam structName') params
-
-  genFunction mangledName typedParams retType body
+  let mangledName = mangleMethodName structName' methName
+      typedParams = map (fixSelfParam structName') params
+  genFunction (DefFunction mangledName typedParams retType body)
 genStructMethod _ _ = pure []
 
+--
+-- helpers
+--
+
+-- | generate IR for a function parameter and register it in the symbol table
 genParam :: Parameter -> IRGen (String, IRType)
 genParam (Parameter name typ) = do
   let irType = astTypeToIRType typ
@@ -77,10 +95,7 @@ genParam (Parameter name typ) = do
   registerVar name (IRParam irName finalType) finalType
   pure (irName, finalType)
 
---
--- private helpers
---
-
+-- | self: *StructType
 fixSelfParam :: String -> Parameter -> Parameter
 fixSelfParam sName (Parameter "self" _) = Parameter "self" (TypeCustom sName)
 fixSelfParam _ p = p
@@ -95,8 +110,7 @@ resetFunctionState name =
       }
 
 clearFunctionState :: IRGen ()
-clearFunctionState =
-  modify $ \s -> s {gsCurrentFunc = Nothing}
+clearFunctionState = modify $ \s -> s {gsCurrentFunc = Nothing}
 
 ensureReturn :: IRType -> [IRInstruction] -> [IRInstruction]
 ensureReturn IRVoid instrs =
@@ -107,4 +121,4 @@ ensureReturn _ instrs = instrs
 
 lastOrNothing :: [a] -> Maybe a
 lastOrNothing [] = Nothing
-lastOrNothing xs = Just (last xs)
+lastOrNothing xs = Just $ last xs
