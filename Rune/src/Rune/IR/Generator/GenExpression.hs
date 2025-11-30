@@ -39,4 +39,4 @@ genVar name = do
   symTable <- gets gsSymTable
   case Map.lookup name symTable of
     Just (op, typ) -> return ([], op, typ)
-    Nothing -> return ([], IRTemp name IRI32, IRI32)
+    Nothing -> error $ "genVar: variable not found in symbol table: " ++ name
