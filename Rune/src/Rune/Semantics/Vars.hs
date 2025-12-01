@@ -6,8 +6,6 @@ import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 import Rune.Semantics.Func (findFunc, FuncStack)
 
-import Debug.Trace (trace)
-
 type VarStack = HashMap String Type
 type Stack = (FuncStack, VarStack)
 
@@ -72,11 +70,11 @@ verifScope s (StmtLoop block:stmts)
     =   verifScope s block
     <>  verifScope s stmts
 -- bit weird i don't know if it work like this
-verifScope (fs, vs) (StmtAssignment (ExprVar lv) rv:stmts)
-    = trace (show "in assignment") (let (vs', err) = assignVarType vs lv $ typeOfExpr (fs, vs) rv
+verifScope (fs, vs) (StmtAssignment (ExprVar lv) rv:stmts) =
+    let (vs', err) = assignVarType vs lv $ typeOfExpr (fs, vs) rv
     in  err
     <>  verifExpr (fs, vs) rv
-    <>  verifScope (fs, vs') stmts)
+    <>  verifScope (fs, vs') stmts
 verifScope s (StmtAssignment _ _:stmts) = verifScope s stmts
 verifScope s (StmtStop:stmts) = verifScope s stmts
 verifScope s (StmtNext:stmts) = verifScope s stmts
@@ -117,9 +115,6 @@ typeOfExpr (_, vs) (ExprVar name) =
 
 assignVarType :: VarStack -> String -> Type -> (VarStack, Maybe String)
 assignVarType s v t =
-    -- trace (
-    -- "in assignVarType v: " ++ v ++ ", type: " ++ show t ++ ", when actual type is: " ++ show (HM.lookup v s)
-    -- ) (
     let msg = "\n\tTypeOverwrite: " ++ v
           ++ " has alerady type " ++ show t
     in case HM.lookup v s of
@@ -127,7 +122,6 @@ assignVarType s v t =
     Just TypeAny  -> (HM.insert v t s, Nothing)
     Just t' | t == t'   -> (HM.insert v t s, Nothing)
             | otherwise -> (s, Just msg)
-    -- )
 
 checkMultipleType :: String -> Maybe Type -> Type -> Maybe String
 checkMultipleType v t e_t = 
