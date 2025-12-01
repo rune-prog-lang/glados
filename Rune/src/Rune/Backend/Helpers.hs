@@ -3,12 +3,14 @@ module Rune.Backend.Helpers
     escapeString,
     collectIRVars,
     collectTopLevels,
+    calculateStackMap,
   )
 where
 
 import Data.List (intercalate, nub)
-import Data.Map.Strict (Map, fromList, insert)
+import qualified Data.Map.Strict as Map
 import Rune.Backend.Types (Extern, Function, GlobalString)
+import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
 
 --
@@ -26,14 +28,22 @@ collectTopLevels tls =
   let (es, gs, fs) = foldr collectTopLevel ([], [], []) tls
    in (nub es, reverse gs, reverse fs)
 
-collectIRVars :: Function -> Map String IRType
-collectIRVars (IRFunction _ params _ body) =
-  let initialMap = fromList (map (\(n, t) -> (n, t)) params)
-   in foldl' collectVars initialMap body
+calculateStackMap :: Function -> (Map.Map String Int, Int)
+calculateStackMap func =
+  let varsMap = collectIRVars func
+      varNames = Map.keys varsMap
+      varTypes = map (\name -> (name, varsMap Map.! name)) varNames
+      (totalUsedSize, offsetsMap) = foldl' accumulateOffset (0, Map.empty) varTypes
+      totalSize = alignUp totalUsedSize 16
+      rbpOffsetsMap = Map.map (\offset -> -(totalUsedSize - offset)) offsetsMap
+   in (rbpOffsetsMap, totalSize)
 
 --
 -- private
 --
+
+alignUp :: Int -> Int -> Int
+alignUp x n = (x + n - 1) `div` n * n
 
 escapeChar :: Char -> String
 escapeChar '\0' = "0"
@@ -53,23 +63,36 @@ collectTopLevel (IRGlobalString n v) (e, g, f) = (e, (n, v) : g, f)
 collectTopLevel (IRFunctionDef fn) (e, g, f) = (e, g, fn : f)
 collectTopLevel _ acc = acc
 
-collectVars :: Map String IRType -> IRInstruction -> Map String IRType
-collectVars acc (IRASSIGN n _ t) = insert n t acc
-collectVars acc (IRALLOC n t) = insert n t acc
-collectVars acc (IRLOAD n _ t) = insert n t acc
-collectVars acc (IRDEREF n _ t) = insert n t acc
-collectVars acc (IRGET_FIELD n _ _ _ t) = insert n t acc
-collectVars acc (IRADD_OP n _ _ t) = insert n t acc
-collectVars acc (IRSUB_OP n _ _ t) = insert n t acc
-collectVars acc (IRMUL_OP n _ _ t) = insert n t acc
-collectVars acc (IRDIV_OP n _ _ t) = insert n t acc
-collectVars acc (IRMOD_OP n _ _ t) = insert n t acc
-collectVars acc (IRCMP_EQ n _ _) = insert n IRI32 acc
-collectVars acc (IRCMP_NEQ n _ _) = insert n IRI32 acc
-collectVars acc (IRCMP_LT n _ _) = insert n IRI32 acc
-collectVars acc (IRCMP_LTE n _ _) = insert n IRI32 acc
-collectVars acc (IRAND_OP n _ _ t) = insert n t acc
-collectVars acc (IROR_OP n _ _ t) = insert n t acc
-collectVars acc (IRCALL n _ _ (Just t)) = insert n t acc
-collectVars acc (IRADDR n _ t) = insert n t acc
+collectIRVars :: Function -> Map.Map String IRType
+collectIRVars (IRFunction _ params _ body) =
+  let initialMap = Map.fromList (map (\(n, t) -> (n, t)) params)
+   in foldl' collectVars initialMap body
+
+collectVars :: Map.Map String IRType -> IRInstruction -> Map.Map String IRType
+collectVars acc (IRASSIGN n _ t) = Map.insert n t acc
+collectVars acc (IRALLOC n t) = Map.insert n t acc
+collectVars acc (IRLOAD n _ t) = Map.insert n t acc
+collectVars acc (IRDEREF n _ t) = Map.insert n t acc
+collectVars acc (IRGET_FIELD n _ _ _ t) = Map.insert n t acc
+collectVars acc (IRADD_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRSUB_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRMUL_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRDIV_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRMOD_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRCMP_EQ n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRCMP_NEQ n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRCMP_LT n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRCMP_LTE n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRAND_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IROR_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRCALL n _ _ (Just t)) = Map.insert n t acc
+collectVars acc (IRADDR n _ t) = Map.insert n t acc
 collectVars acc _ = acc
+
+accumulateOffset :: (Int, Map.Map String Int) -> (String, IRType) -> (Int, Map.Map String Int)
+accumulateOffset (currentOffset, accMap) (name, varType) =
+  let align = min 8 (sizeOfIRType varType)
+      alignedOffset = alignUp currentOffset align
+      size = sizeOfIRType varType
+      newOffset = alignedOffset + size
+   in (newOffset, Map.insert name alignedOffset accMap)
