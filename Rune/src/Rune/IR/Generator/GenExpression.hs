@@ -15,20 +15,19 @@ import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IROperand (..), 
 --
 
 genExpression :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
-genExpression expr = case expr of
-  ExprLitInt n -> genLitInt n
-  ExprLitFloat f -> genLitFloat f
-  ExprLitChar c -> genLitChar c
-  ExprLitBool b -> genLitBool b
-  ExprLitNull -> genLitNull
-  ExprLitString s -> genLitString s
-  ExprVar name -> genVar name
-  ExprBinary op l r -> genBinary genExpression op l r
-  ExprUnary op e -> genUnary genExpression op e
-  ExprCall "show" [a] -> genShowCall genExpression a
-  ExprCall name args -> genCall genExpression name args
-  ExprAccess t f -> genAccess genExpression t f
-  ExprStructInit name fields -> genStructInit genExpression name fields
+genExpression (ExprLitInt n) = genLitInt n
+genExpression (ExprLitFloat f) = genLitFloat f
+genExpression (ExprLitChar c) = genLitChar c
+genExpression (ExprLitBool b) = genLitBool b
+genExpression (ExprLitNull) = genLitNull
+genExpression (ExprLitString s) = genLitString s
+genExpression (ExprVar name) = genVar name
+genExpression (ExprBinary op l r) = genBinary genExpression op l r
+genExpression (ExprUnary op e) = genUnary genExpression op e
+genExpression (ExprCall "show" [a]) = genShowCall genExpression a
+genExpression (ExprCall name args) = genCall genExpression name args
+genExpression (ExprAccess t f) = genAccess genExpression t f
+genExpression (ExprStructInit name fields) = genStructInit genExpression name fields
 
 --
 -- private
