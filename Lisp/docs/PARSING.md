@@ -1,191 +1,302 @@
-# Parsing and S-Expressions
+# Parser Module
 
-## What's this about?
+## What is this?
 
-The parsing system is how we turn raw Lisp text into something our interpreter can actually work with. It happens in two main steps:
+The Parser module converts raw Lisp source code (text strings) into S-expressions using the Megaparsec parsing library. This is the first step in the interpretation pipeline.
 
-1. **Text → S-expressions** (this module)
-2. **S-expressions → AST** (covered in the AST docs)
-
-S-expressions are the direct representation of code that is composed of different types of data
-
-## S-Expressions (SExpr)
-
-### The data structure
+## Parser Type
 
 ```haskell
-data SExpr = Integer Int
-    | Symbol String
-    | List [SExpr]
-    deriving (Show, Eq)
+type Parser = Parsec Void String
 ```
 
-S-expressions are pretty simple. Each type of data represent one or several things:
-- `Integer Int` - Numbers like `42`, `-17` or `0`
-- `Symbol String` - Names and operators like `x`, `define`, `+` or `#t`
-- `List [SExpr]` - Parenthesized expressions like `(+ 1 2)` or `(define x 5)`
+The parser uses Megaparsec with:
+- `Void` as the custom error type (no custom errors)
+- `String` as the input stream type
 
-### Helper functions
+## Main Parsing Function
 
-We have some utility functions to extract values safely:
+### parseLispDocument
 
 ```haskell
-getSymbol :: SExpr -> Maybe String    -- Get a symbol's name
-getInteger :: SExpr -> Maybe Int      -- Get an integer's value
-getList :: SExpr -> Maybe [SExpr]     -- Get a list's contents
+parseLispDocument :: Parser SExpr
 ```
 
-These return `Nothing` if you try to extract the wrong type (like asking for a symbol from a number).
+The entry point for parsing a complete Lisp document. It parses one or more expressions and wraps them in a list.
 
-### Pretty printing
-
-There's also `printTree` which gives you a human-readable description of what an S-expression contains:
-
-```haskell
-printTree (Integer 42)                           -- "a Number 42"
-printTree (Symbol "foo")                         -- "a Symbol 'foo'"
-printTree (List [Symbol "+", Integer 1, Integer 2])
--- "a List with a Symbol '+' followed by a Number 1, a Number 2"
-```
-
-### Examples of S-expressions
-
-Simple stuff:
-```haskell
-Integer 5                    -- just the number 5
-Symbol "x"                   -- a variable name
-Symbol "#t"                  -- boolean true
-```
-
-More complex expressions:
-```haskell
--- (+ 3 2)
-List [Symbol "+", Integer 3, Integer 2]
-
--- (define x 5)
-List [Symbol "define", Symbol "x", Integer 5]
-
--- Nested: (if (> x 0) x 0)
-List [Symbol "if",
-      List [Symbol ">", Symbol "x", Integer 0],
-      Symbol "x",
-      Integer 0]
-```
-
-## The Parser
-
-We use Parsec, which is a pretty nice parsing library for Haskell. It lets us build up complex parsers from simple pieces, and gives good error messages when things go wrong.
-
-### Main entry point
-
-`parseLispDocument` is where it all starts:
-
+**Behavior:**
 ```haskell
 parseLispDocument = do
-    spaces                    -- Skip any leading whitespace
-    exprs <- many parseLispValue  -- Parse zero or more expressions
-    eof                       -- Make sure we've consumed all input
-    return (List exprs)       -- Wrap everything in a list
+    space                      -- Skip leading whitespace
+    exprs <- some parseLispValue  -- Parse at least one expression
+    space                      -- Skip trailing whitespace
+    eof                        -- Ensure all input is consumed
+    return (List exprs)        -- Wrap in a List
 ```
 
-This means if you give it something like:
+**Examples:**
+
+Single expression:
+```lisp
+(+ 1 2)
+```
+Parses to:
+```haskell
+List [List [Symbol "+", Integer 1, Integer 2]]
+```
+
+Multiple expressions:
 ```lisp
 (define x 5)
 (+ x 2)
 ```
-
-You get back:
+Parses to:
 ```haskell
 List [List [Symbol "define", Symbol "x", Integer 5],
       List [Symbol "+", Symbol "x", Integer 2]]
 ```
 
-### The individual parsers
+**Note:** Uses `some` which requires at least one expression. Empty input will fail.
 
-#### `parseLispValue`
+## Value Parsers
 
-This is the main dispatcher. It tries to parse different types of values in order:
+### parseLispValue
+
+```haskell
+parseLispValue :: Parser SExpr
+```
+
+Parses a single Lisp value (number, symbol, or list). Skips whitespace before and after.
 
 ```haskell
 parseLispValue = do
-    spaces
+    space
     choice [parseLispArray, parseLispNumber, parseLispString]
+    <* space
 ```
 
-It tries lists first (since they start with `(`), then numbers, then falls back to symbols.
+**Parsing order:**
+1. Try `parseLispArray` (lists starting with `(`)
+2. Try `parseLispNumber` (integers with optional `-`)
+3. Fall back to `parseLispString` (symbols)
 
-#### `parseLispNumber`
-
-Handles integers, including negative ones:
+### parseLispNumber
 
 ```haskell
-parseLispNumber = do
-    spaces
-    sign <- optional (char '-')       -- Maybe a minus sign
-    digits <- some digitChar          -- At least one digit
+parseLispNumber :: Parser SExpr
+```
+
+Parses integer literals, including negative numbers.
+
+**Implementation:**
+```haskell
+parseLispNumber = try $ do
+    sign <- optional (char '-')
+    digits <- some digitChar
+    notFollowedBy (alphaNumChar <|> oneOf "!?_-+*/=<>#")
     let num = read digits :: Int
     return $ Integer $ case sign of
         Just _ -> -num
         Nothing -> num
 ```
 
-So `"42"` becomes `Integer 42`, and `"-17"` becomes `Integer (-17)`.
+**Features:**
+- Optional minus sign for negative numbers
+- At least one digit required
+- Uses `notFollowedBy` to ensure numbers don't run into identifiers
+- Wrapped in `try` to allow backtracking if it fails
 
-#### `parseLispString`
-
-Parses symbols and identifiers:
-
+**Examples:**
 ```haskell
-parseLispString = do
-    spaces
-    word <- some (oneOf validChars)
-    return (Symbol word)
-  where
-    validChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['#', '<', '-', '+', '*', '/', '_', '=', '>', '!', '?']
+"42"    → Integer 42
+"-17"   → Integer (-17)
+"0"     → Integer 0
+"-0"    → Integer 0
 ```
 
-This is pretty permissive. We allow letters, common operators, and some special characters like `#` (for `#t` and `#f`) and `?` (for functions like `eq?`).
+**Not allowed:**
+- `"42x"` (number followed by letter)
+- `"42+"` (number followed by operator character)
 
-#### `parseLispArray`
-
-Handles parenthesized lists:
+### parseLispString
 
 ```haskell
+parseLispString :: Parser SExpr
+```
+
+Parses symbols and identifiers.
+
+**Implementation:**
+```haskell
+parseLispString = do
+    first <- letterChar <|> oneOf "!?_-+*/=<>#"
+    rest <- many (alphaNumChar <|> oneOf "!?_-+*/=<>#")
+    let word = first : rest
+    return (Symbol word)
+```
+
+**Allowed characters:**
+- **First character:** letter or one of `!?_-+*/=<>#`
+- **Remaining characters:** alphanumeric or one of `!?_-+*/=<>#`
+
+**Examples:**
+```haskell
+"foo"     → Symbol "foo"
+"x"       → Symbol "x"
+"+"       → Symbol "+"
+"eq?"     → Symbol "eq?"
+"#t"      → Symbol "#t"
+"<"       → Symbol "<"
+"foo-bar" → Symbol "foo-bar"
+"test123" → Symbol "test123"
+```
+
+**Note:** No validation of reserved keywords happens here - that's done during AST conversion.
+
+### parseLispArray
+
+```haskell
+parseLispArray :: Parser SExpr
+```
+
+Parses parenthesized lists.
+
+**Implementation:**
+```haskell
 parseLispArray = do
-    spaces
-    char '('                          -- Must start with (
-    exprs <- many parseLispValue      -- Zero or more expressions inside
-    spaces
-    char ')'                          -- Must end with )
+    _ <- char '('
+    space
+    exprs <- many parseLispValue
+    space
+    _ <- char ')'
     return (List exprs)
 ```
 
-This handles nested structures automatically since `parseLispValue` can call back into `parseLispArray`.
+**Features:**
+- Allows nested lists (since `parseLispValue` can recursively parse arrays)
+- Allows empty lists `()`
+- Whitespace flexible
 
-## How it all fits together
+**Examples:**
 
-The overall flow is:
+Simple list:
+```lisp
+(+ 1 2)
 ```
-"(+ 1 2)" → Parser → SExpr → AST → Evaluation → Result
+→ `List [Symbol "+", Integer 1, Integer 2]`
+
+Nested list:
+```lisp
+(if (< x 0) 0 x)
+```
+→ `List [Symbol "if", List [Symbol "<", Symbol "x", Integer 0], Integer 0, Symbol "x"]`
+
+Empty list:
+```lisp
+()
+```
+→ `List []`
+
+## Whitespace Handling
+
+The parser uses `space` (from Megaparsec.Char) which skips:
+- Spaces
+- Tabs
+- Newlines
+- Carriage returns
+
+Whitespace is handled:
+- At the start of the document
+- Before and after each value
+- Between elements in lists
+- At the end of the document
+
+**Example:** All of these are equivalent:
+```lisp
+(+ 1 2)
+(  +   1   2  )
+(+
+  1
+  2)
 ```
 
-So if you start with the text `"(define x 5)(+ x 2)"`:
+## Parser Combinators Used
 
-1. **Parser** gives you the S-expression structure
-2. **AST converter** turns special forms like `define` into proper AST nodes
-3. **Evaluator** actually runs the code
+The module uses several Megaparsec combinators:
 
-## Error handling
+- `space` - Skip whitespace
+- `some` - One or more occurrences
+- `many` - Zero or more occurrences
+- `choice` - Try alternatives in order
+- `char` - Match a specific character
+- `digitChar` - Match a digit [0-9]
+- `letterChar` - Match a letter [a-zA-Z]
+- `alphaNumChar` - Match alphanumeric character
+- `oneOf` - Match one of several characters
+- `optional` - Maybe match something
+- `notFollowedBy` - Negative lookahead
+- `try` - Allow backtracking
+- `eof` - Match end of input
+- `<*` - Sequence but discard right result
 
-Parsec gives us pretty decent error messages. If you write something like `"(+ 1 2"` (missing the closing paren), you'll get a ParseError that tells you what was expected and where.
+## Error Handling
 
-We catch these in the main parsing function and just return `Nothing` if anything goes wrong.
+The parser returns `ParseErrorBundle` on failure, which includes:
+- Location of the error (line and column)
+- What was expected
+- What was found
 
-## Common pitfalls
+Example error:
+```haskell
+parse parseLispDocument "" "(+ 1"
+-- Error at 1:5: unexpected end of input, expecting ')' or a value
+```
 
-- **Spaces matter**: `(+1 2)` won't parse because there's no space after the `+`
-- **Parentheses must match**: `(+ 1 2` will fail
-- **No quotes**: `'x` isn't supported, just `x`
-- **Case sensitive**: `Define` and `define` are different symbols
+## Integration with the Pipeline
 
-The parser is pretty forgiving about whitespace though - `(  +   1   2  )` works just fine.
+```
+Input String
+    ↓
+[parseLispDocument] ← This module
+    ↓
+SExpr
+    ↓
+[sexprToAST]
+    ↓
+AST
+    ↓
+[evalAST]
+    ↓
+Result
+```
+
+The parser is used by the Executor module:
+```haskell
+case parse parseLispDocument "" input of
+    Left err -> -- Handle parse error
+    Right sexpr -> -- Continue to AST conversion
+```
+
+## Usage Example
+
+```haskell
+import Text.Megaparsec (parse, errorBundlePretty)
+import Lisp.Parser.Parser (parseLispDocument)
+
+-- Parse some code
+let input = "(define x 5)(+ x 2)"
+case parse parseLispDocument "" input of
+    Left err -> putStrLn $ "Parse error: " ++ errorBundlePretty err
+    Right sexpr -> print sexpr
+    -- Output: List [List [Symbol "define", Symbol "x", Integer 5],
+    --               List [Symbol "+", Symbol "x", Integer 2]]
+```
+
+## Limitations
+
+- No support for floating-point numbers (only integers)
+- No string literals (everything is symbols or numbers)
+- No quote syntax (`'x` or `(quote x)`)
+- No comments
+- No character literals
+- No escape sequences

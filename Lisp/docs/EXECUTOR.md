@@ -55,30 +55,33 @@ Converts an S-expression to AST and evaluates it.
 ```haskell
 executeSExpr env (List sexprs) =
     case mapM sexprToAST sexprs of
-        Nothing -> (env, Left "AST conversion error")
-        Just asts -> executeAsts (evalASTWithEnv env asts)
+        Left err -> (env, Left ("AST conversion error: " ++ err))
+        Right asts ->
+            let (newEnv, result) = evalASTWithEnv env asts
+            in (newEnv, addEvalErrorPrefix result)
 ```
 
 2. **Single expression** - Processes one expression:
 ```haskell
 executeSExpr env sexpr =
     case sexprToAST sexpr of
-        Nothing -> (env, Left "AST conversion error")
-        Just ast -> executeAsts (evalAST env ast)
+        Left err -> (env, Left ("AST conversion error: " ++ err))
+        Right ast ->
+            let (newEnv, result) = evalAST env ast
+            in (newEnv, addEvalErrorPrefix result)
 ```
 
-**Error handling:** Returns `"AST conversion error"` if the S-expression cannot be converted to valid AST.
+**Error handling:** Returns descriptive error messages:
+- `"AST conversion error: <details>"` if the S-expression cannot be converted
+- `"Evaluation error: <details>"` if evaluation fails
 
-### executeAsts
+### addEvalErrorPrefix
 
 ```haskell
-executeAsts :: (Environment, Maybe Ast) -> (Environment, Either String Ast)
+addEvalErrorPrefix :: Either String Ast -> Either String Ast
 ```
 
-Converts the result from evaluation (which uses `Maybe`) into the `Either` type for better error reporting.
-
-- `(env, Just ast)` → `(env, Right ast)` - Success
-- `(env, Nothing)` → `(env, Left "Evaluation error")` - Failure
+Adds the "Evaluation error: " prefix to error messages from the evaluation phase.
 
 ## Output Conversion
 
@@ -111,20 +114,7 @@ astToString (Lambda ["x"] _ [])    -- "#<procedure>"
 astToString (Define "x" _)         -- ""
 ```
 
-## Helper Functions
-
-### maybeToEither
-
-```haskell
-maybeToEither :: String -> Maybe a -> Either String a
-```
-
-Utility function to convert `Maybe` values to `Either` with a custom error message.
-
-- `Just x` → `Right x`
-- `Nothing` → `Left errMsg`
-
-## Complete Execution Pipeline
+## Output Conversion
 
 ```
 Input String
@@ -152,25 +142,40 @@ String output
 
 ## Error Handling
 
-The executor handles three types of errors:
+The executor handles three types of errors, each with descriptive messages:
 
 1. **Parse errors**: When the input is not valid Lisp syntax
    ```haskell
    executeLispWithEnv [] "(+ 1"
-   -- ([], Left "Parse error: ...")
+   -- ([], Left "Parse error: 1:5:\n  |\n1 | (+ 1\n  |     ^\nunexpected end of input\nexpecting ')' or a value")
    ```
 
 2. **AST conversion errors**: When S-expressions don't form valid AST structures
    ```haskell
    executeLispWithEnv [] "(define)"
-   -- ([], Left "AST conversion error")
+   -- ([], Left "AST conversion error: Invalid 'define' syntax. Expected (define name value) or (define (name args) body).")
+
+   executeLispWithEnv [] "(lambda)"
+   -- ([], Left "AST conversion error: Invalid 'lambda' syntax. Expected (lambda (args) body).")
    ```
 
-3. **Evaluation errors**: When evaluation fails (e.g., undefined variables, division by zero)
+3. **Evaluation errors**: When evaluation fails (e.g., undefined variables, division by zero, type errors)
    ```haskell
    executeLispWithEnv [] "(div 1 0)"
-   -- ([], Left "Evaluation error")
+   -- ([], Left "Evaluation error: Division by zero.")
+
+   executeLispWithEnv [] "undefined-var"
+   -- ([], Left "Evaluation error: Undefined variable: undefined-var")
+
+   executeLispWithEnv [] "(if 5 1 2)"
+   -- ([], Left "Evaluation error: Condition must be a boolean value.")
    ```
+
+**Error message structure:**
+- Parse errors include location information (line and column)
+- AST conversion errors are prefixed with "AST conversion error: "
+- Evaluation errors are prefixed with "Evaluation error: "
+- All error messages come from the `Lisp.AST.ASTError` module for consistency
 
 ## Environment Threading
 

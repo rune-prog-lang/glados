@@ -9,10 +9,12 @@ This module handles the conversion from S-expressions (the parsed representation
 ### sexprToAST
 
 ```haskell
-sexprToAST :: SExpr -> Maybe Ast
+sexprToAST :: SExpr -> Either String Ast
 ```
 
-The primary function that converts an S-expression into an AST node. Returns `Nothing` if the S-expression is invalid or malformed.
+The primary function that converts an S-expression into an AST node. Returns `Left errorMessage` if the S-expression is invalid or malformed, `Right ast` on success.
+
+**Error messages** are defined in the `Lisp.AST.ASTError` module and provide detailed information about what went wrong.
 
 ## Simple Conversions
 
@@ -20,12 +22,12 @@ The primary function that converts an S-expression into an AST node. Returns `No
 
 Numbers are directly converted:
 ```haskell
-sexprToAST (Integer n) = Just (AstInteger n)
+sexprToAST (Integer n) = Right (AstInteger n)
 ```
 
 **Example:**
 ```haskell
-sexprToAST (Integer 42)  -- Just (AstInteger 42)
+sexprToAST (Integer 42)  -- Right (AstInteger 42)
 ```
 
 ### Symbols
@@ -33,15 +35,27 @@ sexprToAST (Integer 42)  -- Just (AstInteger 42)
 Symbols are converted to AST symbols, except for reserved keywords (`define`, `lambda`, `if`):
 ```haskell
 sexprToAST (Symbol s)
-    | isReservedSymbol s = Nothing
-    | otherwise = Just (AstSymbol s)
+    | isReservedSymbol s = Left (reservedSymbolError s)
+    | otherwise = Right (AstSymbol s)
 ```
 
 **Examples:**
 ```haskell
-sexprToAST (Symbol "x")       -- Just (AstSymbol "x")
-sexprToAST (Symbol "+")       -- Just (AstSymbol "+")
-sexprToAST (Symbol "define")  -- Nothing (reserved keyword)
+sexprToAST (Symbol "x")       -- Right (AstSymbol "x")
+sexprToAST (Symbol "+")       -- Right (AstSymbol "+")
+sexprToAST (Symbol "define")  -- Left "'define' is a reserved symbol and cannot be redefined."
+```
+
+### Lists
+
+Lists are parsed using the internal `parseList` function:
+```haskell
+sexprToAST (List sexprs) = parseList sexprs
+```
+
+An empty list returns an error:
+```haskell
+parseList [] = Left emptySExprError
 ```
 
 ## Special Forms
@@ -55,7 +69,7 @@ Syntax: `(define (funcName param1 param2 ...) body)`
 This is syntactic sugar for defining a function. It creates a lambda and binds it to the function name.
 
 ```haskell
-parseDefineFunction :: String -> [SExpr] -> SExpr -> Maybe Ast
+parseDefineFunction :: String -> [SExpr] -> SExpr -> Either String Ast
 parseDefineFunction funcName params body = do
     astBody <- sexprToAST body
     paramNames <- extractParams params
@@ -79,7 +93,7 @@ Syntax: `(define varName value)`
 Simple variable binding.
 
 ```haskell
-parseDefineVariable :: String -> SExpr -> Maybe Ast
+parseDefineVariable :: String -> SExpr -> Either String Ast
 parseDefineVariable varName valueExpr = do
     astValue <- sexprToAST valueExpr
     return $ Define varName astValue
@@ -94,7 +108,11 @@ Converts to:
 Define "x" (AstInteger 42)
 ```
 
-**Validation:** Any other form of `define` (wrong number of arguments, etc.) returns `Nothing`.
+**Validation:** Any other form of `define` (wrong number of arguments, etc.) returns `Left invalidDefineError`:
+```haskell
+parseList (Symbol "define" : _) = Left invalidDefineError
+-- "Invalid 'define' syntax. Expected (define name value) or (define (name args) body)."
+```
 
 ### Lambda - Anonymous Functions
 
@@ -103,7 +121,7 @@ Syntax: `(lambda (param1 param2 ...) body)`
 Creates an anonymous function with parameters and a body.
 
 ```haskell
-parseLambda :: [SExpr] -> SExpr -> Maybe Ast
+parseLambda :: [SExpr] -> SExpr -> Either String Ast
 parseLambda args body = do
     astBody <- sexprToAST body
     astArgs <- extractParams args
@@ -121,7 +139,11 @@ Lambda ["x", "y"] (Call "+" [AstSymbol "x", AstSymbol "y"]) []
 
 Note: The empty list `[]` is the initial closure environment, which will be filled during evaluation.
 
-**Validation:** Malformed lambda expressions return `Nothing`.
+**Validation:** Malformed lambda expressions return `Left invalidLambdaError`:
+```haskell
+parseList (Symbol "lambda" : _) = Left invalidLambdaError
+-- "Invalid 'lambda' syntax. Expected (lambda (args) body)."
+```
 
 ### If - Conditional Expression
 
@@ -130,7 +152,7 @@ Syntax: `(if condition thenExpr elseExpr)`
 All three parts are required.
 
 ```haskell
-parseIf :: SExpr -> SExpr -> SExpr -> Maybe Ast
+parseIf :: SExpr -> SExpr -> SExpr -> Either String Ast
 parseIf condExpr thenExpr elseExpr = do
     astCond <- sexprToAST condExpr
     astThen <- sexprToAST thenExpr
@@ -149,6 +171,12 @@ If (Call "<" [AstSymbol "x", AstInteger 0])
    (AstSymbol "x")
 ```
 
+**Validation:** Malformed if expressions return `Left invalidIfError`:
+```haskell
+parseList (Symbol "if" : _) = Left invalidIfError
+-- "Invalid 'if' syntax. Expected (if condition then-expression else-expression)."
+```
+
 ## Function Calls
 
 Syntax: `(func arg1 arg2 ...)`
@@ -156,7 +184,7 @@ Syntax: `(func arg1 arg2 ...)`
 Function calls are detected by checking if the first element is a built-in operator.
 
 ```haskell
-parseFunctionCall :: SExpr -> [SExpr] -> Maybe Ast
+parseFunctionCall :: SExpr -> [SExpr] -> Either String Ast
 parseFunctionCall funcExpr argExprs = do
     astFunc <- sexprToAST funcExpr
     astArgs <- mapM sexprToAST argExprs
@@ -202,23 +230,23 @@ sexprToAST (List exprs) =
 ### extractSymbol
 
 ```haskell
-extractSymbol :: SExpr -> Maybe String
+extractSymbol :: SExpr -> Either String String
 ```
 
-Safely extracts a string from a `Symbol` S-expression. Returns `Nothing` if not a symbol.
+Safely extracts a string from a `Symbol` S-expression. Returns `Left "Expected symbol"` if not a symbol.
 
 ### extractParams
 
 ```haskell
-extractParams :: [SExpr] -> Maybe [String]
+extractParams :: [SExpr] -> Either String [String]
 ```
 
 Extracts parameter names from a list of S-expressions. All elements must be symbols.
 
 **Example:**
 ```haskell
-extractParams [Symbol "x", Symbol "y"]  -- Just ["x", "y"]
-extractParams [Symbol "x", Integer 1]   -- Nothing (not all symbols)
+extractParams [Symbol "x", Symbol "y"]  -- Right ["x", "y"]
+extractParams [Symbol "x", Integer 1]   -- Left "Expected symbol"
 ```
 
 ### isReservedSymbol
@@ -235,12 +263,17 @@ Reserved symbols: `define`, `lambda`, `if`
 
 The conversion process validates syntax at every step:
 
-- ✅ **Returns `Just Ast`** for valid S-expressions
-- ❌ **Returns `Nothing`** for:
-  - Malformed special forms (wrong number of arguments)
-  - Reserved keywords used as variable names
-  - Invalid parameter lists (non-symbols as parameters)
-  - Any structural errors
+- ✅ **Returns `Right Ast`** for valid S-expressions
+- ❌ **Returns `Left errorMessage`** for:
+  - Empty lists: `Left emptySExprError`
+  - Reserved keywords used as variable names: `Left (reservedSymbolError name)`
+  - Malformed `define`: `Left invalidDefineError`
+  - Malformed `lambda`: `Left invalidLambdaError`
+  - Malformed `if`: `Left invalidIfError`
+  - Invalid parameter lists (non-symbols): `Left "Expected symbol"`
+  - Any structural errors propagated from nested conversions
+
+**Error messages** are defined in `Lisp.AST.ASTError` module and provide clear, actionable information about what went wrong.
 
 ## Conversion Pipeline
 
