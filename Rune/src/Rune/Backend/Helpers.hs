@@ -1,10 +1,14 @@
 module Rune.Backend.Helpers
   ( emit,
     escapeString,
+    collectIRVars,
   )
 where
 
 import Data.List (intercalate)
+import Data.Map.Strict (Map, fromList, insert)
+import Rune.Backend.Types (Function)
+import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRType (..))
 
 --
 -- public
@@ -15,6 +19,11 @@ emit lvl s = replicate (lvl * 4) ' ' ++ s
 
 escapeString :: String -> String
 escapeString s = intercalate "," (map escapeChar s)
+
+collectIRVars :: Function -> Map String IRType
+collectIRVars (IRFunction _ params _ body) =
+  let initialMap = fromList (map (\(n, t) -> (n, t)) params)
+   in foldl' collectVars initialMap body
 
 --
 -- private
@@ -31,3 +40,24 @@ escapeChar '\'' = "'''"
 escapeChar c
   | c >= ' ' && c <= '~' = "'" ++ [c] ++ "'"
   | otherwise = show (fromEnum c)
+
+collectVars :: Map String IRType -> IRInstruction -> Map String IRType
+collectVars acc (IRASSIGN n _ t) = insert n t acc
+collectVars acc (IRALLOC n t) = insert n t acc
+collectVars acc (IRLOAD n _ t) = insert n t acc
+collectVars acc (IRDEREF n _ t) = insert n t acc
+collectVars acc (IRGET_FIELD n _ _ _ t) = insert n t acc
+collectVars acc (IRADD_OP n _ _ t) = insert n t acc
+collectVars acc (IRSUB_OP n _ _ t) = insert n t acc
+collectVars acc (IRMUL_OP n _ _ t) = insert n t acc
+collectVars acc (IRDIV_OP n _ _ t) = insert n t acc
+collectVars acc (IRMOD_OP n _ _ t) = insert n t acc
+collectVars acc (IRCMP_EQ n _ _) = insert n IRI32 acc
+collectVars acc (IRCMP_NEQ n _ _) = insert n IRI32 acc
+collectVars acc (IRCMP_LT n _ _) = insert n IRI32 acc
+collectVars acc (IRCMP_LTE n _ _) = insert n IRI32 acc
+collectVars acc (IRAND_OP n _ _ t) = insert n t acc
+collectVars acc (IROR_OP n _ _ t) = insert n t acc
+collectVars acc (IRCALL n _ _ (Just t)) = insert n t acc
+collectVars acc (IRADDR n _ t) = insert n t acc
+collectVars acc _ = acc
