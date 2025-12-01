@@ -53,9 +53,14 @@ parseFunctionCall funcExpr argExprs = do
             return $ Call op astArgs
         _ -> return $ AstList (astFunc : astArgs)
 
+isReservedSymbol :: String -> Bool
+isReservedSymbol s = s `elem` ["define", "lambda", "if"]
+
 sexprToAST :: SExpr -> Maybe Ast
 sexprToAST (Integer n) = Just (AstInteger n)
-sexprToAST (Symbol s) = Just (AstSymbol s)
+sexprToAST (Symbol s)
+    | isReservedSymbol s = Nothing
+    | otherwise = Just (AstSymbol s)
 sexprToAST (List [Symbol "define", List (Symbol funcName : params), body]) =
     parseDefineFunction funcName params body
 sexprToAST (List [Symbol "define", Symbol varName, valueExpr]) =
