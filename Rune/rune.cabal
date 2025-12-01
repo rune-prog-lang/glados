@@ -37,6 +37,7 @@ library
       Rune.AST.ParserHelper
       Rune.AST.Printer
       Rune.AST.Types
+      Rune.Backend.Helpers
       Rune.Backend.Types
       Rune.Backend.X86_64.Codegen
       Rune.Backend.X86_64.Registers

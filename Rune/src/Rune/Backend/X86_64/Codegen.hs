@@ -1,29 +1,24 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Rune.Backend.X86_64.Codegen
   ( emitAssembly,
   )
 where
 
-import Data.List (nub)
-import Lib (escapeString)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import Data.Maybe (mapMaybe)
+import Rune.Backend.Helpers (calculateStackMap, collectTopLevels, emit, escapeString)
 import Rune.Backend.Types (Extern, Function, GlobalString)
+import Rune.Backend.X86_64.Registers (x86_64ArgsRegisters)
+import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes
 
 --
 -- public
 --
 
---
--- private helpers
---
-
-emit :: Int -> String -> String
-emit lvl s = replicate (lvl * 4) ' ' ++ s
-
 emitAssembly :: IRProgram -> String
 emitAssembly (IRProgram _ topLevels) =
-  let (externs, globalStrings, functions) = collectTopLevel topLevels
+  let (externs, globalStrings, functions) = collectTopLevels topLevels
    in unlines $
         emitExterns externs
           ++ emitDataSection globalStrings
@@ -32,17 +27,6 @@ emitAssembly (IRProgram _ topLevels) =
 --
 -- top level
 --
-
--- | collext externs, global strings, and functions
-collectTopLevel :: [IRTopLevel] -> ([Extern], [GlobalString], [Function])
-collectTopLevel tls =
-  let (es, gs, fs) = foldr go ([], [], []) tls
-   in (nub es, reverse gs, reverse fs)
-  where
-    go (IRExtern name) (e, g, f) = (name : e, g, f)
-    go (IRGlobalString n v) (e, g, f) = (e, (n, v) : g, f)
-    go (IRFunctionDef fn) (e, g, f) = (e, g, fn : f)
-    go _ acc = acc
 
 -- | extern <function>
 emitExterns :: [Extern] -> [String]
@@ -59,7 +43,7 @@ emitDataSection :: [GlobalString] -> [String]
 emitDataSection [] = []
 emitDataSection gs = "section .data" : map emitGlobal gs
   where
-    emitGlobal (name, val) = name ++ " db \"" ++ escapeString val ++ "\", 0"
+    emitGlobal (name, val) = name ++ " db " ++ escapeString val ++ ", 0"
 
 --
 -- section .text
@@ -70,24 +54,47 @@ emitTextSection [] = []
 emitTextSection fs = "section .text" : concatMap emitFunction fs
 
 --
+-- function stack management
+--
+
+--
 -- function emission
 --
 
--- | emit function
+-- | emit function: prologue, parameter setup, body, epilogue
 -- global <name>
 -- <name>:
 --     push rbp
 --     mov rbp, rsp
+--     sub rsp, <frame_size>
 --     ...
+-- .L.function_end_<name>:
+--     mov rsp, rbp
 --     pop rbp
 --     ret
 emitFunction :: Function -> [String]
-emitFunction (IRFunction name _ _ _) =
+emitFunction fn@(IRFunction name params _ body) =
+  let (stackMap, frameSize) = calculateStackMap fn
+      endLabel = ".L.function_end_" ++ name
+      prologue = emitFunctionPrologue fn frameSize
+      paramSetup = emitParamSetup params stackMap
+      bodyInstrs = concatMap (emitInstruction stackMap endLabel) body
+      epilogue = emitFunctionEpilogue endLabel
+   in prologue ++ paramSetup ++ bodyInstrs ++ epilogue
+
+emitFunctionPrologue :: Function -> Int -> [String]
+emitFunctionPrologue (IRFunction name _ _ _) frameSize =
   [ "global " ++ name,
     name ++ ":",
     emit 1 "push rbp",
     emit 1 "mov rbp, rsp",
-    emit 1 "; ... function body ...",
+    emit 1 $ "sub rsp, " ++ show frameSize
+  ]
+
+emitFunctionEpilogue :: String -> [String]
+emitFunctionEpilogue endLabel =
+  [ endLabel ++ ":",
+    emit 1 "mov rsp, rbp",
     emit 1 "pop rbp",
     emit 1 "ret",
     ""
