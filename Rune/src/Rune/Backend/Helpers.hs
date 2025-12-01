@@ -2,13 +2,14 @@ module Rune.Backend.Helpers
   ( emit,
     escapeString,
     collectIRVars,
+    collectTopLevels,
   )
 where
 
-import Data.List (intercalate)
+import Data.List (intercalate, nub)
 import Data.Map.Strict (Map, fromList, insert)
-import Rune.Backend.Types (Function)
-import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRType (..))
+import Rune.Backend.Types (Extern, Function, GlobalString)
+import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
 
 --
 -- public
@@ -19,6 +20,11 @@ emit lvl s = replicate (lvl * 4) ' ' ++ s
 
 escapeString :: String -> String
 escapeString s = intercalate "," (map escapeChar s)
+
+collectTopLevels :: [IRTopLevel] -> ([Extern], [GlobalString], [Function])
+collectTopLevels tls =
+  let (es, gs, fs) = foldr collectTopLevel ([], [], []) tls
+   in (nub es, reverse gs, reverse fs)
 
 collectIRVars :: Function -> Map String IRType
 collectIRVars (IRFunction _ params _ body) =
@@ -40,6 +46,12 @@ escapeChar '\'' = "'''"
 escapeChar c
   | c >= ' ' && c <= '~' = "'" ++ [c] ++ "'"
   | otherwise = show (fromEnum c)
+
+collectTopLevel :: IRTopLevel -> ([Extern], [GlobalString], [Function]) -> ([Extern], [GlobalString], [Function])
+collectTopLevel (IRExtern name) (e, g, f) = (name : e, g, f)
+collectTopLevel (IRGlobalString n v) (e, g, f) = (e, (n, v) : g, f)
+collectTopLevel (IRFunctionDef fn) (e, g, f) = (e, g, fn : f)
+collectTopLevel _ acc = acc
 
 collectVars :: Map String IRType -> IRInstruction -> Map String IRType
 collectVars acc (IRASSIGN n _ t) = insert n t acc
