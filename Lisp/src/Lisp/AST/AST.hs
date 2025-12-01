@@ -9,6 +9,8 @@ module Lisp.AST.AST (
     Environment
 ) where
 
+import Lisp.AST.ASTError
+
 type Environment = [(String, Ast)]
 
 data Ast = Define String Ast
@@ -30,79 +32,109 @@ compEnv ((name, value):xs) str
 extractInteger :: Environment -> Ast -> Maybe Int
 extractInteger env ast =
     case evalAST env ast of
-        (_, Just (AstInteger n)) -> Just n
+        (_, Right (AstInteger n)) -> Just n
         _ -> Nothing
 
-handleString :: Environment -> String -> (Environment, Maybe Ast)
-handleString env "#t" = (env, Just (AstBoolean True))
-handleString env "#f" = (env, Just (AstBoolean False))
+handleString :: Environment -> String -> (Environment, Either String Ast)
+handleString env "#t" = (env, Right (AstBoolean True))
+handleString env "#f" = (env, Right (AstBoolean False))
 handleString env s =
     case compEnv env s of
         Just value -> evalAST env value
-        _          -> (env, Nothing)
+        _          -> (env, Left (undefinedVariableError s))
 
-handleOpt :: Environment -> String -> [Ast] -> Maybe Ast
-handleOpt env op [x, y] = do
-    a <- extractInteger env x
-    b <- extractInteger env y
-    case op of
-        "+" -> return $ AstInteger (a + b)
-        "-" -> return $ AstInteger (a - b)
-        "*" -> return $ AstInteger (a * b)
-        "div" -> if b /= 0 then return $ AstInteger (a `div` b) else Nothing
-        "mod" -> if b /= 0 then return $ AstInteger (a `mod` b) else Nothing
-        "eq?" -> return $ AstBoolean (a == b)
-        "<" -> return $ AstBoolean (a < b)
-        _ -> Nothing
-handleOpt _ _ _ = Nothing
+extractIntegerOrError :: Environment -> Ast -> Either String Int
+extractIntegerOrError env ast =
+    case extractInteger env ast of
+        Just n -> Right n
+        Nothing -> Left argumentMustBeIntegerError
 
-handleCondition :: Environment -> Ast -> Ast -> Ast -> (Environment, Maybe Ast)
+guardNonZero :: Int -> Ast -> Either String Ast
+guardNonZero b result = if b /= 0
+    then Right result
+    else Left divisionByZeroError
+
+applyOp :: String -> Int -> Int -> Either String Ast
+applyOp op a b = case op of
+    "+" -> Right $ AstInteger (a + b)
+    "-" -> Right $ AstInteger (a - b)
+    "*" -> Right $ AstInteger (a * b)
+    "div" -> guardNonZero b (AstInteger (a `div` b))
+    "mod" -> guardNonZero b (AstInteger (a `mod` b))
+    "eq?" -> Right $ AstBoolean (a == b)
+    "<" -> Right $ AstBoolean (a < b)
+    _ -> Left (unknownOperatorError op)
+
+validateArgCount :: Int -> [Ast] -> Either String [Ast]
+validateArgCount n args = if length args == n
+    then Right args
+    else Left operatorRequiresTwoArgumentsError
+
+handleOpt :: Environment -> String -> [Ast] -> Either String Ast
+handleOpt env op args = do
+    case validateArgCount 2 args of
+        Left err -> Left err
+        Right [x, y] -> do
+            a <- extractIntegerOrError env x
+            b <- extractIntegerOrError env y
+            applyOp op a b
+        Right _ -> Left operatorRequiresTwoArgumentsError
+
+evaluateArg :: Environment -> Ast -> Ast
+evaluateArg env arg = case evalAST env arg of
+    (_, Right val) -> val
+    (_, Left _)    -> AstSymbol ""
+
+handleCall :: Environment -> String -> [String] -> Ast -> Environment -> [Ast]
+    -> (Environment, Either String Ast)
+handleCall env funcName params body closureEnv args =
+    case validateArgCount (length params) args of
+        Left err -> (env, Left err)
+        Right _ ->
+            let bindings = zip params (map (evaluateArg env) args)
+                funcBinding = (funcName, Lambda params body closureEnv)
+                newEnv = funcBinding : bindings ++ closureEnv
+            in evalAST newEnv body
+
+handleCondition :: Environment -> Ast -> Ast -> Ast
+    -> (Environment, Either String Ast)
 handleCondition env c t e =
     let (_, evaluatedCond) = evalAST env c
     in case evaluatedCond of
-        Just (AstBoolean True)  -> evalAST env t
-        Just (AstBoolean False) -> evalAST env e
-        _                       -> (env, Nothing)
+        Right (AstBoolean True)  -> evalAST env t
+        Right (AstBoolean False) -> evalAST env e
+        _                       -> (env, Left conditionMustBeBooleanError)
 
-handleDefine :: Environment -> String -> Ast -> (Environment, Maybe Ast)
+handleDefine :: Environment -> String -> Ast -> (Environment, Either String Ast)
 handleDefine env name value =
     let (_, evaluatedValue) = evalAST env value
     in case evaluatedValue of
-        Just val -> ((name, val) : env, Just (AstSymbol ""))
-        Nothing  -> (env, Nothing)
+        Right val -> ((name, val) : env, Right (AstSymbol ""))
+        Left err  -> (env, Left err)
 
-handleCall :: Environment -> String -> [String] -> Ast -> Environment -> [Ast] -> (Environment, Maybe Ast)
-handleCall env funcName params body closureEnv args
-    | length params /= length args = (env, Nothing)
-    | otherwise =
-        let evaluateArg arg = case evalAST env arg of
-                (_, Just val) -> val
-                (_, Nothing)  -> AstSymbol ""
-            argVals = map evaluateArg args
-            bindings = zip params argVals
-            funcBinding = (funcName, Lambda params body closureEnv)
-            newEnv = funcBinding : bindings ++ closureEnv
-        in evalAST newEnv body
-
-evalASTWithEnv :: Environment -> [Ast] -> (Environment, Maybe Ast)
-evalASTWithEnv env [] = (env, Nothing)
+evalASTWithEnv :: Environment -> [Ast] -> (Environment, Either String Ast)
+evalASTWithEnv env [] = (env, Left emptyListError)
 evalASTWithEnv env [expr] = evalAST env expr
 evalASTWithEnv env (expr:exprs) =
-    let (newEnv, _) = evalAST env expr
-    in evalASTWithEnv newEnv exprs
+    let (newEnv, result) = evalAST env expr
+    in case result of
+        Left err -> (newEnv, Left err)
+        Right _  -> evalASTWithEnv newEnv exprs
 
-evalAST :: Environment -> Ast -> (Environment, Maybe Ast)
-evalAST env (AstInteger n) = (env, Just (AstInteger n))
-evalAST env (AstBoolean b) = (env, Just (AstBoolean b))
+evalAST :: Environment -> Ast -> (Environment, Either String Ast)
+evalAST env (AstInteger n) = (env, Right (AstInteger n))
+evalAST env (AstBoolean b) = (env, Right (AstBoolean b))
 evalAST env (AstSymbol s) = handleString env s
 evalAST env (Call op args) = (env, handleOpt env op args)
-evalAST env (If cond thenExpr elseExpr) = handleCondition env cond thenExpr elseExpr
-evalAST env (Lambda params body _) = (env, Just (Lambda params body env))
+evalAST env (If cond thenExpr elseExpr) =
+    handleCondition env cond thenExpr elseExpr
+evalAST env (Lambda params body _) = (env, Right (Lambda params body env))
 evalAST env (Define name value) = handleDefine env name value
 evalAST env (AstList (AstSymbol funcName : args)) =
     case compEnv env funcName of
-        Just (Lambda params body closureEnv) -> handleCall env funcName params body closureEnv args
+        Just (Lambda params body closureEnv) ->
+            handleCall env funcName params body closureEnv args
         _ -> (env, handleOpt env funcName args)
 evalAST env (AstList [expr]) = evalAST env expr
-evalAST env (AstList []) = (env, Just (AstList []))
-evalAST env (AstList _) = (env, Nothing)
+evalAST env (AstList []) = (env, Right (AstList []))
+evalAST env (AstList _) = (env, Left invalidListExpressionError)

@@ -26,6 +26,7 @@ library
   exposed-modules:
       Executor
       Lisp.AST.AST
+      Lisp.AST.ASTError
       Lisp.AST.SExprToAST
       Lisp.Parser.Parser
       Lisp.SExpr.SExpr

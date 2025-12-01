@@ -18,19 +18,20 @@ executeLispWithEnv env input =
 executeSExpr :: Environment -> SExpr -> (Environment, Either String Ast)
 executeSExpr env (List sexprs) =
     case mapM sexprToAST sexprs of
-        Nothing -> (env, Left "AST conversion error")
-        Just asts -> executeAsts (evalASTWithEnv env asts)
+        Left err -> (env, Left ("AST conversion error: " ++ err))
+        Right asts ->
+            let (newEnv, result) = evalASTWithEnv env asts
+            in (newEnv, addEvalErrorPrefix result)
 executeSExpr env sexpr =
     case sexprToAST sexpr of
-        Nothing -> (env, Left "AST conversion error")
-        Just ast -> executeAsts (evalAST env ast)
+        Left err -> (env, Left ("AST conversion error: " ++ err))
+        Right ast ->
+            let (newEnv, result) = evalAST env ast
+            in (newEnv, addEvalErrorPrefix result)
 
-executeAsts :: (Environment, Maybe Ast) -> (Environment, Either String Ast)
-executeAsts (newEnv, result) =
-    (newEnv, maybeToEither "Evaluation error" result)
-
-maybeToEither :: String -> Maybe a -> Either String a
-maybeToEither err = maybe (Left err) Right
+addEvalErrorPrefix :: Either String Ast -> Either String Ast
+addEvalErrorPrefix (Left err) = Left ("Evaluation error: " ++ err)
+addEvalErrorPrefix (Right ast) = Right ast
 
 astToString :: Ast -> String
 astToString (AstInteger n) = show n
