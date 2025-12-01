@@ -6,6 +6,7 @@ module Rune.IR.IRHelpers
     nextLabelIndex,
     makeLabel,
     newStringGlobal,
+    genFormatString,
     endsWithRet,
     pushLoopContext,
     popLoopContext,
@@ -79,6 +80,13 @@ newStringGlobal value = do
         gsGlobals = IRGlobalString name value : gsGlobals s
       }
   return name
+
+genFormatString :: String -> IRGen ([IRInstruction], IROperand)
+genFormatString value = do
+  stringName <- newStringGlobal value
+  ptrName <- newTemp "p_fmt" (IRPtr IRU8)
+  let addrInstr = IRADDR ptrName stringName (IRPtr IRU8)
+  return ([addrInstr], IRTemp ptrName (IRPtr IRU8))
 
 mangleMethodName :: String -> String -> String
 mangleMethodName structName methodName = structName ++ "_" ++ methodName

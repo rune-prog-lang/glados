@@ -1,7 +1,7 @@
 module Rune.IR.Generator.Expression.Call (genCall, genShowCall) where
 
 import Rune.AST.Nodes (Expression)
-import Rune.IR.IRHelpers (newTemp, registerCall)
+import Rune.IR.IRHelpers (genFormatString, newTemp, registerCall)
 import Rune.IR.Nodes (IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
 --
@@ -46,9 +46,33 @@ genShowCall genExpr arg = do
       (prep, finalOp) = prepareAddr op typ
 
   registerCall funcName
+  (fmtInstrs, callArgs) <- genShowFmtCall typ finalOp
 
-  let callInstr = IRCALL "" funcName [finalOp] Nothing
-  return (instrs ++ prep ++ [callInstr], IRTemp "t_void" IRVoid, IRVoid)
+  let callInstr = IRCALL "" funcName callArgs Nothing
+  return (instrs ++ prep ++ fmtInstrs ++ [callInstr], IRTemp "t_void" IRVoid, IRVoid)
+
+-- | as show is a built-in "printf"-like function
+-- def show(value: any) -> null
+-- we need to format the arguments accordingly to the input
+--
+-- TODO: add mapping for other types
+genShowFmtCall :: IRType -> IROperand -> IRGen ([IRInstruction], [IROperand])
+genShowFmtCall IRF32 finalOp = do
+  (i, f) <- genFormatString "%f"
+  return (i, [f, finalOp])
+genShowFmtCall IRF64 finalOp = do
+  (i, f) <- genFormatString "%lf"
+  return (i, [f, finalOp])
+genShowFmtCall IRI32 finalOp = do
+  (i, f) <- genFormatString "%d"
+  return (i, [f, finalOp])
+genShowFmtCall IRI64 finalOp = do
+  (i, f) <- genFormatString "%ld"
+  return (i, [f, finalOp])
+genShowFmtCall (IRPtr IRU8) finalOp =
+  return ([], [finalOp])
+genShowFmtCall _ finalOp =
+  return ([], [finalOp])
 
 --
 -- private
