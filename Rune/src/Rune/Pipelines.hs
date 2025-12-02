@@ -8,6 +8,7 @@ import Control.Monad ((>=>))
 import Logger (logError)
 import Rune.AST.Nodes (Program)
 import Rune.AST.Parser (parseRune)
+import Rune.Backend.X86_64.Codegen (emitAssembly)
 import Rune.IR.Generator (generateIR)
 import Rune.IR.Nodes (IRProgram)
 import Rune.IR.Printer (prettyPrintIR)
@@ -21,7 +22,7 @@ import Text.Megaparsec (errorBundlePretty)
 --
 
 compilePipeline :: FilePath -> FilePath -> IO ()
-compilePipeline inFile outFile = runPipelineAction inFile (writeFile outFile . prettyPrintIR)
+compilePipeline inFile outFile = runPipelineAction inFile (writeFile outFile . emitAssembly)
 
 interpretPipeline :: FilePath -> IO ()
 interpretPipeline inFile = runPipelineAction inFile (putStr . prettyPrintIR)

@@ -25,6 +25,7 @@ source-repository head
 library
   exposed-modules:
       CLI
+      Lib
       Logger
       Rune.AST.Nodes
       Rune.AST.Parser
@@ -36,6 +37,10 @@ library
       Rune.AST.ParserHelper
       Rune.AST.Printer
       Rune.AST.Types
+      Rune.Backend.Helpers
+      Rune.Backend.Types
+      Rune.Backend.X86_64.Codegen
+      Rune.Backend.X86_64.Registers
       Rune.IR.Generator
       Rune.IR.Generator.Expression.Binary
       Rune.IR.Generator.Expression.Call
@@ -103,6 +108,7 @@ test-suite rune-test
       AST.ParserSpec
       AST.PrinterSpec
       AST.ProgramSyntaxSpec
+      Backend.X86_64Spec
       CLISpec
       IR.IRNodesSpecs
       IR.IRSpec

@@ -3,11 +3,11 @@ module Rune.IR.Generator.GenStatement
   )
 where
 
-import Rune.AST.Nodes (Expression, Statement (..))
+import Rune.AST.Nodes (Expression, Statement (..), Type)
 import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.Generator.Statement.ControlFlow (genIfElse, genIfNoElse, genNext, genStop)
 import Rune.IR.Generator.Statement.Loops (genForEach, genForTo, genLoop)
-import Rune.IR.IRHelpers (registerVar)
+import Rune.IR.IRHelpers (astTypeToIRType, registerVar)
 import Rune.IR.Nodes
   ( IRGen,
     IRInstruction (..),
@@ -19,7 +19,7 @@ import Rune.IR.Nodes
 --
 
 genStatement :: Statement -> IRGen [IRInstruction]
-genStatement (StmtVarDecl n _ e) = genVarDecl n e
+genStatement (StmtVarDecl n t e) = genVarDecl n t e
 genStatement (StmtAssignment l r) = genAssignment l r
 genStatement (StmtReturn Nothing) = pure [IRRET Nothing]
 genStatement (StmtReturn (Just e)) = genReturnExpr e
@@ -39,16 +39,21 @@ genStatement (StmtExpr expr) = genExprStmt expr
 genBlock :: [Statement] -> IRGen [IRInstruction]
 genBlock = fmap concat . mapM genStatement
 
-genVarDecl :: String -> Expression -> IRGen [IRInstruction]
-genVarDecl name expr = do
-  (instrs, op, typ) <- genExpression expr
+genVarDecl :: String -> Maybe Type -> Expression -> IRGen [IRInstruction]
+genVarDecl name maybeType expr = do
+  (instrs, op, inferredType) <- genExpression expr
+
+  let finalType = case maybeType of
+        Just t -> astTypeToIRType t
+        Nothing -> inferredType
+
   case op of
     IRTemp _ _ -> do
-      registerVar name op typ
+      registerVar name op finalType
       pure instrs
     _ -> do
-      let assignInstr = IRASSIGN name op typ
-      registerVar name (IRTemp name typ) typ
+      let assignInstr = IRASSIGN name op finalType
+      registerVar name (IRTemp name finalType) finalType
       pure (instrs ++ [assignInstr])
 
 genAssignment :: Expression -> Expression -> IRGen [IRInstruction]

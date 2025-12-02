@@ -33,3 +33,5 @@ lisp
 *.ir
 *.tix
 *.log
+*.asm
+*.bin
