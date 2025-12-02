@@ -24,7 +24,7 @@ verifScope :: Stack -> Block -> Maybe String
 -- name n, type t, expr e
 verifScope (fs, vs) (StmtVarDecl var t e:stmts) =
     let expr_type   = exprType (fs, vs) e
-        (vs', err)  = assignVarType vs var $ fromMaybe expr_type t 
+        (vs', err)  = assignVarType vs var expr_type 
         multipleType= checkMultipleType var t expr_type
     in  err <> multipleType 
     <>  verifExpr (fs, vs) e
@@ -39,7 +39,7 @@ verifScope s (StmtIf cond thenA elseB:stmts) =
     <>  verifScope s stmts
 verifScope (fs, vs) (StmtFor var t (Just start) end body:stmts) =
     let expr_type   = exprType (fs, vs) start
-        (vs', err)  = assignVarType vs var $ fromMaybe expr_type t 
+        (vs', err)  = assignVarType vs var expr_type 
         multipleType= checkMultipleType var t expr_type
     in  err <> multipleType 
     <>  verifExpr (fs, vs') start
@@ -48,7 +48,7 @@ verifScope (fs, vs) (StmtFor var t (Just start) end body:stmts) =
     <>  verifScope (fs, vs) stmts
 verifScope (fs, vs) (StmtFor var t Nothing end body:stmts) =
     let expr_type   = fromMaybe TypeAny t
-        (vs', err)  = assignVarType vs var $ fromMaybe expr_type t 
+        (vs', err)  = assignVarType vs var expr_type 
         multipleType= checkMultipleType var t expr_type
     in  err <> multipleType 
     <>  verifExpr (fs, vs') end
@@ -56,7 +56,7 @@ verifScope (fs, vs) (StmtFor var t Nothing end body:stmts) =
     <>  verifScope (fs, vs) stmts
 verifScope (fs, vs) (StmtForEach var t iterable body:stmts) =
     let expr_type   = exprType (fs, vs) iterable
-        (vs', err)  = assignVarType vs var $ fromMaybe expr_type t 
+        (vs', err)  = assignVarType vs var expr_type 
         multipleType= checkMultipleType var t expr_type
     in  err <> multipleType 
     <>  verifExpr (fs, vs') iterable
