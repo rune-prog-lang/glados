@@ -121,7 +121,7 @@ assignVarType :: VarStack -> String -> Type -> (VarStack, Maybe String)
 assignVarType s _ TypeAny = (s, Nothing)
 assignVarType s v t =
     let msg = "\n\tTypeOverwrite: " ++ v
-          ++ " has allready type " ++ show t
+          ++ " has already type " ++ show t
         updated = (HM.insert v t s, Nothing)
     in case HM.lookup v s of
       Nothing       -> updated
