@@ -1,32 +1,39 @@
-{-
--- EPITECH PROJECT, 2025
--- Main.hs
--- File description:
--- Main.hs
--}
-
+{-# LANGUAGE LambdaCase #-}
 module Main (main) where
 
 import System.Environment (getArgs)
-import System.IO (hPutStrLn, stderr)
-import Text.Megaparsec (parse, errorBundlePretty)
-import Parser (parseLispDocument)
-import SExpr (printTree)
+import System.IO (hPutStrLn, stderr, hFlush, stdout, stdin, hIsTerminalDevice)
+import Executor (executeLispWithEnv, astToString)
+import Lisp.AST.AST (Environment)
 
 main :: IO ()
-main = do
-    args <- getArgs
-    case args of
-        [] -> do
-            hPutStrLn stderr "Usage: glados-exe <input>"
-            return ()
-        (input:_) -> do
-            case parse parseLispDocument "" input of
-                Left err -> do
-                    hPutStrLn stderr $ "Parse error: " ++ errorBundlePretty err
-                    return ()
-                Right sexpr -> do
-                    case printTree sexpr of
-                        Just output -> putStrLn output
-                        Nothing -> putStrLn "Error: Could not print tree"
+main = getArgs >>= \case
+    [] -> hIsTerminalDevice stdin >>= \case
+        True -> lispLoop []
+        False -> getContents >>= processInput
+    [filename] -> readFile filename >>= processInput
+    _ -> hPutStrLn stderr "Usage: glados [script.lisp]"
 
+lispLoop :: Environment -> IO ()
+lispLoop env = do
+    putStr "> "
+    hFlush stdout
+    getLine >>= handleInput env . trim
+
+handleInput :: Environment -> String -> IO ()
+handleInput env = \case
+    "" -> lispLoop env
+    "exit" -> return ()
+    input -> do
+        let (newEnv, result) = executeLispWithEnv env input
+        either putStrLn (putStrLn . astToString) result
+        lispLoop newEnv
+
+processInput :: String -> IO ()
+processInput input = do
+    let (_, result) = executeLispWithEnv [] input
+    either (hPutStrLn stderr) (putStrLn . astToString) result
+
+trim :: String -> String
+trim = f . f
+  where f = reverse . dropWhile (`elem` " \t\n\r")

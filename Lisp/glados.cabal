@@ -24,10 +24,12 @@ source-repository head
 
 library
   exposed-modules:
-      AST
       Executor
-      Parser
-      SExpr
+      Lisp.AST.AST
+      Lisp.AST.ASTError
+      Lisp.AST.SExprToAST
+      Lisp.Parser.Parser
+      Lisp.SExpr.SExpr
   other-modules:
       Paths_glados
   autogen-modules:
@@ -59,7 +61,9 @@ test-suite glados-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      ASTSpec
+      AST.ASTErrorSpec
+      AST.ASTSpec
+      AST.SExprToASTSpec
       ParserSpec
       SExprSpec
       Paths_glados

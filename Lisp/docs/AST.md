@@ -26,52 +26,6 @@ Each constructor handles a specific type of expression:
 - `If` - conditional expressions
 - The rest are basic data types
 
-## Converting S-expressions to AST
-
-The main function `sexprToAST :: SExpr -> Maybe Ast` returns the result of Lisp code
-
-### Simple cases
-
-Numbers and symbols are simple:
-```haskell
-sexprToAST (Integer n) = Just (AstInteger n)
-sexprToAST (Symbol s)  = Just (AstSymbol s)
-```
-
-### Special forms
-
-**Variable definitions** can take two forms:
-
-1. Simple variable definition: `(define variable value)`
-```haskell
-sexprToAST (List [Symbol "define", Symbol s, valueExpr]) = do
-    astValue <- sexprToAST valueExpr
-    Just (Define s astValue)
-```
-
-2. Function definition (syntactic sugar): `(define (funcName param1 param2) body)`
-```haskell
-sexprToAST (List [Symbol "define", List (Symbol funcName : params), body]) = do
-    astBody <- sexprToAST body
-    paramNames <- mapM extractParam params
-    Just (Define funcName (Lambda paramNames astBody []))
-```
-
-**Lambda functions** expect: `(lambda (param1 param2 ...) body)`
-```haskell
-sexprToAST (List [Symbol "lambda", List args, body]) = do
-    astValue <- sexprToAST body
-    let extractParam se = case se of
-            Symbol s -> Just s
-            _ -> Nothing
-    astArgs <- mapM extractParam args
-    Just (Lambda astArgs astValue [])
-```
-
-Note: Lambda captures the current environment as a closure for proper lexical scoping.
-
-**Function calls** are detected by looking at the first symbol. If it's one of our built-in operators (`+`, `-`, `*`, etc.), we create a `Call`. Otherwise, it becomes a generic list.
-
 ## How evaluation works
 
 ### The Environment
@@ -88,23 +42,38 @@ So after running `(define x 5)(define y 10)`, our environment looks like:
 
 ### The main evaluator
 
-`evalAST :: Environment -> Ast -> Maybe Ast` takes an AST expression and tries to evaluate it with the environment.
+`evalAST :: Environment -> Ast -> (Environment, Either String Ast)` takes an AST expression and evaluates it with the environment. It returns both the (potentially updated) environment and either an error message or the result.
 
-**Numbers and booleans** are just numbers or booleans, there are nothing more simple.
+**Numbers and booleans** evaluate to themselves: `(env, Right (AstInteger n))` or `(env, Right (AstBoolean b))`.
 
-**Symbols** are where it gets interesting. We check if it's `#t` or `#f` first (our boolean literals), then look it up in the environment. If we can't find it, we just return the symbol string.
+**Symbols** are handled by `handleString`, which:
+- Returns `(env, Right (AstBoolean True))` for `#t`
+- Returns `(env, Right (AstBoolean False))` for `#f`
+- Looks up other symbols in the environment and evaluates them
+- Returns `(env, Left (undefinedVariableError s))` if the variable is not found
 
-**Function calls** like `(+ 1 2)` get handled by `handleCall`, which do arithmetic and comparisons with arguments.
+**Function calls** like `(+ 1 2)` are handled by `handleOpt`, which:
+- Validates that exactly 2 arguments are provided
+- Extracts integer values from the arguments
+- Applies the operation and returns `(env, Right result)` or `(env, Left error)`
 
-**If statements** evaluate the condition first, then pick the right branch based on whether it's true or false.
+**If statements** are handled by `handleCondition`, which:
+- Evaluates the condition
+- Requires the condition to be a boolean, otherwise returns `Left conditionMustBeBooleanError`
+- Evaluates the appropriate branch based on the boolean value
 
-**Lambda evaluation** is handled specially. When a lambda is called:
-1. The function's arguments are evaluated
-2. Parameters are bound to the evaluated arguments
-3. A new environment is created by combining the bindings with the lambda's closure environment
-4. The body is evaluated in this new environment
+**Lambda evaluation** captures the current environment as a closure: `(env, Right (Lambda params body env))`. When a lambda is called (via `AstList` pattern):
+1. Validates argument count matches parameter count
+2. Evaluates all arguments in the current environment
+3. Creates a new environment with the function bound to itself (for recursion), parameter bindings, and the closure environment
+4. Evaluates the body in this new environment
 
-This ensures proper lexical scoping and closure behavior.
+This ensures proper lexical scoping and enables recursive functions.
+
+**Definitions** are handled by `handleDefine`, which:
+- Evaluates the value expression
+- On success: adds the binding to the environment and returns `((name, val) : env, Right (AstSymbol ""))`
+- On failure: propagates the error without modifying the environment
 
 ### Arithmetic and comparisons
 
@@ -117,22 +86,39 @@ And these built-in comparisons functions which give a boolean:
 
 ### Running multiple expressions
 
-The key function is `evalASTWithEnv :: Environment -> [Ast] -> Maybe Ast`. This lets us run a sequence of expressions, updating the environment as we go.
+The key function is `evalASTWithEnv :: Environment -> [Ast] -> (Environment, Either String Ast)`. This lets us run a sequence of expressions, threading the environment through each evaluation.
 
-When we hit a `define`, we evaluate the value and add it to the environment for the next expressions. For everything else, we just evaluate it and move on.
+**Behavior:**
+- Empty list: Returns `(env, Left emptyListError)`
+- Single expression: Evaluates it and returns the result
+- Multiple expressions: Evaluates each in sequence, short-circuiting on the first error
 
 Here's what happens with `(define x 5)(+ x 2)`:
 
 1. Start with empty environment: `[]`
-2. Process `(define x 5)`: evaluate `5`, add `x → 5` to environment
-3. Process `(+ x 2)`: look up `x` (gets `5`), compute `5 + 2 = 7`
-4. Return `7`
+2. Process `(define x 5)`: `handleDefine` evaluates `5`, returns `(("x", AstInteger 5) : [], Right (AstSymbol ""))`
+3. Process `(+ x 2)`: look up `x` in `[("x", AstInteger 5)]` (gets `5`), compute `5 + 2 = 7`
+4. Return `([("x", AstInteger 5)], Right (AstInteger 7))`
 
 ### Helper functions
 
 The module exports several helper functions:
 - `compEnv :: Environment -> String -> Maybe Ast` - looks up a variable in the environment
-- `extractInteger :: Environment -> Ast -> Maybe Int` - evaluates an AST and extracts an integer value
-- `handleString :: Environment -> String -> Maybe Ast` - handles string symbols and boolean literals (#t, #f)
-- `handleCall :: Environment -> String -> [Ast] -> Maybe Ast` - handles built-in function calls
-- `handleCondition :: Environment -> Ast -> Ast -> Ast -> Maybe Ast` - evaluates if expressions (internal helper)
+- `extractInteger :: Environment -> Ast -> Maybe Int` - evaluates an AST and extracts an integer value (discards error messages, returns Nothing on failure)
+- `handleString :: Environment -> String -> (Environment, Either String Ast)` - handles string symbols and boolean literals (#t, #f), returns detailed errors for undefined variables
+- `handleCall :: Environment -> String -> [String] -> Ast -> Environment -> [Ast] -> (Environment, Either String Ast)` - handles user-defined function calls with proper closure support. Validates argument count and returns detailed errors.
+
+**Internal helpers (not exported):**
+- `extractIntegerOrError :: Environment -> Ast -> Either String Int` - extracts an integer or returns a detailed error message
+- `guardNonZero :: Int -> Ast -> Either String Ast` - checks for division by zero
+- `applyOp :: String -> Int -> Int -> Either String Ast` - applies arithmetic/comparison operators with error handling
+- `validateArgCount :: Int -> [Ast] -> Either String [Ast]` - validates argument count
+- `handleOpt :: Environment -> String -> [Ast] -> Either String Ast` - handles built-in arithmetic and comparison operators with validation
+- `evaluateArg :: Environment -> Ast -> Ast` - evaluates an argument, returning AstSymbol "" on error (used in function calls)
+- `handleCondition :: Environment -> Ast -> Ast -> Ast -> (Environment, Either String Ast)` - evaluates if expressions, requires boolean condition
+- `handleDefine :: Environment -> String -> Ast -> (Environment, Either String Ast)` - handles variable and function definitions, propagates errors
+
+**Pipeline:**
+```
+Source Code → Parser → SExpr → SExprToAST → AST → Evaluation
+```
