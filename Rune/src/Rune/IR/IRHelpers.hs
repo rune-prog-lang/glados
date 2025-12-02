@@ -42,7 +42,8 @@ astTypeToIRType TypeF64 = IRF64
 astTypeToIRType TypeBool = IRBool
 astTypeToIRType TypeNull = IRNull
 astTypeToIRType (TypeCustom name) = IRStruct name
-astTypeToIRType _ = IRNull
+astTypeToIRType TypeString = IRPtr IRU8
+astTypeToIRType _ = error "Unsupported type conversion from AST to IR"
 
 -- TODO: treat struct properly
 -- currently they are treated as 8 byte references/pointers
