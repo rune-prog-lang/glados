@@ -30,3 +30,6 @@ lisp
 !Lisp
 *.out
 *-exe
+*.ir
+*.tix
+*.log
