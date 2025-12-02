@@ -19,48 +19,48 @@ module Lisp.AST.ASTError (
 
 reservedSymbolError :: String -> String
 reservedSymbolError name =
-    "'" ++ name ++ "' is a reserved symbol and cannot be redefined." ++ "\n"
+    "'" ++ name ++ "' is a reserved symbol and cannot be redefined."
 
 invalidDefineError :: String
 invalidDefineError = "Invalid 'define' syntax. " ++
-    "Expected (define name value) or (define (name args) body)." ++ "\n"
+    "Expected (define name value) or (define (name args) body)."
 
 invalidLambdaError :: String
-invalidLambdaError = "Invalid 'lambda' syntax. Expected (lambda (args) body)." ++ "\n"
+invalidLambdaError = "Invalid 'lambda' syntax. Expected (lambda (args) body)."
 
 invalidIfError :: String
 invalidIfError = "Invalid 'if' syntax. " ++
-    "Expected (if condition then-expression else-expression)." ++ "\n"
+    "Expected (if condition then-expression else-expression)."
 
 emptySExprError :: String
-emptySExprError = "Empty expression cannot be converted to AST." ++ "\n"
+emptySExprError = "Empty expression cannot be converted to AST."
 
 -- Error message definitions for AST evaluation
 undefinedVariableError :: String -> String
-undefinedVariableError name = "Undefined variable: " ++ name ++ "\n"
+undefinedVariableError name = "Undefined variable: " ++ name
 
 divisionByZeroError :: String
-divisionByZeroError = "Division by zero." ++ "\n"
+divisionByZeroError = "Division by zero."
 
 emptyListError :: String
-emptyListError = "Attempted to evaluate an empty list." ++ "\n"
+emptyListError = "Attempted to evaluate an empty list."
 
 argumentMustBeIntegerError :: String
-argumentMustBeIntegerError = "Argument must be an integer." ++ "\n"
+argumentMustBeIntegerError = "Argument must be an integer."
 
 unknownOperatorError :: String -> String
-unknownOperatorError op = "Unknown operator: " ++ op ++ "\n"
+unknownOperatorError op = "Unknown operator: " ++ op
 
 operatorRequiresTwoArgumentsError :: String
-operatorRequiresTwoArgumentsError = "Operator requires exactly 2 arguments." ++ "\n"
+operatorRequiresTwoArgumentsError = "Operator requires exactly 2 arguments."
 
 conditionMustBeBooleanError :: String
-conditionMustBeBooleanError = "Condition must be a boolean value." ++ "\n"
+conditionMustBeBooleanError = "Condition must be a boolean value."
 
 functionExpectsArgumentsError :: String -> Int -> Int -> String
 functionExpectsArgumentsError funcName expected actual =
     "Function '" ++ funcName ++ "' expects " ++ show expected ++
-    " argument(s) but got " ++ show actual ++ "\n"
+    " argument(s) but got " ++ show actual
 
 invalidListExpressionError :: String
-invalidListExpressionError = "Invalid list expression." ++ "\n"
+invalidListExpressionError = "Invalid list expression."
