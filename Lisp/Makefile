@@ -47,6 +47,12 @@ fclean:
 re: fclean all
 
 symlink:
-	@ln -sf "$$(find $(shell pwd)/.stack-work -type f -name $(STACK_BINARY_NAME) | head -n 1)" $(NAME)
+    @BIN=$$(stack exec -- which glados-exe 2>/dev/null || true); \
+    if [ -z "$$BIN" ]; then \
+      echo "glados executable not found, skipping symlink"; \
+    else \
+      ln -sf "$$BIN" "$(CURDIR)/glados"; \
+      echo "Created symlink: $(CURDIR)/glados -> $$BIN"; \
+    fi
 
 .PHONY: all clean fclean re test coverage symlink

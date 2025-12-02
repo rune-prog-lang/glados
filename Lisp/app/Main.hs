@@ -26,13 +26,13 @@ handleInput env = \case
     "exit" -> return ()
     input -> do
         let (newEnv, result) = executeLispWithEnv env input
-        either putStrLn (putStrLn . astToString) result
+        either putStr (putStr . astToString) result
         lispLoop newEnv
 
 processInput :: String -> IO ()
 processInput input = do
     let (_, result) = executeLispWithEnv [] input
-    either (hPutStrLn stderr) (putStrLn . astToString) result
+    either (hPutStrLn stderr) (putStr . astToString) result
 
 trim :: String -> String
 trim = f . f
