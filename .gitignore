@@ -25,7 +25,11 @@ glados
 .stack-root
 stack.yaml.lock
 rune
+!Rune
+lisp
+!Lisp
 *.out
+*-exe
 *.ir
 *.tix
 *.log

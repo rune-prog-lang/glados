@@ -1,12 +1,16 @@
 import Test.Tasty
 
-import ASTSpec (astTests)
+import AST.ASTSpec (astTests)
+import AST.SExprToASTSpec (sexprToASTTests)
+import AST.ASTErrorSpec (astErrorTests)
 import ParserSpec (parserTests)
 import SExprSpec (sexprTests)
 
 main :: IO ()
 main = defaultMain $ testGroup "All Tests"
-  [ astTests,
-    parserTests,
-    sexprTests
+  [ astTests
+  , sexprToASTTests
+  , astErrorTests
+  , parserTests
+  , sexprTests
   ]
