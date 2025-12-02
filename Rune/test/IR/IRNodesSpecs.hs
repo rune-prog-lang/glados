@@ -55,8 +55,8 @@ testIRTypes =
   testGroup
     "IRType"
     [ testCase "All IRType constructors" $
-        let types = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRStruct "Vec2f", IRVoid]
-            expected = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRStruct "Vec2f", IRVoid]
+        let types = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRStruct "Vec2f", IRNull]
+            expected = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRStruct "Vec2f", IRNull]
          in types @?= expected,
       testCase "Deriving Show/Eq" $ show IRI32 @?= "IRI32"
     ]
@@ -172,9 +172,9 @@ testIRInstruction =
       testCase "IRJUMP_EQ0" $ IRJUMP_EQ0 op_temp lbl @?= IRJUMP_EQ0 op_temp lbl,
       -- function operations
       testCase "IRCALL (with result)" $ IRCALL "t15" "foo" [op_temp, op_const_int] (Just IRI32) @?= IRCALL "t15" "foo" [op_temp, op_const_int] (Just IRI32),
-      testCase "IRCALL (void)" $ IRCALL "" "bar" [op_temp] Nothing @?= IRCALL "" "bar" [op_temp] Nothing,
+      testCase "IRCALL (null)" $ IRCALL "" "bar" [op_temp] Nothing @?= IRCALL "" "bar" [op_temp] Nothing,
       testCase "IRRET (with value)" $ IRRET (Just op_const_int) @?= IRRET (Just op_const_int),
-      testCase "IRRET (void)" $ IRRET Nothing @?= IRRET Nothing,
+      testCase "IRRET (null)" $ IRRET Nothing @?= IRRET Nothing,
       -- utility operations
       testCase "IRADDR" $ IRADDR "t16" "globalVar" (IRPtr IRI32) @?= IRADDR "t16" "globalVar" (IRPtr IRI32),
       testCase "IRINC" $ IRINC op_temp @?= IRINC op_temp,
