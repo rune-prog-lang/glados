@@ -4,7 +4,7 @@ module SExprSpec (sexprTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
-import SExpr
+import Lisp.SExpr.SExpr
 
 sexprTests :: TestTree
 sexprTests = testGroup "SExpr Tests"

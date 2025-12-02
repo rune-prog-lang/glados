@@ -61,7 +61,9 @@ test-suite glados-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      ASTSpec
+      AST.ASTErrorSpec
+      AST.ASTSpec
+      AST.SExprToASTSpec
       ParserSpec
       SExprSpec
       Paths_glados
