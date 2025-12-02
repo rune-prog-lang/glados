@@ -125,6 +125,7 @@ emitInstruction sm _ (IRASSIGN dest op _) = emitAssign sm dest op
 emitInstruction _ _ (IRLABEL (IRLabel lbl)) = [lbl ++ ":"]
 emitInstruction _ _ (IRJUMP (IRLabel lbl)) = [emit 1 $ "jmp " ++ lbl]
 emitInstruction sm _ (IRJUMP_EQ0 op (IRLabel lbl)) = emitJumpEQ0 sm op lbl
+emitInstruction sm _ (IRJUMP_FALSE op (IRLabel lbl)) = emitJumpFalse sm op lbl
 emitInstruction sm _ (IRCALL dest funcName args mbType) = emitCall sm dest funcName args mbType
 emitInstruction _ endLbl (IRRET Nothing) = [emit 1 $ "jmp " ++ endLbl]
 emitInstruction sm endLbl (IRRET (Just op)) = emitRet sm endLbl op
@@ -132,19 +133,27 @@ emitInstruction sm _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
 emitInstruction sm _ (IRINC op) = emitIncDec sm op "add"
 emitInstruction sm _ (IRDEC op) = emitIncDec sm op "sub"
 emitInstruction sm _ (IRADDR dest source typ) = emitAddr sm dest source typ
+emitInstruction sm _ (IRADD_OP dest l r _) = emitBinaryOp sm dest "add" l r
+emitInstruction sm _ (IRSUB_OP dest l r _) = emitBinaryOp sm dest "sub" l r
+emitInstruction sm _ (IRMUL_OP dest l r _) = emitBinaryOp sm dest "imul" l r
+emitInstruction sm _ (IRCMP_EQ dest l r) = emitCompareOp sm dest "sete" l r
+emitInstruction sm _ (IRCMP_NEQ dest l r) = emitCompareOp sm dest "setne" l r
+emitInstruction sm _ (IRCMP_LT dest l r) = emitCompareOp sm dest "setl" l r
+emitInstruction sm _ (IRCMP_LTE dest l r) = emitCompareOp sm dest "setle" l r
+emitInstruction sm _ (IRCMP_GT dest l r) = emitCompareOp sm dest "setg" l r
+emitInstruction sm _ (IRCMP_GTE dest l r) = emitCompareOp sm dest "setge" l r
 emitInstruction _ _ instr = [emit 1 $ "; TODO: " ++ show instr]
 
 -- | emit dest = op
 emitAssign :: Map String Int -> String -> IROperand -> [String]
 emitAssign sm dest (IRConstInt n) = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ show n]
 emitAssign sm dest (IRConstChar c) = [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
-emitAssign sm dest srcOp = case srcOp of
-  IRTemp srcName _ -> emitMoveStackToStack sm dest srcName
-  IRParam srcName _ -> emitMoveStackToStack sm dest srcName
-  _ ->
-    [ emit 1 $ "; WARNING: Unsupported IRASSIGN operand: " ++ show srcOp,
-      emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", 0"
-    ]
+emitAssign sm dest (IRTemp srcName _) = emitMoveStackToStack sm dest srcName
+emitAssign sm dest (IRParam srcName _) = emitMoveStackToStack sm dest srcName
+emitAssign _ dest op =
+  [ emit 1 $ "; WARNING: Unsupported IRASSIGN operand: " ++ show op,
+    emit 1 $ "mov qword " ++ dest ++ ", 0"
+  ]
 
 -- | emit call dest
 -- CALL <name>(args...) -> call <name>
@@ -201,11 +210,8 @@ emitDeref sm dest ptr typ =
 
 -- | emit INC/DEC on pointer operand
 emitIncDec :: Map String Int -> IROperand -> String -> [String]
-emitIncDec sm op asmOp = case op of
-  IRTemp name (IRPtr _) ->
-    [ emit 1 $ asmOp ++ " qword " ++ stackAddr sm name ++ ", 1"
-    ]
-  _ -> [emit 1 $ "; TODO: " ++ show op ++ " on non-pointer"]
+emitIncDec sm (IRTemp name (IRPtr _)) asmOp = [emit 1 $ asmOp ++ " qword " ++ stackAddr sm name ++ ", 1"]
+emitIncDec _ op _ = [emit 1 $ "; TODO: " ++ show op ++ " on non-pointer"]
 
 -- | emit ADDR dest, source
 --  cases:
@@ -232,6 +238,34 @@ emitJumpEQ0 sm op lbl =
       jumpInstr = [emit 1 $ "je " ++ lbl]
    in loadOp ++ testInstr ++ jumpInstr
 
+-- | emit jump if false
+emitJumpFalse :: Map String Int -> IROperand -> String -> [String]
+emitJumpFalse sm op lbl =
+  let loadOp = emitLoadRax sm op
+      testInstr = [emit 1 $ "test " ++ "rax" ++ ", " ++ "rax"]
+      jumpInstr = [emit 1 $ "je " ++ lbl]
+   in loadOp ++ testInstr ++ jumpInstr
+
+-- | emit dest = left <asmOp> right
+emitBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> [String]
+emitBinaryOp sm dest asmOp leftOp rightOp =
+  let loadLeft = emitLoadRax sm leftOp
+      loadRight = [emit 1 $ "mov rbx, " ++ getOperandValueString sm rightOp]
+      opInstr = [emit 1 $ asmOp ++ " rax, rbx"]
+      saveResult = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
+   in loadLeft ++ loadRight ++ opInstr ++ saveResult
+
+-- | emit dest = left <asmOp> right
+emitCompareOp :: Map String Int -> String -> String -> IROperand -> IROperand -> [String]
+emitCompareOp sm dest setOp leftOp rightOp =
+  let loadLeft = emitLoadRax sm leftOp -- RAX = left
+      loadRight = [emit 1 $ "mov rbx, " ++ getOperandValueString sm rightOp]
+      cmpInstr = [emit 1 $ "cmp rax, rbx"]
+      setInstr = [emit 1 $ setOp ++ " al"]
+      movzxInstr = [emit 1 $ "movzx rax, al"]
+      saveResult = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
+   in loadLeft ++ loadRight ++ cmpInstr ++ setInstr ++ movzxInstr ++ saveResult
+
 --
 -- private helpers
 --
@@ -244,27 +278,25 @@ stackAddr sm name = case Map.lookup name sm of
 
 -- | get the nasm representation of an operand that lives on the stack: [rbp<+->offset]
 getVarStackAddr :: Map String Int -> IROperand -> String
-getVarStackAddr sm op = case op of
-  IRTemp name _ -> stackAddr sm name
-  IRParam name _ -> stackAddr sm name
-  _ -> error $ "Unsupported IROperand for stack address: " ++ show op
+getVarStackAddr sm (IRTemp name _) = stackAddr sm name
+getVarStackAddr sm (IRParam name _) = stackAddr sm name
+getVarStackAddr _ op = error $ "Unsupported IROperand for stack address: " ++ show op
 
 -- | get the nasm representation of an operand: const_value | [rbp-offset]
 getOperandConstOrStackAddr :: Map String Int -> IROperand -> String
-getOperandConstOrStackAddr sm op = case op of
-  IRConstInt n -> show n
-  IRConstChar c -> show (fromEnum c)
-  IRTemp name _ -> stackAddr sm name
-  IRParam name _ -> stackAddr sm name
-  IRGlobal name _ -> error "Global operand should be loaded via ADDR/LOAD: " ++ name
-  _ -> error $ "Unsupported IROperand for direct emission: " ++ show op
+getOperandConstOrStackAddr _ (IRConstInt n) = show n
+getOperandConstOrStackAddr _ (IRConstChar c) = show $ fromEnum c
+getOperandConstOrStackAddr sm (IRTemp name _) = stackAddr sm name
+getOperandConstOrStackAddr sm (IRParam name _) = stackAddr sm name
+getOperandConstOrStackAddr _ (IRGlobal name _) =
+  error "Global operand should be loaded via ADDR/LOAD: " ++ name
+getOperandConstOrStackAddr _ op = error $ "Unsupported IROperand for direct emission: " ++ show op
 
 -- | get the nasm representation of an operand's *value*: const_value | qword [rbp-offset]
 getOperandValueString :: Map String Int -> IROperand -> String
-getOperandValueString sm op = case op of
-  IRConstInt n -> show n
-  IRConstChar c -> show (fromEnum c)
-  _ -> "qword " ++ getVarStackAddr sm op
+getOperandValueString _ (IRConstInt n) = show n
+getOperandValueString _ (IRConstChar c) = show $ fromEnum c
+getOperandValueString sm op = "qword " ++ getVarStackAddr sm op
 
 -- | emit: mov rax, qword [src]; mov qword [dest], rax
 emitMoveStackToStack :: Map String Int -> String -> String -> [String]
