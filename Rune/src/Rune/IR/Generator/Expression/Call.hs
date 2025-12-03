@@ -90,7 +90,7 @@ getFormatSpecifier _ IRChar = Just "%c"
 getFormatSpecifier _ IRF32 = Just "%f"
 getFormatSpecifier _ IRF64 = Just "%lf"
 getFormatSpecifier _ IRBool = Just "%d"
-getFormatSpecifier _ (IRPtr IRChar) = Nothing
+getFormatSpecifier _ (IRPtr IRChar) = Just "%s"
 getFormatSpecifier _ _ = Nothing
 
 mangleName :: String -> [([IRInstruction], IROperand, IRType)] -> String
