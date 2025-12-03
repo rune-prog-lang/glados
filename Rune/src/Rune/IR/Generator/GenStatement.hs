@@ -44,9 +44,7 @@ genVarDecl :: String -> Maybe Type -> Expression -> IRGen [IRInstruction]
 genVarDecl name maybeType expr = do
   (instrs, op, inferredType) <- genExpression expr
 
-  let finalType = case maybeType of
-        Just t -> astTypeToIRType t
-        Nothing -> inferredType
+  let finalType = genVarType maybeType inferredType
 
   case op of
     IRTemp _ _ -> do
@@ -56,6 +54,10 @@ genVarDecl name maybeType expr = do
       let assignInstr = IRASSIGN name op finalType
       registerVar name (IRTemp name finalType) finalType
       pure (instrs ++ [assignInstr])
+
+genVarType :: Maybe Type -> IRType -> IRType
+genVarType (Just t) _ = astTypeToIRType t
+genVarType Nothing inferred = inferred
 
 genAssignment :: Expression -> Expression -> IRGen [IRInstruction]
 genAssignment lvalue rvalue = do

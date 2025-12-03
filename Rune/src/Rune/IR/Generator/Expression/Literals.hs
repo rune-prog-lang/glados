@@ -27,7 +27,7 @@ genLitFloat :: Double -> IRGen ([IRInstruction], IROperand, IRType)
 genLitFloat f = return ([], IRConstFloat f, IRF32)
 
 genLitChar :: Char -> IRGen ([IRInstruction], IROperand, IRType)
-genLitChar c = return ([], IRConstChar c, IRU8)
+genLitChar c = return ([], IRConstChar c, IRChar)
 
 genLitBool :: Bool -> IRGen ([IRInstruction], IROperand, IRType)
 genLitBool True = return ([], IRConstInt 1, IRI32)
@@ -39,6 +39,6 @@ genLitNull = return ([], IRConstInt 0, IRNull)
 genLitString :: String -> IRGen ([IRInstruction], IROperand, IRType)
 genLitString s = do
   stringName <- newStringGlobal s
-  ptrName <- newTemp "p_ptr" (IRPtr IRU8)
-  let addrInstr = IRADDR ptrName stringName (IRPtr IRU8)
-  return ([addrInstr], IRTemp ptrName (IRPtr IRU8), IRPtr IRU8)
+  ptrName <- newTemp "p_ptr" (IRPtr IRChar)
+  let addrInstr = IRADDR ptrName stringName (IRPtr IRChar)
+  return ([addrInstr], IRTemp ptrName (IRPtr IRChar), IRPtr IRChar)

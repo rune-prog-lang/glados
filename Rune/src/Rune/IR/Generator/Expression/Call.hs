@@ -75,7 +75,6 @@ genShowFmtCall originalOp typ finalOp = case getFormatSpecifier originalOp typ o
 getShowFunc :: IROperand -> IRType -> String
 getShowFunc _ (IRStruct s) = "show_" ++ s
 getShowFunc _ (IRPtr (IRStruct s)) = "show_" ++ s
-getShowFunc _ IRU8 = "putchar"
 getShowFunc _ _ = "printf"
 
 getFormatSpecifier :: IROperand -> IRType -> Maybe String
@@ -83,14 +82,15 @@ getFormatSpecifier _ IRI8 = Just "%hhd"
 getFormatSpecifier _ IRI16 = Just "%hd"
 getFormatSpecifier _ IRI32 = Just "%d"
 getFormatSpecifier _ IRI64 = Just "%ld"
-getFormatSpecifier _ IRU8 = Nothing
+getFormatSpecifier _ IRU8 = Just "%hhu"
 getFormatSpecifier _ IRU16 = Just "%hu"
 getFormatSpecifier _ IRU32 = Just "%u"
 getFormatSpecifier _ IRU64 = Just "%lu"
+getFormatSpecifier _ IRChar = Just "%c"
 getFormatSpecifier _ IRF32 = Just "%f"
 getFormatSpecifier _ IRF64 = Just "%lf"
 getFormatSpecifier _ IRBool = Just "%d"
-getFormatSpecifier _ (IRPtr IRU8) = Nothing
+getFormatSpecifier _ (IRPtr IRChar) = Nothing
 getFormatSpecifier _ _ = Nothing
 
 mangleName :: String -> [([IRInstruction], IROperand, IRType)] -> String

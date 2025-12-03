@@ -106,9 +106,9 @@ genForEach genExpr genBlock var iterable body = do
       endLbl = makeLabel "loop_end" idx
 
   (iterInstrs, iterOp, _) <- genExpr iterable
-  ptrTemp <- newTemp "p_ptr" (IRPtr IRU8)
+  ptrTemp <- newTemp "p_ptr" (IRPtr IRChar)
 
-  registerVar var (IRTemp var IRU8) IRU8
+  registerVar var (IRTemp var IRChar) IRChar
 
   pushLoopContext headerLbl endLbl
   bodyInstrs <- genBlock body
@@ -117,14 +117,14 @@ genForEach genExpr genBlock var iterable body = do
   pure $
     mconcat
       [ iterInstrs,
-        [IRASSIGN ptrTemp iterOp (IRPtr IRU8)],
+        [IRASSIGN ptrTemp iterOp (IRPtr IRChar)],
         [IRLABEL headerLbl],
-        [IRDEREF var (IRTemp ptrTemp (IRPtr IRU8)) IRU8],
+        [IRDEREF var (IRTemp ptrTemp (IRPtr IRChar)) IRChar],
         [IRLABEL checkLbl],
-        [IRJUMP_EQ0 (IRTemp var IRU8) endLbl],
+        [IRJUMP_EQ0 (IRTemp var IRChar) endLbl],
         [IRLABEL bodyLbl],
         bodyInstrs,
-        [IRINC (IRTemp ptrTemp (IRPtr IRU8))],
+        [IRINC (IRTemp ptrTemp (IRPtr IRChar))],
         [IRJUMP headerLbl],
         [IRLABEL endLbl]
       ]
