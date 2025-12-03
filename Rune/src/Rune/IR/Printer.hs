@@ -1,6 +1,7 @@
 module Rune.IR.Printer (prettyPrintIR) where
 
 import Data.List (intercalate)
+import Lib (escapeString)
 import Rune.IR.Nodes
 
 --
@@ -21,6 +22,8 @@ printProgram (IRProgram name defs) =
    in unlines (header : defStrs)
 
 printTopLevel :: IRTopLevel -> String
+printTopLevel (IRExtern name) =
+  "EXTERN " ++ name
 printTopLevel (IRGlobalString name value) =
   "GLOBAL " ++ name ++ ": string = \"" ++ escapeString value ++ "\\0\""
 printTopLevel (IRFunctionDef func) =
@@ -121,22 +124,17 @@ printOperand (IRParam name _) = name
 printOperand (IRGlobal name _) = name
 
 printType :: IRType -> String
+printType IRI8 = "i8"
+printType IRI16 = "i16"
 printType IRI32 = "i32"
 printType IRI64 = "i64"
 printType IRF32 = "f32"
 printType IRF64 = "f64"
 printType IRU8 = "u8"
+printType IRU16 = "u16"
+printType IRU32 = "u32"
+printType IRU64 = "u64"
 printType (IRPtr t) = "*" ++ printType t
 printType (IRStruct s) = s
-printType IRVoid = "void"
-
-escapeString :: String -> String
-escapeString = concatMap escapeChar
-  where
-    escapeChar '\0' = "\\0"
-    escapeChar '\n' = "\\n"
-    escapeChar '\t' = "\\t"
-    escapeChar '\r' = "\\r"
-    escapeChar '\\' = "\\\\"
-    escapeChar '"' = "\\\""
-    escapeChar c = [c]
+printType IRNull = "null"
+printType IRBool = "bool"

@@ -1,10 +1,13 @@
 module Rune.IR.IRHelpers
   ( astTypeToIRType,
+    sizeOfIRType,
     registerVar,
+    registerCall,
     newTemp,
     nextLabelIndex,
     makeLabel,
     newStringGlobal,
+    genFormatString,
     endsWithRet,
     pushLoopContext,
     popLoopContext,
@@ -16,6 +19,7 @@ where
 import Control.Monad.State (gets, modify)
 import Data.Map.Strict (insert)
 import Data.Maybe (fromMaybe)
+import qualified Data.Set as Set
 import Rune.AST.Nodes (Type (..))
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRTopLevel (..), IRType (..))
 
@@ -23,16 +27,41 @@ import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IR
 -- type conversion
 --
 
+-- TODO: handle more types
 astTypeToIRType :: Type -> IRType
+astTypeToIRType TypeI8 = IRI8
+astTypeToIRType TypeI16 = IRI16
 astTypeToIRType TypeI32 = IRI32
 astTypeToIRType TypeI64 = IRI64
+astTypeToIRType TypeU8 = IRU8
+astTypeToIRType TypeU16 = IRU16
+astTypeToIRType TypeU32 = IRU32
+astTypeToIRType TypeU64 = IRU64
 astTypeToIRType TypeF32 = IRF32
 astTypeToIRType TypeF64 = IRF64
-astTypeToIRType TypeU8 = IRU8
+astTypeToIRType TypeBool = IRBool
+astTypeToIRType TypeNull = IRNull
+astTypeToIRType (TypeCustom name) = IRStruct name
 astTypeToIRType TypeString = IRPtr IRU8
-astTypeToIRType TypeNull = IRVoid
-astTypeToIRType (TypeCustom s) = IRStruct s
-astTypeToIRType _ = IRI32
+astTypeToIRType _ = error "Unsupported type conversion from AST to IR"
+
+-- TODO: treat struct properly
+-- currently they are treated as 8 byte references/pointers
+sizeOfIRType :: IRType -> Int
+sizeOfIRType IRI8 = 1
+sizeOfIRType IRI16 = 2
+sizeOfIRType IRI32 = 4
+sizeOfIRType IRI64 = 8
+sizeOfIRType IRF32 = 4
+sizeOfIRType IRF64 = 8
+sizeOfIRType IRU8 = 1
+sizeOfIRType IRU16 = 2
+sizeOfIRType IRU32 = 4
+sizeOfIRType IRU64 = 8
+sizeOfIRType IRBool = 1
+sizeOfIRType (IRPtr _) = 8 -- Ô_ö
+sizeOfIRType (IRStruct _) = 8 -- ö_Ô
+sizeOfIRType IRNull = 0
 
 --
 -- symbol table
@@ -41,6 +70,10 @@ astTypeToIRType _ = IRI32
 registerVar :: String -> IROperand -> IRType -> IRGen ()
 registerVar name op typ = do
   modify $ \s -> s {gsSymTable = insert name (op, typ) (gsSymTable s)}
+
+registerCall :: String -> IRGen ()
+registerCall funcName = do
+  modify $ \s -> s {gsCalledFuncs = Set.insert funcName (gsCalledFuncs s)}
 
 --
 -- naming & globals
@@ -73,6 +106,13 @@ newStringGlobal value = do
         gsGlobals = IRGlobalString name value : gsGlobals s
       }
   return name
+
+genFormatString :: String -> IRGen ([IRInstruction], IROperand)
+genFormatString value = do
+  stringName <- newStringGlobal value
+  ptrName <- newTemp "p_fmt" (IRPtr IRU8)
+  let addrInstr = IRADDR ptrName stringName (IRPtr IRU8)
+  return ([addrInstr], IRTemp ptrName (IRPtr IRU8))
 
 mangleMethodName :: String -> String -> String
 mangleMethodName structName methodName = structName ++ "_" ++ methodName

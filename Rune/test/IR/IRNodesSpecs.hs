@@ -2,6 +2,7 @@ module IR.IRNodesSpecs (irNodesTests) where
 
 import Control.Monad.State (evalState)
 import Data.Map (empty, insert)
+import qualified Data.Set as Set
 import Rune.IR.Nodes
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
@@ -54,8 +55,8 @@ testIRTypes =
   testGroup
     "IRType"
     [ testCase "All IRType constructors" $
-        let types = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRStruct "Vec2f", IRVoid]
-            expected = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRStruct "Vec2f", IRVoid]
+        let types = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRStruct "Vec2f", IRNull]
+            expected = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRStruct "Vec2f", IRNull]
          in types @?= expected,
       testCase "Deriving Show/Eq" $ show IRI32 @?= "IRI32"
     ]
@@ -117,7 +118,8 @@ testGenState =
                   gsCurrentFunc = Just "main",
                   gsSymTable = symTable,
                   gsStructs = structTable,
-                  gsLoopStack = loopStack
+                  gsLoopStack = loopStack,
+                  gsCalledFuncs = Set.empty
                 }
             dummyOp :: IRGen Int
             dummyOp = return 10
@@ -132,8 +134,8 @@ testGenState =
               gsLoopStack initialState @?= loopStack
               evalState dummyOp initialState @?= 10,
       testCase "Deriving Show/Eq" $
-        let state1 = GenState 0 0 0 [] Nothing empty empty []
-            state2 = GenState 0 0 0 [] Nothing empty empty []
+        let state1 = GenState 0 0 0 [] Nothing empty empty [] Set.empty
+            state2 = GenState 0 0 0 [] Nothing empty empty [] Set.empty
          in state1 @?= state2
     ]
 
@@ -170,9 +172,9 @@ testIRInstruction =
       testCase "IRJUMP_EQ0" $ IRJUMP_EQ0 op_temp lbl @?= IRJUMP_EQ0 op_temp lbl,
       -- function operations
       testCase "IRCALL (with result)" $ IRCALL "t15" "foo" [op_temp, op_const_int] (Just IRI32) @?= IRCALL "t15" "foo" [op_temp, op_const_int] (Just IRI32),
-      testCase "IRCALL (void)" $ IRCALL "" "bar" [op_temp] Nothing @?= IRCALL "" "bar" [op_temp] Nothing,
+      testCase "IRCALL (null)" $ IRCALL "" "bar" [op_temp] Nothing @?= IRCALL "" "bar" [op_temp] Nothing,
       testCase "IRRET (with value)" $ IRRET (Just op_const_int) @?= IRRET (Just op_const_int),
-      testCase "IRRET (void)" $ IRRET Nothing @?= IRRET Nothing,
+      testCase "IRRET (null)" $ IRRET Nothing @?= IRRET Nothing,
       -- utility operations
       testCase "IRADDR" $ IRADDR "t16" "globalVar" (IRPtr IRI32) @?= IRADDR "t16" "globalVar" (IRPtr IRI32),
       testCase "IRINC" $ IRINC op_temp @?= IRINC op_temp,

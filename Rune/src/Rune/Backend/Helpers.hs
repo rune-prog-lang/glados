@@ -1,0 +1,102 @@
+module Rune.Backend.Helpers
+  ( emit,
+    escapeString,
+    collectIRVars,
+    collectTopLevels,
+    calculateStackMap,
+  )
+where
+
+import Data.List (intercalate, nub)
+import qualified Data.Map.Strict as Map
+import Rune.Backend.Types (Extern, Function, GlobalString)
+import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
+
+--
+-- public
+--
+
+emit :: Int -> String -> String
+emit lvl s = replicate (lvl * 4) ' ' ++ s
+
+collectTopLevels :: [IRTopLevel] -> ([Extern], [GlobalString], [Function])
+collectTopLevels tls =
+  let (es, gs, fs) = foldr collectTopLevel ([], [], []) tls
+   in (nub es, reverse gs, reverse fs)
+
+-- TODO: rewrite this helper to calculate offsets based on actual type sizes
+calculateStackMap :: Function -> (Map.Map String Int, Int)
+calculateStackMap func =
+  let varsMap = collectIRVars func
+      varNames = Map.keys varsMap
+      (totalUsedSize, offsetsMap) = foldl' accumulateOffset (0, Map.empty) varNames
+      totalSize = alignUp totalUsedSize 16
+      rbpOffsetsMap = Map.map (\offset -> -(totalUsedSize - offset)) offsetsMap
+   in (rbpOffsetsMap, totalSize)
+
+escapeString :: String -> String
+escapeString = intercalate "," . encodeCharacter
+
+--
+-- private
+--
+
+alignUp :: Int -> Int -> Int
+alignUp x n = (x + n - 1) `div` n * n
+
+collectTopLevel :: IRTopLevel -> ([Extern], [GlobalString], [Function]) -> ([Extern], [GlobalString], [Function])
+collectTopLevel (IRExtern name) (e, g, f) = (name : e, g, f)
+collectTopLevel (IRGlobalString n v) (e, g, f) = (e, (n, v) : g, f)
+collectTopLevel (IRFunctionDef fn) (e, g, f) = (e, g, fn : f)
+collectTopLevel _ acc = acc
+
+collectIRVars :: Function -> Map.Map String IRType
+collectIRVars (IRFunction _ params _ body) =
+  let initialMap = Map.fromList (map (\(n, t) -> (n, t)) params)
+   in foldl' collectVars initialMap body
+
+collectVars :: Map.Map String IRType -> IRInstruction -> Map.Map String IRType
+collectVars acc (IRASSIGN n _ t) = Map.insert n t acc
+collectVars acc (IRALLOC n t) = Map.insert n t acc
+collectVars acc (IRLOAD n _ t) = Map.insert n t acc
+collectVars acc (IRDEREF n _ t) = Map.insert n t acc
+collectVars acc (IRGET_FIELD n _ _ _ t) = Map.insert n t acc
+collectVars acc (IRADD_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRSUB_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRMUL_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRDIV_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRMOD_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRCMP_EQ n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRCMP_NEQ n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRCMP_LT n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRCMP_LTE n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRCMP_GT n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRCMP_GTE n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRAND_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IROR_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRCALL n _ _ (Just t)) = Map.insert n t acc
+collectVars acc (IRADDR n _ t) = Map.insert n t acc
+collectVars acc _ = acc
+
+-- TODO: rewrite this helper to calculate offsets based on actual type sizes
+accumulateOffset :: (Int, Map.Map String Int) -> String -> (Int, Map.Map String Int)
+accumulateOffset (currentOffset, accMap) name =
+  let align = 8
+      alignedOffset = alignUp currentOffset align
+      size = 8
+      newOffset = alignedOffset + size
+   in (newOffset, Map.insert name alignedOffset accMap)
+
+encodeCharacter :: String -> [String]
+encodeCharacter "" = []
+encodeCharacter s@(c : cs)
+  | c == '\n' = "10" : encodeCharacter cs
+  | c == '\r' = "13" : encodeCharacter cs
+  | c == '\t' = "9" : encodeCharacter cs
+  | c == '\0' = "0" : encodeCharacter cs
+  | otherwise =
+      let (printables, rest) = span isPrintable s
+       in ("\"" ++ printables ++ "\"") : encodeCharacter rest
+
+isPrintable :: Char -> Bool
+isPrintable ch = ch >= ' ' && ch <= '~'
