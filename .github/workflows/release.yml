@@ -36,6 +36,7 @@ jobs:
             ${{ runner.os }}-stack-
 
       - name: Build with Makefile
+        shell: bash
         run: |
           make -j
           mkdir -p output
