@@ -37,6 +37,7 @@ astTypeToIRType TypeU8 = IRU8
 astTypeToIRType TypeU16 = IRU16
 astTypeToIRType TypeU32 = IRU32
 astTypeToIRType TypeU64 = IRU64
+astTypeToIRType TypeChar = IRChar
 astTypeToIRType TypeF32 = IRF32
 astTypeToIRType TypeF64 = IRF64
 astTypeToIRType TypeBool = IRBool

@@ -3,7 +3,7 @@ module Rune.IR.Generator.GenStatement
   )
 where
 
-import Rune.AST.Nodes (Expression, Statement (..), Type (TypeU8))
+import Rune.AST.Nodes (Expression, Statement (..), Type)
 import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.Generator.Statement.ControlFlow (genIfElse, genIfNoElse, genNext, genStop)
 import Rune.IR.Generator.Statement.Loops (genForEach, genForTo, genLoop)
@@ -12,7 +12,7 @@ import Rune.IR.Nodes
   ( IRGen,
     IRInstruction (..),
     IROperand (..),
-    IRType (IRChar, IRNull),
+    IRType (IRNull),
   )
 
 --
@@ -56,7 +56,6 @@ genVarDecl name maybeType expr = do
       pure (instrs ++ [assignInstr])
 
 genVarType :: Maybe Type -> IRType -> IRType
-genVarType (Just TypeU8) IRChar = IRChar
 genVarType (Just t) _ = astTypeToIRType t
 genVarType Nothing inferred = inferred
 
