@@ -49,6 +49,7 @@ data IRType
   | IRU16
   | IRU32
   | IRU64
+  | IRChar
   | IRF32
   | IRF64
   | IRBool

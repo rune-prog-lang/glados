@@ -8,9 +8,15 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import Rune.Backend.Helpers (calculateStackMap, collectTopLevels, emit, escapeString)
 import Rune.Backend.Types (Extern, Function, GlobalString)
-import Rune.Backend.X86_64.Registers (x86_64ArgsRegisters)
-import Rune.IR.IRHelpers (sizeOfIRType)
+import Rune.Backend.X86_64.Registers (getMovType, getRegisterName, getSizeSpecifier, x86_64ArgsRegisters)
 import Rune.IR.Nodes
+  ( IRFunction (IRFunction),
+    IRInstruction (..),
+    IRLabel (IRLabel),
+    IROperand (..),
+    IRProgram (IRProgram),
+    IRType (..),
+  )
 
 --
 -- public
@@ -52,10 +58,6 @@ emitDataSection gs = "section .data" : map emitGlobal gs
 emitTextSection :: [Function] -> [String]
 emitTextSection [] = []
 emitTextSection fs = "section .text" : concatMap emitFunction fs
-
---
--- function stack management
---
 
 --
 -- function emission
@@ -108,10 +110,8 @@ emitParameters params stackMap =
    in mapMaybe (emitParam stackMap argRegs) indexedParams
 
 emitParam :: Map String Int -> [String] -> (Int, (String, IRType)) -> Maybe String
-emitParam sm regs (idx, (irName, _))
-  | idx < length regs = do
-      offset <- Map.lookup irName sm
-      Just $ emit 1 $ "mov qword [rbp" ++ show offset ++ "], " ++ regs !! idx
+emitParam sm regs (idx, (irName, t))
+  | idx < length regs = Just $ storeReg sm irName (regs !! idx) t
   | otherwise = Nothing
 
 --
@@ -120,23 +120,23 @@ emitParam sm regs (idx, (irName, _))
 
 -- | emit a single IR instruction to nasm
 emitInstruction :: Map String Int -> String -> IRInstruction -> [String]
-emitInstruction sm _ (IRASSIGN dest op _) = emitAssign sm dest op
+emitInstruction sm _ (IRASSIGN dest op t) = emitAssign sm dest op t
 emitInstruction _ _ (IRLABEL (IRLabel lbl)) = [lbl ++ ":"]
 emitInstruction _ _ (IRJUMP (IRLabel lbl)) = [emit 1 $ "jmp " ++ lbl]
-emitInstruction sm _ (IRJUMP_EQ0 op (IRLabel lbl)) = emitJumpEQ0 sm op lbl
-emitInstruction sm _ (IRJUMP_FALSE op (IRLabel lbl)) = emitJumpFalse sm op lbl
-emitInstruction sm _ (IRJUMP_TRUE op (IRLabel lbl)) = emitJumpTrue sm op lbl
+emitInstruction sm _ (IRJUMP_EQ0 op (IRLabel lbl)) = emitConditionalJump sm op "je" lbl
+emitInstruction sm _ (IRJUMP_FALSE op (IRLabel lbl)) = emitConditionalJump sm op "je" lbl
+emitInstruction sm _ (IRJUMP_TRUE op (IRLabel lbl)) = emitConditionalJump sm op "jne" lbl
 emitInstruction sm _ (IRCALL dest funcName args mbType) = emitCall sm dest funcName args mbType
 emitInstruction sm endLbl (IRRET mbOp) = emitRet sm endLbl mbOp
 emitInstruction sm _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
 emitInstruction sm _ (IRINC op) = emitIncDec sm op "add"
 emitInstruction sm _ (IRDEC op) = emitIncDec sm op "sub"
 emitInstruction sm _ (IRADDR dest source typ) = emitAddr sm dest source typ
-emitInstruction sm _ (IRADD_OP dest l r _) = emitBinaryOp sm dest "add" l r
-emitInstruction sm _ (IRSUB_OP dest l r _) = emitBinaryOp sm dest "sub" l r
-emitInstruction sm _ (IRMUL_OP dest l r _) = emitBinaryOp sm dest "imul" l r
-emitInstruction sm _ (IRAND_OP dest l r _) = emitBinaryOp sm dest "and" l r
-emitInstruction sm _ (IROR_OP dest l r _) = emitBinaryOp sm dest "or" l r
+emitInstruction sm _ (IRADD_OP dest l r t) = emitBinaryOp sm dest "add" l r t
+emitInstruction sm _ (IRSUB_OP dest l r t) = emitBinaryOp sm dest "sub" l r t
+emitInstruction sm _ (IRMUL_OP dest l r t) = emitBinaryOp sm dest "imul" l r t
+emitInstruction sm _ (IRAND_OP dest l r t) = emitBinaryOp sm dest "and" l r t
+emitInstruction sm _ (IROR_OP dest l r t) = emitBinaryOp sm dest "or" l r t
 emitInstruction sm _ (IRCMP_EQ dest l r) = emitCompareOp sm dest "sete" l r
 emitInstruction sm _ (IRCMP_NEQ dest l r) = emitCompareOp sm dest "setne" l r
 emitInstruction sm _ (IRCMP_LT dest l r) = emitCompareOp sm dest "setl" l r
@@ -146,55 +146,39 @@ emitInstruction sm _ (IRCMP_GTE dest l r) = emitCompareOp sm dest "setge" l r
 emitInstruction _ _ instr = [emit 1 $ "; TODO: " ++ show instr]
 
 -- | emit dest = op
-emitAssign :: Map String Int -> String -> IROperand -> [String]
-emitAssign sm dest (IRConstInt n) = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ show n]
-emitAssign sm dest (IRConstChar c) = [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
-emitAssign sm dest (IRTemp srcName _) = emitMoveStackToStack sm dest srcName
-emitAssign sm dest (IRParam srcName _) = emitMoveStackToStack sm dest srcName
-emitAssign _ dest op =
+emitAssign :: Map String Int -> String -> IROperand -> IRType -> [String]
+emitAssign sm dest (IRConstInt n) t
+  | needsRegisterLoad n t = [emit 1 $ "mov rax, " ++ show n, storeReg sm dest "rax" t]
+  | otherwise = [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", " ++ show n]
+emitAssign sm dest (IRConstChar c) _ =
+  [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
+emitAssign sm dest (IRTemp name _) t = moveStackToStack sm dest name t
+emitAssign sm dest (IRParam name _) t = moveStackToStack sm dest name t
+emitAssign sm dest op t =
   [ emit 1 $ "; WARNING: Unsupported IRASSIGN operand: " ++ show op,
-    emit 1 $ "mov qword " ++ dest ++ ", 0"
+    emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", 0"
   ]
 
--- | emit call dest
+-- | emit call dest = funcName(args)
 emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
-emitCall sm dest funcName args _ =
-  let argSetup = emitCallArgs sm args
-      callInstr = emitCallInstr funcName
-      retSave = emitCallRet sm dest
+emitCall sm dest funcName args mbType =
+  let argSetup = concatMap (loadRegWithExt sm) (zip x86_64ArgsRegisters args)
+      callInstr = [emit 1 $ "call " ++ funcName]
+      retSave = saveCallResult sm dest mbType
    in argSetup ++ callInstr ++ retSave
 
--- | emit the first 6 arguments in registers
-emitArg :: Map String Int -> String -> IROperand -> String
-emitArg sm reg op = emit 1 $ "mov " ++ reg ++ ", " ++ getOperandValueString sm op
-
-emitCallArgs :: Map String Int -> [IROperand] -> [String]
-emitCallArgs sm args =
-  let regs = x86_64ArgsRegisters
-   in zipWith (emitArg sm) regs args
-
-emitCallInstr :: String -> [String]
-emitCallInstr name = [emit 1 $ "call " ++ name]
-
---
--- emit return
---
-
-emitCallRet :: Map String Int -> String -> [String]
-emitCallRet _ "" = []
-emitCallRet sm dest = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
+saveCallResult :: Map String Int -> String -> Maybe IRType -> [String]
+saveCallResult _ "" _ = []
+saveCallResult sm dest (Just t) = [storeReg sm dest "rax" t]
+saveCallResult sm dest Nothing = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
 
 -- | emit a return instruction
 --  cases:
 --  1- no return value: xor rax, rax to avoid returning garbage value
 --  2- return value: load into rax
 emitRet :: Map String Int -> String -> Maybe IROperand -> [String]
-emitRet _ endLbl Nothing =
-  [ emit 1 "xor rax, rax",
-    emit 1 $ "jmp " ++ endLbl
-  ]
-emitRet sm endLbl (Just op) =
-  emitLoadRax sm op ++ [emit 1 $ "jmp " ++ endLbl]
+emitRet _ endLbl Nothing = [emit 1 "xor rax, rax", emit 1 $ "jmp " ++ endLbl]
+emitRet sm endLbl (Just op) = loadReg sm "rax" op ++ [emit 1 $ "jmp " ++ endLbl]
 
 -- | emit deref ptr
 --  cases:
@@ -203,17 +187,10 @@ emitRet sm endLbl (Just op) =
 --  3- store rax into dest stack location
 emitDeref :: Map String Int -> String -> IROperand -> IRType -> [String]
 emitDeref sm dest ptr typ =
-  let ptrAddr = getOperandConstOrStackAddr sm ptr
-      size = sizeOfIRType typ
-      movType = case size of
-        1 -> "movzx " ++ "rax" ++ ", byte"
-        4 -> "mov " ++ "rax" ++ ", dword"
-        8 -> "mov " ++ "rax" ++ ", qword"
-        _ -> error $ "Unsupported size for DEREF: " ++ show size
-   in [ emit 1 $ "mov " ++ "rax" ++ ", qword " ++ ptrAddr,
-        emit 1 $ movType ++ " [" ++ "rax" ++ "]",
-        emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"
-      ]
+  [ emit 1 $ "mov rax, qword " ++ operandAddr sm ptr,
+    emit 1 $ getMovType typ ++ " [rax]",
+    storeReg sm dest "rax" typ
+  ]
 
 -- | emit INC/DEC on pointer operand
 emitIncDec :: Map String Int -> IROperand -> String -> [String]
@@ -225,64 +202,38 @@ emitIncDec _ op _ = [emit 1 $ "; TODO: " ++ show op ++ " on non-pointer"]
 --  1- source is a global string: load its address directly
 --  2- source is a local variable: lea its address
 emitAddr :: Map String Int -> String -> String -> IRType -> [String]
-emitAddr sm dest source _ =
-  case source of
-    _
-      | take 4 source == "str_" ->
-          [ emit 1 $ "mov " ++ "rax" ++ ", " ++ source,
-            emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"
-          ]
-    _ ->
-      [ emit 1 $ "lea " ++ "rax" ++ ", " ++ stackAddr sm source,
-        emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"
-      ]
+emitAddr sm dest source t
+  | take 4 source == "str_" = [emit 1 $ "mov rax, " ++ source, storeReg sm dest "rax" t]
+  | otherwise = [emit 1 $ "lea rax, " ++ stackAddr sm source, storeReg sm dest "rax" t]
 
--- | emit jump if equal to zero
-emitJumpEQ0 :: Map String Int -> IROperand -> String -> [String]
-emitJumpEQ0 sm op lbl =
-  let loadOp = [emit 1 $ "mov " ++ "rax" ++ ", " ++ getOperandValueString sm op]
-      testInstr = [emit 1 $ "test " ++ "rax" ++ ", " ++ "rax"]
-      jumpInstr = [emit 1 $ "je " ++ lbl]
-   in loadOp ++ testInstr ++ jumpInstr
-
--- | emit jump if false
-emitJumpFalse :: Map String Int -> IROperand -> String -> [String]
-emitJumpFalse sm op lbl =
-  let loadOp = emitLoadRax sm op
-      testInstr = [emit 1 $ "test " ++ "rax" ++ ", " ++ "rax"]
-      jumpInstr = [emit 1 $ "je " ++ lbl]
-   in loadOp ++ testInstr ++ jumpInstr
-
--- | emit jump if true
-emitJumpTrue :: Map String Int -> IROperand -> String -> [String]
-emitJumpTrue sm op lbl =
-  let loadOp = emitLoadRax sm op
-      testInstr = [emit 1 $ "test " ++ "rax" ++ ", " ++ "rax"]
-      jumpInstr = [emit 1 $ "jne " ++ lbl]
-   in loadOp ++ testInstr ++ jumpInstr
+-- | emit conditional jump based on test (zero/not-zero)
+emitConditionalJump :: Map String Int -> IROperand -> String -> String -> [String]
+emitConditionalJump sm op jumpInstr lbl =
+  loadReg sm "rax" op
+    ++ [emit 1 $ "test " ++ getTestReg op ++ ", " ++ getTestReg op]
+    ++ [emit 1 $ jumpInstr ++ " " ++ lbl]
 
 -- | emit dest = left <asmOp> right
-emitBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> [String]
-emitBinaryOp sm dest asmOp leftOp rightOp =
-  let loadLeft = emitLoadRax sm leftOp
-      loadRight = [emit 1 $ "mov rbx, " ++ getOperandValueString sm rightOp]
-      opInstr = [emit 1 $ asmOp ++ " rax, rbx"]
-      saveResult = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
-   in loadLeft ++ loadRight ++ opInstr ++ saveResult
+emitBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> IRType -> [String]
+emitBinaryOp sm dest asmOp leftOp rightOp t =
+  loadReg sm "rax" leftOp
+    ++ loadReg sm "rbx" rightOp
+    ++ [emit 1 $ asmOp ++ " rax, rbx"]
+    ++ [storeReg sm dest "rax" t]
 
 -- | emit dest = left <asmOp> right (comparison)
 emitCompareOp :: Map String Int -> String -> String -> IROperand -> IROperand -> [String]
 emitCompareOp sm dest setOp leftOp rightOp =
-  let loadLeft = emitLoadRax sm leftOp
-      loadRight = [emit 1 $ "mov rbx, " ++ getOperandValueString sm rightOp]
-      cmpInstr = [emit 1 $ "cmp rax, rbx"]
-      setInstr = [emit 1 $ setOp ++ " al"]
-      movzxInstr = [emit 1 $ "movzx rax, al"]
-      saveResult = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
-   in loadLeft ++ loadRight ++ cmpInstr ++ setInstr ++ movzxInstr ++ saveResult
+  loadReg sm "rax" leftOp
+    ++ loadReg sm "rbx" rightOp
+    ++ [ emit 1 "cmp rax, rbx",
+         emit 1 $ setOp ++ " al",
+         emit 1 "movzx eax, al",
+         emit 1 $ "mov dword " ++ stackAddr sm dest ++ ", eax"
+       ]
 
 --
--- private helpers
+-- helpers
 --
 
 -- | get the nasm representation of an IR variable on the stack: [rbp<+->offset]
@@ -291,36 +242,79 @@ stackAddr sm name = case Map.lookup name sm of
   Just offset -> "[rbp" ++ show offset ++ "]"
   Nothing -> error $ "Variable not found in stack map: " ++ name
 
--- | get the nasm representation of an operand that lives on the stack: [rbp<+->offset]
-getVarStackAddr :: Map String Int -> IROperand -> String
-getVarStackAddr sm (IRTemp name _) = stackAddr sm name
-getVarStackAddr sm (IRParam name _) = stackAddr sm name
-getVarStackAddr _ op = error $ "Unsupported IROperand for stack address: " ++ show op
-
 -- | get the nasm representation of an operand: const_value | [rbp-offset]
-getOperandConstOrStackAddr :: Map String Int -> IROperand -> String
-getOperandConstOrStackAddr _ (IRConstInt n) = show n
-getOperandConstOrStackAddr _ (IRConstChar c) = show $ fromEnum c
-getOperandConstOrStackAddr sm (IRTemp name _) = stackAddr sm name
-getOperandConstOrStackAddr sm (IRParam name _) = stackAddr sm name
-getOperandConstOrStackAddr _ (IRGlobal name _) =
-  error "Global operand should be loaded via ADDR/LOAD: " ++ name
-getOperandConstOrStackAddr _ op = error $ "Unsupported IROperand for direct emission: " ++ show op
+operandAddr :: Map String Int -> IROperand -> String
+operandAddr _ (IRConstInt n) = show n
+operandAddr _ (IRConstChar c) = show $ fromEnum c
+operandAddr sm (IRTemp name _) = stackAddr sm name
+operandAddr sm (IRParam name _) = stackAddr sm name
+operandAddr _ (IRGlobal name _) = error $ "Global operand should be loaded via ADDR/LOAD: " ++ name
+operandAddr _ op = error $ "Unsupported IROperand for direct emission: " ++ show op
 
--- | get the nasm representation of an operand's *value*: const_value | qword [rbp-offset]
-getOperandValueString :: Map String Int -> IROperand -> String
-getOperandValueString _ (IRConstInt n) = show n
-getOperandValueString _ (IRConstChar c) = show $ fromEnum c
-getOperandValueString sm op = "qword " ++ getVarStackAddr sm op
+-- | check if immediate needs register loading
+needsRegisterLoad :: Int -> IRType -> Bool
+needsRegisterLoad n t =
+  t `elem` [IRI64, IRU64] && (n < -2147483648 || n > 2147483647)
 
--- | emit: mov rax, qword [src]; mov qword [dest], rax
-emitMoveStackToStack :: Map String Int -> String -> String -> [String]
-emitMoveStackToStack sm dest src =
-  [ emit 1 $ "mov rax, qword " ++ stackAddr sm src,
-    emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"
-  ]
+-- | helper to get register name for test instruction based on operand type
+getTestReg :: IROperand -> String
+getTestReg (IRTemp _ t) = getRegisterName "rax" t
+getTestReg (IRParam _ t) = getRegisterName "rax" t
+getTestReg _ = "rax"
 
--- | emit: mov rax, <operand_value_string>
-emitLoadRax :: Map String Int -> IROperand -> [String]
-emitLoadRax sm op =
-  [emit 1 $ "mov rax, " ++ getOperandValueString sm op]
+-- | emit: mov size [dest], reg
+storeReg :: Map String Int -> String -> String -> IRType -> String
+storeReg sm dest baseReg t =
+  let sizeSpec = getSizeSpecifier t
+      reg = getRegisterName baseReg t
+   in emit 1 $ "mov " ++ sizeSpec ++ " " ++ stackAddr sm dest ++ ", " ++ reg
+
+-- | emit: mov reg, size [src]; mov size [dest], reg (with proper size)
+moveStackToStack :: Map String Int -> String -> String -> IRType -> [String]
+moveStackToStack sm dest src t =
+  let sizeSpec = getSizeSpecifier t
+      reg = getRegisterName "rax" t
+   in [ emit 1 $ "mov " ++ reg ++ ", " ++ sizeSpec ++ " " ++ stackAddr sm src,
+        emit 1 $ "mov " ++ sizeSpec ++ " " ++ stackAddr sm dest ++ ", " ++ reg
+      ]
+
+-- | emit: mov <reg>, <operand> (basic load without extension)
+loadReg :: Map String Int -> String -> IROperand -> [String]
+loadReg _ reg (IRConstInt n) = [emit 1 $ "mov " ++ reg ++ ", " ++ show n]
+loadReg _ reg (IRConstChar c) = [emit 1 $ "mov " ++ reg ++ ", " ++ show (fromEnum c)]
+loadReg sm baseReg op@(IRTemp _ t) = loadVarReg sm baseReg op t
+loadReg sm baseReg op@(IRParam _ t) = loadVarReg sm baseReg op t
+loadReg sm baseReg op = [emit 1 $ "mov " ++ baseReg ++ ", qword " ++ varStackAddr sm op]
+
+loadVarReg :: Map String Int -> String -> IROperand -> IRType -> [String]
+loadVarReg sm baseReg op t =
+  let reg = getRegisterName baseReg t
+      sizeSpec = getSizeSpecifier t
+   in [emit 1 $ "mov " ++ reg ++ ", " ++ sizeSpec ++ " " ++ varStackAddr sm op]
+
+varStackAddr :: Map String Int -> IROperand -> String
+varStackAddr sm (IRTemp name _) = stackAddr sm name
+varStackAddr sm (IRParam name _) = stackAddr sm name
+varStackAddr _ op = error $ "Unsupported IROperand for stack address: " ++ show op
+
+-- | emit: mov <reg>, <operand> with proper sign/zero extension for arguments
+loadRegWithExt :: Map String Int -> (String, IROperand) -> [String]
+loadRegWithExt _ (reg, IRConstInt n) = [emit 1 $ "mov " ++ reg ++ ", " ++ show n]
+loadRegWithExt _ (reg, IRConstChar c) = [emit 1 $ "mov " ++ reg ++ ", " ++ show (fromEnum c)]
+loadRegWithExt sm (reg, op@(IRTemp _ t)) = extendVar sm reg op t
+loadRegWithExt sm (reg, op@(IRParam _ t)) = extendVar sm reg op t
+loadRegWithExt sm (reg, op) = [emit 1 $ "mov " ++ reg ++ ", qword " ++ varStackAddr sm op]
+
+extendVar :: Map String Int -> String -> IROperand -> IRType -> [String]
+extendVar sm reg op IRI8 = [emit 1 $ "movsx " ++ reg ++ ", byte " ++ varStackAddr sm op]
+extendVar sm reg op IRI16 = [emit 1 $ "movsx " ++ reg ++ ", word " ++ varStackAddr sm op]
+extendVar sm reg op IRI32 = [emit 1 $ "movsxd " ++ reg ++ ", dword " ++ varStackAddr sm op]
+extendVar sm reg op IRU8 = [emit 1 $ "movzx " ++ reg ++ ", byte " ++ varStackAddr sm op]
+extendVar sm reg op IRChar = [emit 1 $ "movzx " ++ reg ++ ", byte " ++ varStackAddr sm op]
+extendVar sm reg op IRU16 = [emit 1 $ "movzx " ++ reg ++ ", word " ++ varStackAddr sm op]
+extendVar sm reg op IRU32 = [emit 1 $ "mov " ++ getRegisterName reg IRU32 ++ ", dword " ++ varStackAddr sm op]
+extendVar sm reg op IRBool = [emit 1 $ "movzx " ++ reg ++ ", byte " ++ varStackAddr sm op]
+extendVar sm reg op t =
+  let targetReg = getRegisterName reg t
+      sizeSpec = getSizeSpecifier t
+   in [emit 1 $ "mov " ++ targetReg ++ ", " ++ sizeSpec ++ " " ++ varStackAddr sm op]

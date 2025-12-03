@@ -12,6 +12,7 @@ import Rune.IR.Nodes
   ( IRGen,
     IRInstruction (..),
     IROperand (..),
+    IRType (IRNull),
   )
 
 --
@@ -43,9 +44,7 @@ genVarDecl :: String -> Maybe Type -> Expression -> IRGen [IRInstruction]
 genVarDecl name maybeType expr = do
   (instrs, op, inferredType) <- genExpression expr
 
-  let finalType = case maybeType of
-        Just t -> astTypeToIRType t
-        Nothing -> inferredType
+  let finalType = genVarType maybeType inferredType
 
   case op of
     IRTemp _ _ -> do
@@ -55,6 +54,10 @@ genVarDecl name maybeType expr = do
       let assignInstr = IRASSIGN name op finalType
       registerVar name (IRTemp name finalType) finalType
       pure (instrs ++ [assignInstr])
+
+genVarType :: Maybe Type -> IRType -> IRType
+genVarType (Just t) _ = astTypeToIRType t
+genVarType Nothing inferred = inferred
 
 genAssignment :: Expression -> Expression -> IRGen [IRInstruction]
 genAssignment lvalue rvalue = do
@@ -66,8 +69,10 @@ genAssignment lvalue rvalue = do
 
 genReturnExpr :: Expression -> IRGen [IRInstruction]
 genReturnExpr expr = do
-  (instrs, op, _) <- genExpression expr
-  pure (instrs ++ [IRRET $ Just op])
+  (instrs, op, opType) <- genExpression expr
+  case opType of
+    IRNull -> pure (instrs ++ [IRRET Nothing])
+    _ -> pure (instrs ++ [IRRET $ Just op])
 
 genExprStmt :: Expression -> IRGen [IRInstruction]
 genExprStmt expr = do
