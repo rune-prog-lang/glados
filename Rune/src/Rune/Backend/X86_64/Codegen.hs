@@ -310,6 +310,7 @@ extendVar sm reg op IRI8 = [emit 1 $ "movsx " ++ reg ++ ", byte " ++ varStackAdd
 extendVar sm reg op IRI16 = [emit 1 $ "movsx " ++ reg ++ ", word " ++ varStackAddr sm op]
 extendVar sm reg op IRI32 = [emit 1 $ "movsxd " ++ reg ++ ", dword " ++ varStackAddr sm op]
 extendVar sm reg op IRU8 = [emit 1 $ "movzx " ++ reg ++ ", byte " ++ varStackAddr sm op]
+extendVar sm reg op IRChar = [emit 1 $ "movzx " ++ reg ++ ", byte " ++ varStackAddr sm op]
 extendVar sm reg op IRU16 = [emit 1 $ "movzx " ++ reg ++ ", word " ++ varStackAddr sm op]
 extendVar sm reg op IRU32 = [emit 1 $ "mov " ++ getRegisterName reg IRU32 ++ ", dword " ++ varStackAddr sm op]
 extendVar sm reg op IRBool = [emit 1 $ "movzx " ++ reg ++ ", byte " ++ varStackAddr sm op]
