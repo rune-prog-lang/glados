@@ -39,7 +39,9 @@ varsSemanticsTests =
       expectOk "handles literal expressions" literalExpressionsProgram,
       expectOk "handles struct definitions" structDefProgram,
       expectOk "handles function calls with known functions" knownFunctionCallProgram,
-      expectErr "validates assignment right-hand side" assignmentRHSErrorProgram "rhsVar"
+      expectErr "validates assignment right-hand side" assignmentRHSErrorProgram "rhsVar",
+      expectOk "handles type cast expression" castExpressionProgram,
+      expectErr "validates cast operand" castErrorProgram "castVar"
     ]
 
 expectOk :: String -> Program -> TestTree
@@ -434,5 +436,31 @@ assignmentRHSErrorProgram =
         TypeNull
         [ StmtVarDecl "x" Nothing (ExprLitInt 1),
           StmtAssignment (ExprVar "x") (ExprVar "rhsVar")
+        ]
+    ]
+
+castExpressionProgram :: Program
+castExpressionProgram =
+  Program
+    "cast-expr"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtVarDecl "n" (Just TypeI32) (ExprLitInt 42),
+          StmtVarDecl "f" (Just TypeF32) (ExprCast (ExprVar "n") TypeF32),
+          StmtVarDecl "s" (Just TypeString) (ExprCast (ExprVar "n") TypeString)
+        ]
+    ]
+
+castErrorProgram :: Program
+castErrorProgram =
+  Program
+    "cast-error"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtVarDecl "result" Nothing (ExprCast (ExprVar "castVar") TypeI32)
         ]
     ]
