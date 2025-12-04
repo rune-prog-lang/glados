@@ -1,9 +1,9 @@
-name: Stable Release
+name: Pre-release Build
 
 on:
   push:
     branches:
-      - main
+      - dev
   # ADDED to allow manual triggering of the workflow, will be removed later
   workflow_dispatch:
 
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  prerelease:
     runs-on: ubuntu-latest
 
     steps:
@@ -60,7 +60,7 @@ jobs:
       - name: Install semantic-release
         run: npm install -g semantic-release @semantic-release/github @semantic-release/exec @semantic-release/commit-analyzer @semantic-release/release-notes-generator
 
-      - name: Run semantic-release for stable release
+      - name: Run semantic-release for pre-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release --branches main --ci
+        run: npx semantic-release --branches dev --prerelease beta --ci
