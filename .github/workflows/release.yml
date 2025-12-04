@@ -5,6 +5,9 @@ on:
     branches:
       - 61-cd-workflow-to-release-a-binary-of-the-project
 
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Build and Release Binaries
@@ -52,4 +55,4 @@ jobs:
           name: Rolling Release
           files: output/*
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_GITHUB }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
