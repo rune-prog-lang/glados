@@ -7,7 +7,7 @@ import Control.Monad.State (modify)
 import Data.Map (empty, insert)
 import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..))
 import Rune.IR.Generator.GenStatement (genStatement)
-import Rune.IR.IRHelpers (astTypeToIRType, mangleMethodName, registerVar)
+import Rune.IR.IRHelpers (astTypeToIRType, mangleMethodName, mangleOverrideName, registerVar)
 import Rune.IR.Nodes
   ( GenState (..),
     IRFunction (..),
@@ -50,12 +50,11 @@ genFunction (DefFunction name params retType body) = do
 genFunction x = error $ "genFunction called on non-function: received " ++ show x
 
 -- | generate IR for an override function
--- show(Vec2f) -> show_Vec2f
+-- show(i32, f32) -> show_i32_f32
 genOverride :: TopLevelDef -> IRGen [IRTopLevel]
 genOverride (DefOverride name params retType body) = do
-  let mangledName = case params of
-        (Parameter _ (TypeCustom s) : _) -> mangleMethodName name s
-        _ -> name
+  let paramTypes = map (\(Parameter _ t) -> astTypeToIRType t) params
+      mangledName = mangleOverrideName name paramTypes
   genFunction (DefFunction mangledName params retType body)
 genOverride _ = error "genOverride called on non-override"
 
