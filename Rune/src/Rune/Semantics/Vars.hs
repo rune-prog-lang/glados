@@ -87,6 +87,7 @@ verifExpr s (ExprCall _ args) = foldMap (verifExpr s) args
 verifExpr s (ExprStructInit _ fields) = foldMap (verifExpr s . snd) fields
 verifExpr s (ExprAccess target _) = verifExpr s target
 verifExpr s (ExprUnary _ val) = verifExpr s val
+verifExpr s (ExprCast expr _) = verifExpr s expr
 verifExpr s (ExprVar var) =
     let msg = "\n\tUndefinedVar: " ++ var
           ++ " doesn't exist in the scope"
@@ -110,6 +111,7 @@ exprType _ ExprLitNull = TypeNull
 exprType _ (ExprAccess _ _) = TypeAny -- don't know how to use struct
 exprType s (ExprBinary _ expr _) = exprType s expr -- assume both expr are of the same type
 exprType s (ExprUnary _ expr) = exprType s expr -- assume the op don't change the type
+exprType _ (ExprCast _ ty) = ty
 exprType (fs, _) (ExprCall fn _) =
     case HM.lookup fn fs of
         Just (t, _) -> t

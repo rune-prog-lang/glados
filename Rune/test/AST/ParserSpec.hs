@@ -50,5 +50,11 @@ validExamplesTests =
       testCase "struct.ru" $
         assertParses "struct V { x: i32; } def main() -> null { a = V { x: 1 }; }",
       testCase "error_handling.ru" $
-        assertParses "def f() ~> i32 { error(\"fail\"); } def main() -> i32 { f()?; 0 }"
+        assertParses "def f() ~> i32 { error(\"fail\"); } def main() -> i32 { f()?; 0 }",
+      testCase "type cast i32 to f32" $
+        assertParses "def main() -> null { n: i32 = 42; f: f32 = n as f32; }",
+      testCase "type cast i32 to string" $
+        assertParses "def main() -> null { n: i32 = 42; s: string = n as string; }",
+      testCase "type cast in expression" $
+        assertParses "def main() -> null { result = (10 + 20) as f32; }"
     ]

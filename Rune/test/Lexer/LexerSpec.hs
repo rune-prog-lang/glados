@@ -230,6 +230,13 @@ unitTests =
           testCase "OpMulAssign" $ checkLexer "b *= 2" [Identifier "b", OpMulAssign, LitInt 2, EOF]
         ],
       testGroup
+        "Type Casting"
+        [ testCase "kw as" $ checkLexer "as" [KwAs, EOF],
+          testCase "cast expression" $ checkLexer "x as i32" [Identifier "x", KwAs, TypeI32, EOF],
+          testCase "cast with float" $ checkLexer "42 as f32" [LitInt 42, KwAs, TypeF32, EOF],
+          testCase "as followed by id" $ checkLexer "asdf" [Identifier "asdf", EOF]
+        ],
+      testGroup
         "Delimiters"
         [ testCase "all delimiters" $ checkLexer "(){} ,;:" [LParen, RParen, LBrace, RBrace, Comma, Semicolon, Colon, EOF]
         ],

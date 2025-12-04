@@ -3,7 +3,7 @@ module IR.IRExpressionsSpec (irExpressionsTests) where
 import Control.Monad.State (runState)
 import Data.Map (empty)
 import qualified Data.Set as Set
-import Rune.AST.Nodes (Expression (..))
+import Rune.AST.Nodes (Expression (..), Type (..))
 import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.Nodes
   ( GenState (..),
@@ -51,12 +51,25 @@ irExpressionsTests =
       testCase "genLitBool True" testGenLitBoolTrue,
       testCase "genLitBool False" testGenLitBoolFalse,
       testCase "genLitNull" testGenLitNull,
-      testCase "genLitString" testGenLitString
+      testCase "genLitString" testGenLitString,
+      testCase "genCast i32 to f32" testGenCastI32ToF32,
+      testCase "genCast f32 to i32" testGenCastF32ToI32,
+      testCase "genCast i32 to string" testGenCastI32ToString,
+      testCase "genCast" testGenCast
     ]
 
 --
 -- private
 --
+
+testGenCast :: IO ()
+testGenCast =
+  let expr = ExprCast (ExprLitInt 42) TypeF32
+      (result, _) = runIRGen (genExpression expr)
+      expectedInstrs = [IRCAST "t0" (IRConstInt 42) IRI32 IRF32]
+      expectedOperand = IRTemp "t0" IRF32
+      expectedType = IRF32
+   in result @?= (expectedInstrs, expectedOperand, expectedType)
 
 testGenLitInt :: IO ()
 testGenLitInt =
@@ -113,3 +126,30 @@ testGenLitString =
         result @?= (expectedInstrs, expectedOperand, expectedType)
         gsGlobals finalState @?= expectedGlobals
         gsStringCounter finalState @?= 1
+
+testGenCastI32ToF32 :: IO ()
+testGenCastI32ToF32 =
+  let expr = ExprCast (ExprLitInt 42) TypeF32
+      (result, _) = runIRGen (genExpression expr)
+      expectedInstrs = [IRCAST "t0" (IRConstInt 42) IRI32 IRF32]
+      expectedOperand = IRTemp "t0" IRF32
+      expectedType = IRF32
+   in result @?= (expectedInstrs, expectedOperand, expectedType)
+
+testGenCastF32ToI32 :: IO ()
+testGenCastF32ToI32 =
+  let expr = ExprCast (ExprLitFloat 3.14) TypeI32
+      (result, _) = runIRGen (genExpression expr)
+      expectedInstrs = [IRCAST "t0" (IRConstFloat 3.14) IRF32 IRI32]
+      expectedOperand = IRTemp "t0" IRI32
+      expectedType = IRI32
+   in result @?= (expectedInstrs, expectedOperand, expectedType)
+
+testGenCastI32ToString :: IO ()
+testGenCastI32ToString =
+  let expr = ExprCast (ExprLitInt 42) TypeString
+      (result, _) = runIRGen (genExpression expr)
+      expectedInstrs = [IRCAST "t0" (IRConstInt 42) IRI32 (IRPtr IRChar)]
+      expectedOperand = IRTemp "t0" (IRPtr IRChar)
+      expectedType = IRPtr IRChar
+   in result @?= (expectedInstrs, expectedOperand, expectedType)
