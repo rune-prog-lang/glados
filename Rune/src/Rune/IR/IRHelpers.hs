@@ -13,6 +13,7 @@ module Rune.IR.IRHelpers
     popLoopContext,
     getCurrentLoop,
     mangleMethodName,
+    mangleOverrideName,
   )
 where
 
@@ -118,6 +119,26 @@ genFormatString value = do
 
 mangleMethodName :: String -> String -> String
 mangleMethodName structName methodName = structName ++ "_" ++ methodName
+
+mangleOverrideName :: String -> [IRType] -> String
+mangleOverrideName funcName paramTypes = funcName ++ concatMap ("_" ++) (map irTypeToShortName paramTypes)
+
+irTypeToShortName :: IRType -> String
+irTypeToShortName IRI8 = "i8"
+irTypeToShortName IRI16 = "i16"
+irTypeToShortName IRI32 = "i32"
+irTypeToShortName IRI64 = "i64"
+irTypeToShortName IRU8 = "u8"
+irTypeToShortName IRU16 = "u16"
+irTypeToShortName IRU32 = "u32"
+irTypeToShortName IRU64 = "u64"
+irTypeToShortName IRChar = "char"
+irTypeToShortName IRF32 = "f32"
+irTypeToShortName IRF64 = "f64"
+irTypeToShortName IRBool = "bool"
+irTypeToShortName IRNull = "null"
+irTypeToShortName (IRPtr t) = "ptr_" ++ irTypeToShortName t
+irTypeToShortName (IRStruct s) = s
 
 --
 -- control flow
