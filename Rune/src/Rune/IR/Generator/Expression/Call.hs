@@ -1,7 +1,7 @@
 module Rune.IR.Generator.Expression.Call (genCall, genShowCall) where
 
 import Rune.AST.Nodes (Expression)
-import Rune.IR.IRHelpers (genFormatString, newTemp, registerCall)
+import Rune.IR.IRHelpers (genFormatString, mangleOverrideName, newTemp, registerCall)
 import Rune.IR.Nodes (IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
 --
@@ -18,16 +18,15 @@ genCall :: GenExprCallback -> String -> [Expression] -> IRGen ([IRInstruction], 
 genCall genExpr funcName args = do
   argsData <- mapM genExpr args
 
-  let mangled = mangleName funcName argsData
+  let argTypes = map (\(_, _, t) -> t) argsData
+      overrideName = mangleOverrideName funcName argTypes
+      mangled = mangleName funcName argsData overrideName
       (instrs, ops) = unzip $ map prepareArg argsData
       allInstrs = concat instrs
 
       -- TODO: improve return type inference:
       --  currently only handles struct and pointer-to-struct arguments
       --  otherwise defaults to IRI32
-      --
-      --  i will implement robust detection for all function signatures later
-      --  when the semantic analysis is more complete
       retType = case argsData of
         ((_, _, IRStruct s) : _) -> IRStruct s
         ((_, _, IRPtr (IRStruct s)) : _) -> IRStruct s
@@ -42,14 +41,16 @@ genCall genExpr funcName args = do
 --
 -- show calls
 --
--- show is a built-in function that prints the value of its argument to stdout
--- def show(value: any) -> null
---
 
 genShowCall :: GenExprCallback -> Expression -> IRGen ([IRInstruction], IROperand, IRType)
 genShowCall genExpr arg = do
   (instrs, op, typ) <- genExpr arg
-  let funcName = getShowFunc op typ
+  let overrideName = mangleOverrideName "show" [typ]
+      
+      funcName = case getFormatSpecifier op typ of
+        Just _ -> "printf"
+        Nothing -> getShowFunc op typ overrideName
+        
       (prep, finalOp) = prepareAddr op typ
 
   registerCall funcName
@@ -62,9 +63,6 @@ genShowCall genExpr arg = do
 -- private
 --
 
--- | as show is a built-in "printf"-like function
--- def show(value: any) -> null
--- we need to format the arguments accordingly to the input
 genShowFmtCall :: IROperand -> IRType -> IROperand -> IRGen ([IRInstruction], [IROperand])
 genShowFmtCall originalOp typ finalOp = case getFormatSpecifier originalOp typ of
   Just fmt -> do
@@ -72,10 +70,10 @@ genShowFmtCall originalOp typ finalOp = case getFormatSpecifier originalOp typ o
     return (i, [f, finalOp])
   Nothing -> return ([], [finalOp])
 
-getShowFunc :: IROperand -> IRType -> String
-getShowFunc _ (IRStruct s) = "show_" ++ s
-getShowFunc _ (IRPtr (IRStruct s)) = "show_" ++ s
-getShowFunc _ _ = "printf"
+getShowFunc :: IROperand -> IRType -> String -> String
+getShowFunc _ (IRStruct s) _ = "show_" ++ s
+getShowFunc _ (IRPtr (IRStruct s)) _ = "show_" ++ s
+getShowFunc _ _ overrideName = overrideName
 
 getFormatSpecifier :: IROperand -> IRType -> Maybe String
 getFormatSpecifier _ IRI8 = Just "%hhd"
@@ -93,10 +91,10 @@ getFormatSpecifier _ IRBool = Just "%d"
 getFormatSpecifier _ (IRPtr IRChar) = Just "%s"
 getFormatSpecifier _ _ = Nothing
 
-mangleName :: String -> [([IRInstruction], IROperand, IRType)] -> String
-mangleName base ((_, _, IRStruct s) : _) = s ++ "_" ++ base
-mangleName base ((_, _, IRPtr (IRStruct s)) : _) = s ++ "_" ++ base
-mangleName base _ = base
+mangleName :: String -> [([IRInstruction], IROperand, IRType)] -> String -> String
+mangleName base ((_, _, IRStruct s) : _) _ = s ++ "_" ++ base
+mangleName base ((_, _, IRPtr (IRStruct s)) : _) _ = s ++ "_" ++ base
+mangleName base _ _ = base
 
 prepareArg :: ([IRInstruction], IROperand, IRType) -> ([IRInstruction], IROperand)
 prepareArg (i, (IRTemp n t), IRStruct _) = (i ++ [IRADDR ("p_" ++ n) n (IRPtr t)], IRTemp ("p_" ++ n) (IRPtr t))
