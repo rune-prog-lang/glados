@@ -43,6 +43,7 @@ tokenTypeToType T.TypeU8 = Just TypeU8
 tokenTypeToType T.TypeU16 = Just TypeU16
 tokenTypeToType T.TypeU32 = Just TypeU32
 tokenTypeToType T.TypeU64 = Just TypeU64
+tokenTypeToType T.TypeChar = Just TypeChar
 tokenTypeToType T.TypeF32 = Just TypeF32
 tokenTypeToType T.TypeF64 = Just TypeF64
 tokenTypeToType T.TypeBool = Just TypeBool
