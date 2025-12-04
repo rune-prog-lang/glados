@@ -19,8 +19,8 @@ jobs:
         with:
           enable-stack: true
           system-ghc: true
-          stack-version: latest
-          ghc-version: latest
+          stack-version: 2.15.9
+          ghc-version: 9.10.2
 
       - name: Cache Stack
         uses: actions/cache@v4
@@ -35,8 +35,8 @@ jobs:
       - name: Pre-install GHC and dependencies
         shell: bash
         run: |
-          stack setup --install-ghc
-          stack build --only-dependencies
+          stack --resolver lts-24.19 setup --install-ghc
+          stack --resolver lts-24.19 build --only-dependencies
 
       - name: Build with Makefile
         shell: bash
