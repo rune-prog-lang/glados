@@ -6,22 +6,21 @@ on:
       - 61-cd-workflow-to-release-a-binary-of-the-project
 
 jobs:
-  build:
-    name: Build Linux binary
+  release:
+    name: Build and Release Binaries
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Haskell with Stack
-        uses: haskell-actions/setup@v3
+      - name: Install system GHC
+        uses: haskell-actions/setup@v2
         with:
-          ghc-version: 9.10.2
           enable-stack: true
-          stack-setup-ghc: true
-          stack-version: 2.15.9
-
+          system-ghc: true
+          stack-version: latest
+          ghc-version: latest
 
       - name: Cache Stack
         uses: actions/cache@v4
@@ -29,48 +28,28 @@ jobs:
           path: |
             ~/.stack
             .stack-work
-          key: linux-stack-${{ hashFiles('stack.yaml', '**/*.cabal') }}
+          key: ${{ runner.os }}-stack-${{ hashFiles('stack.yaml', '**/*.cabal') }}
           restore-keys: |
-            linux-stack-
+            ${{ runner.os }}-stack-
 
-      - name: Pre-install GHC and dependencies
-        shell: bash
-        run: |
-          stack --resolver lts-24.19 setup
-          stack --resolver lts-24.19 build --only-dependencies
-
-      - name: Build with Makefile
-        shell: bash
+      - name: Build binaries
         run: |
           make -j
           mkdir -p output
           cp glados output/glados-linux
           cp rune output/rune-linux
 
-      - name: Upload binary artifact
+      - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: binary-linux
+          name: binaries
           path: output/*
 
-  release:
-    name: Create/Update Rolling Release
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download Linux binary artifact
-        uses: actions/download-artifact@v4
-        with:
-          path: release
-
-      - name: Create/Update GitHub Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: Rolling Release
-          files: release/*
-          draft: false
-          prerelease: false
+          files: output/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
