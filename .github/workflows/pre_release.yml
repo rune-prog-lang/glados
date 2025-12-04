@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - dev
+      - 61-cd-workflow-to-release-a-binary-of-the-project
   # ADDED to allow manual triggering of the workflow, will be removed later
   workflow_dispatch:
 
