@@ -34,29 +34,39 @@ jobs:
       - name: Install semantic-release
         run: npm install -g semantic-release @semantic-release/github @semantic-release/exec @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/git
 
-      - name: Get PR title
+      - name: Get last merge commit SHA on main
+        id: last_merge
+        run: |
+          echo "MERGE_SHA=$(git log --merges -1 --pretty=format:%H)" >> $GITHUB_ENV
+
+      - name: Get PR title for last merge
         id: pr
-        uses: octokit/request-action@v5
+        uses: octokit/request-action@v2.4.0
         with:
-          route: GET /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}
+          route: GET /repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:${GITHUB_REF#refs/heads/}&state=closed
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set PR title output
+        id: set-title
+        run: |
+          PR_TITLE=$(echo '${{ steps.pr.outputs.data }}' | jq -r '.[0].title')
+          echo "PR_TITLE=$PR_TITLE" >> $GITHUB_ENV
+
       - name: Create temporary branch with PR title commit
         run: |
-          TMP_BRANCH="temp-pr-release-${GITHUB_RUN_ID}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
-          git checkout -b $TMP_BRANCH origin/main
-          git commit --allow-empty -m "${{ steps.pr.outputs.data.title }}"
+          git checkout -b temp-pr-release origin/main
+          git commit --allow-empty -m "${{ env.PR_TITLE }}"
 
       - name: Run semantic-release for stable release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release --branch $TMP_BRANCH --ci
+        run: npx semantic-release --branch temp-pr-release --ci
 
       - name: Clean up temporary branch
         run: |
           git checkout main
-          git branch -D $TMP_BRANCH
+          git branch -D temp-pr-release

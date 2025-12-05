@@ -40,13 +40,24 @@ jobs:
       - name: Install semantic-release
         run: npm install -g semantic-release @semantic-release/github @semantic-release/exec @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/git
 
-      - name: Get PR title
+      - name: Get last merge commit SHA on dev
+        id: last_merge
+        run: |
+          echo "MERGE_SHA=$(git log --merges -1 --pretty=format:%H)" >> $GITHUB_ENV
+
+      - name: Get PR title for last merge
         id: pr
-        uses: octokit/request-action@v5
+        uses: octokit/request-action@v2.4.0
         with:
-          route: GET /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}
+          route: GET /repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:${GITHUB_REF#refs/heads/}&state=closed
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set PR title output
+        id: set-title
+        run: |
+          PR_TITLE=$(echo '${{ steps.pr.outputs.data }}' | jq -r '.[0].title')
+          echo "PR_TITLE=$PR_TITLE" >> $GITHUB_ENV
 
       - name: Create temporary branch with PR title commit
         run: |
@@ -54,7 +65,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin dev
           git checkout -b temp-pr-release origin/dev
-          git commit --allow-empty -m "${{ steps.pr.outputs.data.title }}"
+          git commit --allow-empty -m "${{ env.PR_TITLE }}"
 
       - name: Run semantic-release for pre-release
         env:
