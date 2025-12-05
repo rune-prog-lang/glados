@@ -124,7 +124,7 @@ testPrintInstructionAssign =
   let instr = IRASSIGN "a" opTemp IRI32
       instr2 = IRASSIGN "n" opConstNull IRNull
       func = IRFunction "f" [] Nothing [instr, instr2]
-      expected = "PROGRAM p:\nDEF f():\n    a: i32 = t1\n    n: null = null\n"
+      expected = "PROGRAM p:\nDEF f():\n    a: i32 = t1\n    n: null = (null)\n"
    in prettyPrintIR (IRProgram "p" [IRFunctionDef func]) @?= expected
 
 testPrintInstructionBinOps :: IO ()
@@ -341,7 +341,7 @@ testPrintAllIRTypes = do
           "*i32",
           "Vec2f"
         ]
-      operands = map (\t -> IRTemp "t" t) types
+      operands = map (IRTemp "t") types
       instrs = zipWith (IRASSIGN "r") operands types
       func = IRFunction "f" [] Nothing instrs
       output = prettyPrintIR (IRProgram "p" [IRFunctionDef func])
