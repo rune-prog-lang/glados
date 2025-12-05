@@ -152,6 +152,8 @@ emitAssign sm dest (IRConstInt n) t
   | otherwise = [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", " ++ show n]
 emitAssign sm dest (IRConstChar c) _ =
   [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
+emitAssign sm dest (IRConstBool b) _ =
+  [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ if b then "1" else "0"]
 emitAssign sm dest IRConstNull t =
   [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", 0"]
 emitAssign sm dest (IRTemp name _) t = moveStackToStack sm dest name t
