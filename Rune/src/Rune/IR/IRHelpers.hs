@@ -13,6 +13,8 @@ module Rune.IR.IRHelpers
     popLoopContext,
     getCurrentLoop,
     mangleMethodName,
+    getOperandType,
+    getCommonType,
   )
 where
 
@@ -144,3 +146,23 @@ getCurrentLoop = do
   case stack of
     (current : _) -> return (Just current)
     [] -> return Nothing
+
+--
+-- operand helpers
+--
+
+getOperandType :: IROperand -> Maybe IRType
+getOperandType (IRTemp _ t) = Just t
+getOperandType (IRParam _ t) = Just t
+getOperandType (IRGlobal _ t) = Just t
+getOperandType (IRConstBool _) = Just IRBool
+getOperandType (IRConstChar _) = Just IRChar
+getOperandType (IRConstFloat _) = Just IRF32
+getOperandType (IRConstInt _) = Just IRI32
+getOperandType IRConstNull = Just IRNull
+
+getCommonType :: IROperand -> IROperand -> IRType
+getCommonType l r = case (getOperandType l, getOperandType r) of
+  (Just t, _) -> t
+  (_, Just t) -> t
+  _ -> IRI32
