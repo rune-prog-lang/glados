@@ -37,7 +37,7 @@ emitAssembly (IRProgram _ topLevels) =
 -- | extern <function>
 emitExterns :: [Extern] -> [String]
 emitExterns [] = []
-emitExterns xs = map (\n -> "extern " ++ n) xs
+emitExterns xs = map ("extern " ++) xs
 
 --
 -- section .data
