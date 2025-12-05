@@ -289,6 +289,7 @@ loadReg :: Map String Int -> String -> IROperand -> [String]
 loadReg _ reg (IRConstInt n) = [emit 1 $ "mov " ++ reg ++ ", " ++ show n]
 loadReg _ reg (IRConstChar c) = [emit 1 $ "mov " ++ reg ++ ", " ++ show (fromEnum c)]
 loadReg _ reg IRConstNull = [emit 1 $ "mov " ++ reg ++ ", 0"]
+loadReg _ reg (IRConstBool b) = [emit 1 $ "mov " ++ reg ++ ", " ++ if b then "1" else "0"]
 loadReg sm baseReg op@(IRTemp _ t) = loadVarReg sm baseReg op t
 loadReg sm baseReg op@(IRParam _ t) = loadVarReg sm baseReg op t
 loadReg sm baseReg op = [emit 1 $ "mov " ++ baseReg ++ ", qword " ++ varStackAddr sm op]
