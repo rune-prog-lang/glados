@@ -17,6 +17,7 @@ import Rune.IR.Nodes
     IRProgram (IRProgram),
     IRType (..),
   )
+import Rune.IR.IRHelpers (getCommonType)
 
 --
 -- public
@@ -220,21 +221,27 @@ emitConditionalJump sm op jumpInstr lbl =
 -- | emit dest = left <asmOp> right
 emitBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> IRType -> [String]
 emitBinaryOp sm dest asmOp leftOp rightOp t =
-  loadReg sm "rax" leftOp
-    ++ loadReg sm "rbx" rightOp
-    ++ [emit 1 $ asmOp ++ " rax, rbx"]
-    ++ [storeReg sm dest "rax" t]
+  let regL = getRegisterName "rax" t
+      regR = getRegisterName "rbx" t
+   in loadReg sm "rax" leftOp
+        ++ loadReg sm "rbx" rightOp
+        ++ [emit 1 $ asmOp ++ " " ++ regL ++ ", " ++ regR]
+        ++ [storeReg sm dest "rax" t]
 
 -- | emit dest = left <asmOp> right (comparison)
 emitCompareOp :: Map String Int -> String -> String -> IROperand -> IROperand -> [String]
 emitCompareOp sm dest setOp leftOp rightOp =
-  loadReg sm "rax" leftOp
-    ++ loadReg sm "rbx" rightOp
-    ++ [ emit 1 "cmp rax, rbx",
-         emit 1 $ setOp ++ " al",
-         emit 1 "movzx eax, al",
-         emit 1 $ "mov dword " ++ stackAddr sm dest ++ ", eax"
-       ]
+  let cmpType = getCommonType leftOp rightOp
+      regL = getRegisterName "rax" cmpType
+      regR = getRegisterName "rbx" cmpType
+   in loadReg sm "rax" leftOp
+        ++ loadReg sm "rbx" rightOp
+        ++ [ emit 1 $ "cmp " ++ regL ++ ", " ++ regR,
+             emit 1 $ setOp ++ " al",
+             emit 1 "movzx eax, al",
+             emit 1 $ "mov dword " ++ stackAddr sm dest ++ ", eax"
+           ]
+
 
 --
 -- helpers
