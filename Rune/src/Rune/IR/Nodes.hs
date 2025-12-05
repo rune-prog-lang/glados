@@ -49,6 +49,7 @@ data IRType
   | IRU16
   | IRU32
   | IRU64
+  | IRChar
   | IRF32
   | IRF64
   | IRBool
@@ -78,6 +79,8 @@ data IROperand
   = IRConstInt Int
   | IRConstFloat Double
   | IRConstChar Char
+  | IRConstBool Bool
+  | IRConstNull
   | IRTemp String IRType
   | IRParam String IRType
   | IRGlobal String IRType

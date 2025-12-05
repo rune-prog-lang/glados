@@ -37,12 +37,13 @@ astTypeToIRType TypeU8 = IRU8
 astTypeToIRType TypeU16 = IRU16
 astTypeToIRType TypeU32 = IRU32
 astTypeToIRType TypeU64 = IRU64
+astTypeToIRType TypeChar = IRChar
 astTypeToIRType TypeF32 = IRF32
 astTypeToIRType TypeF64 = IRF64
 astTypeToIRType TypeBool = IRBool
 astTypeToIRType TypeNull = IRNull
 astTypeToIRType (TypeCustom name) = IRStruct name
-astTypeToIRType TypeString = IRPtr IRU8
+astTypeToIRType TypeString = IRPtr IRChar
 astTypeToIRType _ = error "Unsupported type conversion from AST to IR"
 
 -- TODO: treat struct properly
@@ -55,13 +56,14 @@ sizeOfIRType IRI64 = 8
 sizeOfIRType IRF32 = 4
 sizeOfIRType IRF64 = 8
 sizeOfIRType IRU8 = 1
+sizeOfIRType IRChar = 1
 sizeOfIRType IRU16 = 2
 sizeOfIRType IRU32 = 4
 sizeOfIRType IRU64 = 8
 sizeOfIRType IRBool = 1
 sizeOfIRType (IRPtr _) = 8 -- Ô_ö
 sizeOfIRType (IRStruct _) = 8 -- ö_Ô
-sizeOfIRType IRNull = 0
+sizeOfIRType IRNull = 8
 
 --
 -- symbol table
@@ -110,9 +112,9 @@ newStringGlobal value = do
 genFormatString :: String -> IRGen ([IRInstruction], IROperand)
 genFormatString value = do
   stringName <- newStringGlobal value
-  ptrName <- newTemp "p_fmt" (IRPtr IRU8)
-  let addrInstr = IRADDR ptrName stringName (IRPtr IRU8)
-  return ([addrInstr], IRTemp ptrName (IRPtr IRU8))
+  ptrName <- newTemp "p_fmt" (IRPtr IRChar)
+  let addrInstr = IRADDR ptrName stringName (IRPtr IRChar)
+  return ([addrInstr], IRTemp ptrName (IRPtr IRChar))
 
 mangleMethodName :: String -> String -> String
 mangleMethodName structName methodName = structName ++ "_" ++ methodName

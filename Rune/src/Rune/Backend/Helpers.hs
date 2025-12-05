@@ -10,6 +10,7 @@ where
 import Data.List (intercalate, nub)
 import qualified Data.Map.Strict as Map
 import Rune.Backend.Types (Extern, Function, GlobalString)
+import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
 
 --
@@ -24,12 +25,11 @@ collectTopLevels tls =
   let (es, gs, fs) = foldr collectTopLevel ([], [], []) tls
    in (nub es, reverse gs, reverse fs)
 
--- TODO: rewrite this helper to calculate offsets based on actual type sizes
 calculateStackMap :: Function -> (Map.Map String Int, Int)
 calculateStackMap func =
   let varsMap = collectIRVars func
-      varNames = Map.keys varsMap
-      (totalUsedSize, offsetsMap) = foldl' accumulateOffset (0, Map.empty) varNames
+      varsList = Map.toList varsMap
+      (totalUsedSize, offsetsMap) = foldl' (accumulateOffset varsMap) (0, Map.empty) varsList
       totalSize = alignUp totalUsedSize 16
       rbpOffsetsMap = Map.map (\offset -> -(totalUsedSize - offset)) offsetsMap
    in (rbpOffsetsMap, totalSize)
@@ -78,12 +78,11 @@ collectVars acc (IRCALL n _ _ (Just t)) = Map.insert n t acc
 collectVars acc (IRADDR n _ t) = Map.insert n t acc
 collectVars acc _ = acc
 
--- TODO: rewrite this helper to calculate offsets based on actual type sizes
-accumulateOffset :: (Int, Map.Map String Int) -> String -> (Int, Map.Map String Int)
-accumulateOffset (currentOffset, accMap) name =
-  let align = 8
+accumulateOffset :: Map.Map String IRType -> (Int, Map.Map String Int) -> (String, IRType) -> (Int, Map.Map String Int)
+accumulateOffset _ (currentOffset, accMap) (name, irType) =
+  let size = sizeOfIRType irType
+      align = min 8 (if size == 0 then 1 else size)
       alignedOffset = alignUp currentOffset align
-      size = 8
       newOffset = alignedOffset + size
    in (newOffset, Map.insert name alignedOffset accMap)
 
