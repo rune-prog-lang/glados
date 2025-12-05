@@ -51,7 +51,7 @@ jobs:
 
       - name: Get PR title for last merge
         id: pr
-        uses: octokit/request-action@v2
+        uses: octokit/request-action@v2.4.0
         with:
           route: GET /repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:${GITHUB_REF#refs/heads/}&state=closed
         env:
