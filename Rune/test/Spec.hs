@@ -4,16 +4,25 @@ import AST.NodesSpec (astNodesTests)
 import AST.ParserSpec (astParserTests)
 import AST.PrinterSpec (astPrinterTests)
 import AST.ProgramSyntaxSpec (programSyntaxTests)
+import Backend.HelpersSpec (backendHelpersTests)
+import Backend.TypesSpec (backendTypesTests)
+import Backend.X86_64.CodegenExtendedSpec (codegenExtendedTests)
+import Backend.X86_64.CodegenSpec (codegenTests)
+import Backend.X86_64.RegistersSpec (registersTests)
 import CLISpec (cliTests)
+import IR.IRExpressionsSpec (irExpressionsTests)
+import IR.IRStatementsSpec (irStatementsTests)
+import IR.IRGeneratorSpec (irGeneratorTests)
+import IR.IRHelpersSpec (irHelpersTests)
 import IR.IRNodesSpecs (irNodesTests)
-import IR.IRSpec (irTests)
+import IR.IRPrinterSpec (irPrinterTests)
+import IR.IRControlFlowSpec (irControlFlowTests)
 import Lexer.LexerSpec (lexerTests)
 import Lexer.TokensSpec (tokensTests)
-import LoggerSpec (loggerTests)
+import LibSpec (libTests)
 import PipelinesSpec (pipelinesTests)
 import Semantics.FuncSpec (funcSemanticsTests)
 import Semantics.VarsSpec (varsSemanticsTests)
-import Backend.X86_64Spec (x86_64Tests)
 import Test.Tasty (TestTree, defaultMain, testGroup)
 
 --
@@ -41,7 +50,7 @@ coreSpecs :: TestTree
 coreSpecs =
   testGroup
     "Core Tests"
-    [ loggerTests,
+    [ libTests,
       pipelinesTests,
       cliTests
     ]
@@ -76,14 +85,22 @@ irSpecs :: TestTree
 irSpecs =
   testGroup
     "IR Tests"
-    [ irTests,
-      irNodesTests
+    [ irNodesTests,
+      irHelpersTests,
+      irGeneratorTests,
+      irStatementsTests,
+      irPrinterTests,
+      irExpressionsTests,
+      irControlFlowTests
     ]
 
 backendSpecs :: TestTree
 backendSpecs =
   testGroup
     "Backend Tests"
-    [
-      x86_64Tests
+    [ backendTypesTests,
+      backendHelpersTests,
+      registersTests,
+      codegenTests,
+      codegenExtendedTests
     ]

@@ -1,0 +1,109 @@
+name: Stable Release
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build binaries
+        run: |
+          make
+          mkdir -p output
+          cp glados output/glados-linux
+          cp rune output/rune-linux
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: output/*
+
+  release:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'dev'
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run version bump script
+        id: bump
+        run: |
+          NEW_VERSION=$(./scripts/git_scripts/bump_version.sh "${{ github.event.pull_request.title }}")
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit and push new version
+        if: env.NEW_VERSION != ''
+        run: |
+          echo "$NEW_VERSION" > VERSION.md
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION.md
+          git commit -m "chore(release): bump version to v$NEW_VERSION"
+          git push origin main
+
+      - name: Create Git tag
+        if: env.NEW_VERSION != ''
+        run: |
+          git tag "v$NEW_VERSION"
+          git push origin "v$NEW_VERSION"
+
+      - name: Install GitHub CLI
+        if: env.NEW_VERSION != ''
+        run: |
+          sudo apt update
+          sudo apt install -y gh
+
+      - name: Authenticate GitHub CLI
+        if: env.NEW_VERSION != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh auth setup-git
+
+      - name: Create GitHub Release
+        if: env.NEW_VERSION != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v$NEW_VERSION" \
+            --title "v$NEW_VERSION (Stable Release)" \
+            --notes "Release generated from merge of PR: ${{ github.event.pull_request.title }}" \
+            output/*
+
+  sync-dev:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Pull VERSION.md from main
+        run: |
+          git fetch origin main
+          git checkout origin/main -- VERSION.md
+
+      - name: Commit and push updated VERSION.md to dev
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION.md
+          git commit -m "chore: sync VERSION.md from main"
+          git push origin dev

@@ -13,7 +13,7 @@ all:
 	else \
 		$(STACK) build $(STACK_BUILD_FLAGS); \
 	fi
-	@$(MAKE) symlink
+	@$(MAKE) copy_binary
 
 tests:
 	@if grep -q 'ID=nixos' /etc/os-release; then \
@@ -46,13 +46,7 @@ fclean:
 
 re: fclean all
 
-symlink:
-    @BIN=$$(stack exec -- which glados-exe 2>/dev/null || true); \
-    if [ -z "$$BIN" ]; then \
-      echo "glados executable not found, skipping symlink"; \
-    else \
-      ln -sf "$$BIN" "$(CURDIR)/glados"; \
-      echo "Created symlink: $(CURDIR)/glados -> $$BIN"; \
-    fi
+copy_binary:
+	@cp "$$(find $(shell pwd)/.stack-work -type f -name $(STACK_BINARY_NAME) | head -n 1)" $(NAME)
 
-.PHONY: all clean fclean re test coverage symlink
+.PHONY: all clean fclean re test coverage copy_binary

@@ -119,6 +119,9 @@ printOperand :: IROperand -> String
 printOperand (IRConstInt n) = show n
 printOperand (IRConstFloat f) = show f
 printOperand (IRConstChar c) = show c
+printOperand (IRConstBool True) = "true"
+printOperand (IRConstBool False) = "false"
+printOperand IRConstNull = "(null)"
 printOperand (IRTemp name _) = name
 printOperand (IRParam name _) = name
 printOperand (IRGlobal name _) = name
@@ -131,6 +134,7 @@ printType IRI64 = "i64"
 printType IRF32 = "f32"
 printType IRF64 = "f64"
 printType IRU8 = "u8"
+printType IRChar = "char"
 printType IRU16 = "u16"
 printType IRU32 = "u32"
 printType IRU64 = "u64"
