@@ -25,6 +25,11 @@ declare -A TYPE_MAP=(
 
 BUMP_TYPE="${TYPE_MAP[$PR_TYPE]:-PATCH}"
 
+if [[ "$BUMP_TYPE" == "NONE" ]]; then
+    echo "PR type '$PR_TYPE' has no SemVer impact. Exiting."
+    exit 0
+fi
+
 if [[ "$BRANCH" == "dev" ]]; then
     [[ $BUMP_TYPE == "MAJOR" ]] && ((MAJOR++)) && MINOR=0 && PATCH=0
     [[ $BUMP_TYPE == "MINOR" ]] && ((MINOR++)) && PATCH=0
@@ -43,7 +48,8 @@ else
     NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 fi
 
-echo "$NEW_VERSION" > "$VERSION_FILE"
+echo "New version: $NEW_VERSION"
+
 git config user.name "github-actions[bot]"
 git config user.email "github-actions[bot]@users.noreply.github.com"
 git add "$VERSION_FILE"
