@@ -32,12 +32,7 @@ jobs:
           path: output/*
 
       - name: Install semantic-release
-        run: npm install -g semantic-release \
-          @semantic-release/github \
-          @semantic-release/exec \
-          @semantic-release/commit-analyzer \
-          @semantic-release/release-notes-generator \
-          @semantic-release/git
+        run: npm install -g semantic-release @semantic-release/github @semantic-release/exec @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/git
 
       - name: Get last merge commit SHA on main
         id: last_merge
