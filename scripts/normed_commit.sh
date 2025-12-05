@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 #!/bin/bash
+=======
+#!/usr/bin/env bash
+>>>>>>> 88-override-functions-on-the-semantic-analysis
 
 if [ "$#" -lt 1 ]; then
     echo "Usage: $0 <git add args> (ex: -A, ., file1 file2 ...)"
