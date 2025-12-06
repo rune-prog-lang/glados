@@ -40,6 +40,7 @@ library
       Rune.Backend.Helpers
       Rune.Backend.Types
       Rune.Backend.X86_64.Codegen
+      Rune.Backend.X86_64.Compare
       Rune.Backend.X86_64.Registers
       Rune.IR.Generator
       Rune.IR.Generator.Expression.Binary
