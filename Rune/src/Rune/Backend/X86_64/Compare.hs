@@ -106,6 +106,7 @@ isUnsignedType IRU16 = True
 isUnsignedType IRU32 = True
 isUnsignedType IRU64 = True
 isUnsignedType IRChar = True
+isUnsignedType IRBool = True
 isUnsignedType _ = False
 
 isFloatType :: IRType -> Bool
