@@ -36,6 +36,8 @@ getResultType Lt _ = IRBool
 getResultType Lte _ = IRBool
 getResultType Gt _ = IRBool
 getResultType Gte _ = IRBool
+getResultType And _ = IRBool
+getResultType Or _ = IRBool
 getResultType _ t = t
 
 mkInstr :: BinaryOp -> String -> IROperand -> IROperand -> IRType -> IRInstruction
