@@ -104,14 +104,14 @@ lambdaExpressionTests = testGroup "Lambda expression"
       sexprToAST sexpr @?= Right (Lambda ["x"] (AstInteger 1) [])
 
   , testCase "converts lambda with multiple parameters" $ do
-      let sexpr = List [Symbol "lambda", List [Symbol "x", Symbol "y"], 
+      let sexpr = List [Symbol "lambda", List [Symbol "x", Symbol "y"],
                         List [Symbol "+", Symbol "x", Symbol "y"]]
       case sexprToAST sexpr of
         Right (Lambda params _ _) -> length params @?= 2
         _ -> fail "Should convert lambda with multiple params"
 
   , testCase "converts lambda with complex body" $ do
-      let sexpr = List [Symbol "lambda", List [Symbol "n"], 
+      let sexpr = List [Symbol "lambda", List [Symbol "n"],
                         List [Symbol "*", Symbol "n", Integer 2]]
       case sexprToAST sexpr of
         Right (Lambda _ body _) -> body @?= Call "*" [AstSymbol "n", AstInteger 2]
@@ -129,12 +129,12 @@ ifExpressionTests = testGroup "If expression"
   , testCase "converts if with false condition" $ do
       let sexpr = List [Symbol "if", Symbol "#f", Integer 1, Integer 0]
       case sexprToAST sexpr of
-        Right (If cond _ _) -> 
+        Right (If cond _ _) ->
           cond @?= AstSymbol "#f"
         _ -> fail "Should convert if with false"
 
   , testCase "converts if with comparison" $ do
-      let sexpr = List [Symbol "if", List [Symbol "<", Integer 5, Integer 10], 
+      let sexpr = List [Symbol "if", List [Symbol "<", Integer 5, Integer 10],
                         Integer 1, Integer 0]
       case sexprToAST sexpr of
         Right (If _ _ _) -> return ()
@@ -288,7 +288,7 @@ extractParamsTests = testGroup "extractParams"
 parseDefineFunctionTests :: TestTree
 parseDefineFunctionTests = testGroup "parseDefineFunction"
   [ testCase "parses function definition" $ do
-      case parseDefineFunction "add" [Symbol "a", Symbol "b"] 
+      case parseDefineFunction "add" [Symbol "a", Symbol "b"]
            (List [Symbol "+", Symbol "a", Symbol "b"]) of
         Right (Define name (Lambda params _ _)) -> do
           name @?= "add"
@@ -322,7 +322,7 @@ parseLambdaTests = testGroup "parseLambda"
         _ -> fail "Should parse lambda"
 
   , testCase "parses lambda with multiple params" $ do
-      case parseLambda [Symbol "x", Symbol "y"] 
+      case parseLambda [Symbol "x", Symbol "y"]
            (List [Symbol "+", Symbol "x", Symbol "y"]) of
         Right (Lambda params _ []) -> length params @?= 2
         _ -> fail "Should parse lambda with multiple params"
@@ -391,7 +391,7 @@ parseFunctionCallTests = testGroup "parseFunctionCall"
         _ -> fail "Should convert custom function to list"
 
   , testCase "handles nested function calls" $ do
-      case parseFunctionCall (Symbol "+") 
+      case parseFunctionCall (Symbol "+")
            [List [Symbol "*", Integer 2, Integer 3]] of
         Right (Call "+" [Call "*" _]) -> return ()
         _ -> fail "Should handle nested calls"
