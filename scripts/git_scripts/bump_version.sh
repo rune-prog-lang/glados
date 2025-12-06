@@ -11,7 +11,7 @@ MAJOR=${MAJOR:-0}
 MINOR=${MINOR:-0}
 PATCH=${PATCH:-0}
 
-PR_TYPE=$(echo "$PR_TITLE" | cut -d':' -f1 | tr '[:upper:]' '[:lower:]')
+PR_TYPE=$(echo "$PR_TITLE" | sed 's/(.*//' | cut -d':' -f1 | tr '[:upper:]' '[:lower:]')
 
 declare -A TYPE_MAP=(
     ["fix"]="PATCH"
