@@ -112,14 +112,15 @@ handleDefine env name value =
         Right val -> ((name, val) : env, Right (AstSymbol ""))
         Left err  -> (env, Left err)
 
-evalASTWithEnv :: Environment -> [Ast] -> (Environment, Either String Ast)
-evalASTWithEnv env [] = (env, Left emptyListError)
-evalASTWithEnv env [expr] = evalAST env expr
-evalASTWithEnv env (expr:exprs) =
-    let (newEnv, result) = evalAST env expr
-    in case result of
-        Left err -> (newEnv, Left err)
-        Right _  -> evalASTWithEnv newEnv exprs
+evalASTWithEnv :: Environment -> [Ast] -> (Environment, Either String [Ast])
+evalASTWithEnv env [] = (env, Right [])
+evalASTWithEnv env (expr:rest) =
+    case evalAST env expr of
+        (newEnv, Left err) -> (newEnv, Left err)
+        (newEnv, Right res) ->
+            case evalASTWithEnv newEnv rest of
+                (finalEnv, Left err) -> (finalEnv, Left err)
+                (finalEnv, Right restRes) -> (finalEnv, Right (res : restRes))
 
 evalAST :: Environment -> Ast -> (Environment, Either String Ast)
 evalAST env (AstInteger n) = (env, Right (AstInteger n))

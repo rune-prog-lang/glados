@@ -9,13 +9,13 @@ import Lisp.Parser.Parser (parseLispDocument)
 import Lisp.SExpr.SExpr (SExpr(..))
 import Text.Megaparsec (parse, errorBundlePretty)
 
-executeLispWithEnv :: Environment -> String -> (Environment, Either String Ast)
+executeLispWithEnv :: Environment -> String -> (Environment, Either String [Ast])
 executeLispWithEnv env input =
     case parse parseLispDocument "" input of
         Left err -> (env, Left $ "Parse error: " ++ errorBundlePretty err)
         Right sexpr -> executeSExpr env sexpr
 
-executeSExpr :: Environment -> SExpr -> (Environment, Either String Ast)
+executeSExpr :: Environment -> SExpr -> (Environment, Either String [Ast])
 executeSExpr env (List sexprs) =
     case mapM sexprToAST sexprs of
         Left err -> (env, Left ("AST conversion error: " ++ err))
@@ -27,16 +27,18 @@ executeSExpr env sexpr =
         Left err -> (env, Left ("AST conversion error: " ++ err))
         Right ast ->
             let (newEnv, result) = evalAST env ast
-            in (newEnv, addEvalErrorPrefix result)
+            in (newEnv, addEvalErrorPrefix (fmap (:[]) result))
 
-addEvalErrorPrefix :: Either String Ast -> Either String Ast
+addEvalErrorPrefix :: Either String a -> Either String a
 addEvalErrorPrefix (Left err) = Left ("Evaluation error: " ++ err)
-addEvalErrorPrefix (Right ast) = Right ast
+addEvalErrorPrefix (Right val) = Right val
 
-astToString :: Ast -> String
-astToString (AstInteger n) = show n
-astToString (AstBoolean True) = "#t"
-astToString (AstBoolean False) = "#f"
-astToString (AstSymbol s) = s
-astToString (Lambda _ _ _) = "#<procedure>"
-astToString _ = ""
+astToString :: [Ast] -> String
+astToString asts = concatMap singleAstToString asts
+
+singleAstToString :: Ast -> String
+singleAstToString (AstInteger n) = show n ++ "\n"
+singleAstToString (AstBoolean True) = "#t" ++ "\n"
+singleAstToString (AstBoolean False) = "#f" ++ "\n"
+singleAstToString (Lambda _ _ _) = "#<procedure>" ++ "\n"
+singleAstToString _ = ""

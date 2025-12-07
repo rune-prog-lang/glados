@@ -111,11 +111,11 @@ conditionMustBeBooleanErrorTests = testGroup "conditionMustBeBooleanError"
 functionExpectsArgumentsErrorTests :: TestTree
 functionExpectsArgumentsErrorTests = testGroup "functionExpectsArgumentsError"
   [ testCase "generates error with correct counts" $ do
-      functionExpectsArgumentsError "add" 2 1 @?= 
+      functionExpectsArgumentsError "add" 2 1 @?=
         "Function 'add' expects 2 argument(s) but got 1"
 
   , testCase "generates error for multiple arguments" $ do
-      functionExpectsArgumentsError "myFunc" 3 5 @?= 
+      functionExpectsArgumentsError "myFunc" 3 5 @?=
         "Function 'myFunc' expects 3 argument(s) but got 5"
   ]
 
