@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   build:
-    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'dev'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -31,7 +31,7 @@ jobs:
           path: output/*
 
   release:
-    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'dev'
     runs-on: ubuntu-latest
     needs: build
     steps:
@@ -39,60 +39,60 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false  # IMPORTANT: disable default token
 
-      - name: Download binaries
-        uses: actions/download-artifact@v4
+      - name: Set up SSH for deploy key
+        uses: webfactory/ssh-agent@v0.8.0
         with:
-          name: binaries
-          path: output
+          ssh-private-key: ${{ secrets.DEPLOY_KEY }}
 
-      - name: Read current version
-        id: version
+      - name: Configure SSH known_hosts
         run: |
-          VERSION=$(cat VERSION.md | sed 's/^v//')
-          echo "current=$VERSION" >> $GITHUB_OUTPUT
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-      - name: Bump version (stable release)
+      - name: Run version bump script
         id: bump
         run: |
           NEW_VERSION=$(./scripts/git_scripts/bump_version.sh "${{ github.event.pull_request.title }}")
-          if [[ -z "$NEW_VERSION" ]]; then
-            echo "No version bump required"
-            exit 0
-          fi
-          echo "$NEW_VERSION" > VERSION.md
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
           echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and push new version
+        if: env.NEW_VERSION != ''
+        run: |
+          echo "$NEW_VERSION" > VERSION.md
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git add VERSION.md
-          git commit -m "chore(release): bump version to v$NEW_VERSION"
-          git push origin main
+          git commit -m "chore(release): bump version to v$NEW_VERSION" || true
+          git push git@github.com:<OWNER>/<REPO>.git main
 
       - name: Create Git tag
-        if: steps.bump.outputs.new != ''
+        if: env.NEW_VERSION != ''
         run: |
-          git tag "v${{ steps.bump.outputs.new }}"
-          git push origin "v${{ steps.bump.outputs.new }}"
+          git tag "v$NEW_VERSION"
+          git push git@github.com:<OWNER>/<REPO>.git "v$NEW_VERSION"
 
       - name: Install GitHub CLI
-        if: steps.bump.outputs.new != ''
+        if: env.NEW_VERSION != ''
         run: |
           sudo apt update
           sudo apt install -y gh
 
       - name: Authenticate GitHub CLI
-        if: steps.bump.outputs.new != ''
+        if: env.NEW_VERSION != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh auth setup-git
 
       - name: Create GitHub Release
-        if: steps.bump.outputs.new != ''
+        if: env.NEW_VERSION != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v${{ steps.bump.outputs.new }}" \
-            --title "v${{ steps.bump.outputs.new }} (Stable Release)" \
+          gh release create "v$NEW_VERSION" \
+            --title "v$NEW_VERSION (Stable Release)" \
             --notes "Release generated from merge of PR: ${{ github.event.pull_request.title }}" \
             output/*
 
@@ -105,6 +105,17 @@ jobs:
         with:
           ref: dev
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up SSH for deploy key
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: Configure SSH known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Pull VERSION.md from main
         run: |
@@ -113,8 +124,8 @@ jobs:
 
       - name: Commit and push updated VERSION.md to dev
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git add VERSION.md
-          git commit -m "chore: sync VERSION.md from main"
-          git push origin dev
+          git commit -m "chore: sync VERSION.md from main" || true
+          git push git@github.com:<OWNER>/<REPO>.git dev
