@@ -37,11 +37,11 @@ typeTests =
     "Type"
     [ testCase "Eq/Show" $ do
         let t = TypeI32
-        show t @?= "TypeI32"
+        show t @?= "i32"
         t @?= TypeI32,
       testCase "TypeCustom" $ do
         let t = TypeCustom "MyType"
-        show t @?= "TypeCustom \"MyType\""
+        show t @?= "type MyType"
         t @?= TypeCustom "MyType"
     ]
 
