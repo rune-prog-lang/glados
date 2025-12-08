@@ -6,7 +6,6 @@ import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 
 import Text.Printf (printf)
-import Debug.Trace (trace)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Func (findFunc)
@@ -28,16 +27,7 @@ verifVars :: Program -> Either String Program
 verifVars prog@(Program n defs) = do
   fs        <- findFunc prog
   defs'     <- mapM (verifDefs fs) defs
-  pure $ 
-    trace (
-      show fs ++
-      "\n" ++
-      (show prog) ++
-      "\n" ++
-      (show $ Program n defs')
-    ) (
-    Program n defs'
-    )
+  pure $ Program n defs'
 
 
 verifDefs :: FuncStack -> TopLevelDef -> Either String TopLevelDef
