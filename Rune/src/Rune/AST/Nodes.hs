@@ -32,7 +32,25 @@ data Type
   | TypeAny
   | TypeNull
   | TypeCustom String
-  deriving (Show, Eq)
+  deriving (Eq)
+
+instance Show Type where
+  show (TypeI8      ) = "i8"
+  show (TypeI16     ) = "i16"
+  show (TypeI32     ) = "i32"
+  show (TypeI64     ) = "i64"
+  show (TypeF32     ) = "f32"
+  show (TypeF64     ) = "f64"
+  show (TypeBool    ) = "bool"
+  show (TypeU8      ) = "u8"
+  show (TypeU16     ) = "u16"
+  show (TypeU32     ) = "u32"
+  show (TypeU64     ) = "u64"
+  show (TypeChar    ) = "char"
+  show (TypeString  ) = "str"
+  show (TypeAny     ) = "any"
+  show (TypeNull    ) = "null"
+  show (TypeCustom s) = "type " ++ s
 
 data BinaryOp
   = Add
