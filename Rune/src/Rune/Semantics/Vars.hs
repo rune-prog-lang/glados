@@ -29,7 +29,13 @@ verifVars prog@(Program n defs) = do
   fs        <- findFunc prog
   defs'     <- mapM (verifDefs fs) defs
   pure $ 
-    trace ((show prog) ++ "\n" ++ (show $ Program n defs')) (
+    trace (
+      show fs ++
+      "\n" ++
+      (show prog) ++
+      "\n" ++
+      (show $ Program n defs')
+    ) (
     Program n defs'
     )
 
@@ -43,9 +49,7 @@ verifDefs fs (DefFunction name params r_t body) = do
 
 verifDefs fs (DefOverride name params r_t body) = do
   let paramTypes = map paramType params
-  let name' = case HM.lookup name fs of
-        Just (_:_:_)  -> mangleName name r_t paramTypes
-        _             -> name
+  let name' = mangleName name r_t paramTypes
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body'     <- verifScope (fs, vs) body
   pure $ DefOverride name' params r_t body'

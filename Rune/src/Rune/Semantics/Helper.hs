@@ -27,10 +27,12 @@ checkParamType s@(fs, _) fname es =
   let unknown_func = "\n\tUnknownFunction: %s is not known"
       no_match = "\n\tNoMatchingSignature: %s doesn't have any signature like this %s"
   in case HM.lookup fname fs of
-    Nothing    -> Left $ printf unknown_func fname
-    Just []    -> Left $ printf unknown_func fname
-    Just [sig] -> checkSingle sig
-    Just sigs  -> checkAll (printf no_match fname (show sigs)) sigs
+    Nothing         -> Left $ printf unknown_func fname
+    Just []         -> Left $ printf unknown_func fname
+    Just [sig]      -> checkSingle sig
+    Just (sig:sigs) -> case checkSingle sig of
+                         Left _  -> checkAll (printf no_match fname (show sigs)) sigs
+                         Right r -> Right r
   where
     -- if there is 1 signature so no override
     checkSingle (_, at) =
