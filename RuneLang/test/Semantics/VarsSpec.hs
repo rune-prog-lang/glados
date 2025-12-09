@@ -53,47 +53,47 @@ varsSemanticsTests =
     ]
 
 expectOk :: String -> Program -> TestTree
-expectOk label program = testCase label $ verifVars program @?= Nothing
+expectOk label program = testCase label $ verifVars program @?= Right program
 
 expectErr :: String -> Program -> String -> TestTree
 expectErr label program missingVar =
-  testCase label $ verifVars program @?= Just (undefinedMsg missingVar)
+  testCase label $ verifVars program @?= Left (undefinedMsg missingVar)
 
 expectTypeOverwrite :: String -> Program -> TestTree
 expectTypeOverwrite label program =
   testCase label $ case verifVars program of
-    Just msg | "TypeOverwrite:" `isInfixOf` msg -> return ()
+    Left msg | "TypeOverwrite:" `isInfixOf` msg -> return ()
     result -> fail $ "Expected TypeOverwrite error, got: " ++ show result
 
 expectMultipleType :: String -> Program -> TestTree
 expectMultipleType label program =
   testCase label $ case verifVars program of
-    Just msg | "MultipleType:" `isInfixOf` msg -> return ()
+    Left msg | "MultipleType:" `isInfixOf` msg -> return ()
     result -> fail $ "Expected MultipleType error, got: " ++ show result
 
 expectUnknownFunction :: String -> Program -> String -> TestTree
 expectUnknownFunction label program fname =
   testCase label $ case verifVars program of
-    Just msg | ("UnknownFunction:" `isInfixOf` msg) && (fname `isInfixOf` msg) -> return ()
+    Left msg | ("UnknownFunction:" `isInfixOf` msg) && (fname `isInfixOf` msg) -> return ()
     result -> fail $ "Expected UnknownFunction error for " ++ fname ++ ", got: " ++ show result
 
 expectWrongType :: String -> Program -> TestTree
 expectWrongType label program =
   testCase label $ case verifVars program of
-    Just msg | "WrongType:" `isInfixOf` msg -> return ()
+    Left msg | "WrongType:" `isInfixOf` msg -> return ()
     result -> fail $ "Expected WrongType error, got: " ++ show result
 
 expectWrongNbArgsLess :: String -> Program -> TestTree
 expectWrongNbArgsLess label program =
   testCase label $ case verifVars program of
-    Just msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too less" `isInfixOf` msg) -> return ()
-    result -> fail $ "Expected WrongNbArgs (too less) error, got: " ++ show result
+    Left msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too few" `isInfixOf` msg) -> return ()
+    result -> fail $ "Expected WrongNbArgs (too few) error, got: " ++ show result
 
 expectWrongNbArgsMore :: String -> Program -> TestTree
 expectWrongNbArgsMore label program =
   testCase label $ case verifVars program of
-    Just msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too much" `isInfixOf` msg) -> return ()
-    result -> fail $ "Expected WrongNbArgs (too much) error, got: " ++ show result
+    Left msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too many" `isInfixOf` msg) -> return ()
+    result -> fail $ "Expected WrongNbArgs (too many) error, got: " ++ show result
 
 undefinedMsg :: String -> String
 undefinedMsg name = "\n\tUndefinedVar: " ++ name ++ " doesn't exist in the scope"
@@ -106,16 +106,16 @@ validProgram =
         "bar"
         [Parameter "x" TypeI32]
         TypeNull
-        [StmtReturn Nothing],
+        [StmtReturn (Just ExprLitNull)],
       DefFunction
         "foo"
         [Parameter "arg" TypeI32]
         TypeI32
         [ StmtVarDecl "local" (Just TypeI32) (ExprVar "arg"),
           StmtExpr (ExprCall "bar" [ExprVar "local"]),
-          StmtFor "i" Nothing (Just (ExprLitInt 0)) (ExprLitInt 1) [StmtExpr (ExprVar "i")],
-          StmtForEach "item" Nothing (ExprVar "local") [StmtExpr (ExprVar "item")],
-          StmtReturn Nothing
+          StmtFor "i" (Just TypeI32) (Just (ExprLitInt 0)) (ExprLitInt 1) [StmtExpr (ExprVar "i")],
+          StmtForEach "item" (Just TypeI32) (ExprVar "local") [StmtExpr (ExprVar "item")],
+          StmtReturn (Just ExprLitNull)
         ]
     ]
 
@@ -187,11 +187,22 @@ overrideLeakProgram =
         [StmtExpr (ExprVar "ghost")]
     ]
 
+-- overrideValidProgram :: Program
+-- overrideValidProgram =
+--   Program
+--     "override-valid"
+--     [ DefOverride
+--         "print"
+--         [Parameter "value" TypeI32]
+--         TypeI32
+--         [StmtReturn (Just (ExprVar "value"))]
+--     ]
+
 overrideValidProgram :: Program
 overrideValidProgram =
   Program
-    "override-valid"
-    [ DefOverride
+    "function-valid"
+    [ DefFunction
         "print"
         [Parameter "value" TypeI32]
         TypeI32
@@ -259,7 +270,7 @@ structInitProgram =
         "build"
         [Parameter "seed" TypeI32]
         TypeNull
-        [ StmtVarDecl "point" Nothing (ExprStructInit "Point" [("x", ExprVar "seed")]),
+        [ StmtVarDecl "point" (Just (TypeCustom "Point")) (ExprStructInit "Point" [("x", ExprVar "seed")]),
           StmtExpr (ExprAccess (ExprVar "point") "x")
         ]
     ]
@@ -366,7 +377,7 @@ loopProgram =
         "test"
         []
         TypeNull
-        [ StmtVarDecl "x" Nothing (ExprLitInt 1),
+        [ StmtVarDecl "x" (Just TypeI32) (ExprLitInt 1),
           StmtLoop [StmtExpr (ExprVar "x")]
         ]
     ]
@@ -391,7 +402,7 @@ nonVarAssignmentProgram =
         "test"
         []
         TypeNull
-        [ StmtVarDecl "point" Nothing (ExprStructInit "Point" [("x", ExprLitInt 1)]),
+        [ StmtVarDecl "point" (Just (TypeCustom "Point")) (ExprStructInit "Point" [("x", ExprLitInt 1)]),
           StmtAssignment (ExprAccess (ExprVar "point") "x") (ExprLitInt 2)
         ]
     ]
@@ -440,12 +451,12 @@ literalExpressionsProgram =
         "test"
         []
         TypeNull
-        [ StmtVarDecl "i" Nothing (ExprLitInt 42),
-          StmtVarDecl "f" Nothing (ExprLitFloat 3.14),
-          StmtVarDecl "s" Nothing (ExprLitString "hello"),
-          StmtVarDecl "c" Nothing (ExprLitChar 'a'),
-          StmtVarDecl "b" Nothing (ExprLitBool True),
-          StmtVarDecl "n" Nothing ExprLitNull
+        [ StmtVarDecl "i" (Just TypeI32) (ExprLitInt 42),
+          StmtVarDecl "f" (Just TypeF32) (ExprLitFloat 3.14),
+          StmtVarDecl "s" (Just TypeString) (ExprLitString "hello"),
+          StmtVarDecl "c" (Just TypeU8) (ExprLitChar 'a'),
+          StmtVarDecl "b" (Just TypeBool) (ExprLitBool True),
+          StmtVarDecl "n" (Just TypeNull) ExprLitNull
         ]
     ]
 
