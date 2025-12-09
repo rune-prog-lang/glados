@@ -1,9 +1,6 @@
 name: run_example_files
 
 on:
-  push:
-    branches:
-      - 191-cirune-cicd-worker-to-check-file-compilation
   pull_request:
     branches:
       - main
@@ -36,14 +33,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-stack-
 
-      - name: Install python3
-        run: |
-          sudo apt install -y python3
-
       - name: Compile the project
         run: |
           make
 
       - name: Test run examples
         run: |
-          ./scripts/test_rune_examples.py
+          python3 scripts/test_rune_examples.py
