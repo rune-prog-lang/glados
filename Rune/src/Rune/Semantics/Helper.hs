@@ -102,8 +102,8 @@ checkEachParam s i (e:es) (t:at) =
     True  -> next
     False -> Just (printf wrong_type i (show t) (show $ exprType s e)) <> next
 checkEachParam _ _ [] [] = Nothing
-checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d where given (too less)") (length at + i) (i)
-checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d where given (too much)") (i) (length es + i)
+checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too few)") (length at + i) (i)
+checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too many)") (i) (length es + i)
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
 selectSignature fs name at =
