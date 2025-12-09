@@ -1,26 +1,26 @@
 module Semantics.FuncSpec (funcSemanticsTests) where
 
 import qualified Data.HashMap.Strict as HM
+import Data.List (isInfixOf)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=), (@?), assertFailure)
+
 import Rune.AST.Nodes
 import Rune.Semantics.Func (findFunc)
-import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase, (@?=))
 
 funcSemanticsTests :: TestTree
 funcSemanticsTests =
   testGroup
     "Rune.Semantics.Func"
     [ testCase "collects functions and overrides" $
-        let stack = findFunc mixedProgram
-         in do
-              HM.lookup "foo" stack @?= Just (TypeBool, [TypeI32, TypeBool])
-              HM.lookup "printer" stack @?= Just (TypeNull, [TypeString])
-              HM.lookup "Vec" stack @?= Nothing,
+        case findFunc mixedProgram of
+          Left err -> "HasDuplicates:" `isInfixOf` err @? "Expected HasDuplicates error"
+          Right _ -> assertFailure "Expected error for override with same signature",
       testCase "later definitions override earlier entries" $
-        let stack = findFunc shadowProgram
-         in HM.lookup "dup" stack @?= Just (TypeBool, [TypeBool]),
+        let stack = either error id (findFunc shadowProgram)
+         in HM.lookup "dup" stack @?= Just [(TypeI32, [TypeI32]), (TypeBool, [TypeBool])],
       testCase "struct method signatures are ignored" $
-        findFunc structMethodProgram @?= HM.fromList [("show",(TypeNull,[TypeAny])),("error",(TypeNull,[TypeAny]))]
+        findFunc structMethodProgram @?= (Right $ HM.fromList [("show",[(TypeNull,[TypeAny])]),("error",[(TypeNull,[TypeAny])])])
     ]
 
 mixedProgram :: Program
@@ -28,6 +28,11 @@ mixedProgram =
   Program
     "mixed"
     [ DefFunction
+        "printer"
+        [Parameter "text" TypeString]
+        TypeNull
+        [],
+      DefFunction
         "foo"
         [Parameter "value" TypeI32, Parameter "flag" TypeBool]
         TypeBool
@@ -52,7 +57,7 @@ shadowProgram =
         [Parameter "value" TypeI32]
         TypeI32
         [],
-      DefFunction
+      DefOverride
         "dup"
         [Parameter "value" TypeBool]
         TypeBool
