@@ -82,6 +82,9 @@ isBool    t = t == TypeBool
 isNull :: Type -> Bool
 isNull    t = t == TypeNull
 
+-- isBoolOp :: BinaryOp -> Bool
+-- isBoolOp op = op `elem` [Eq, Neq, Lt, Lte, Gt, Gte]
+
 sameType :: Type -> Type -> Bool
 sameType a b | isInt    a && isInt    b = True
              | isUInt   a && isUInt   b = True
