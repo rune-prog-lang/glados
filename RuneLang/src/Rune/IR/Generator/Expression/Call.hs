@@ -18,8 +18,7 @@ genCall :: GenExprCallback -> String -> [Expression] -> IRGen ([IRInstruction], 
 genCall genExpr funcName args = do
   argsData <- mapM genExpr args
 
-  let mangled = mangleName funcName argsData
-      (instrs, ops) = unzip $ map prepareArg argsData
+  let (instrs, ops) = unzip $ map prepareArg argsData
       allInstrs = concat instrs
 
       -- TODO: improve return type inference:
@@ -33,20 +32,15 @@ genCall genExpr funcName args = do
         ((_, _, IRPtr (IRStruct s)) : _) -> IRStruct s
         _ -> IRI32
 
-  registerCall mangled
+  registerCall funcName
   retTemp <- newTemp "t" retType
-  let callInstr = IRCALL retTemp mangled ops (Just retType)
+  let callInstr = IRCALL retTemp funcName ops (Just retType)
 
   return (allInstrs ++ [callInstr], IRTemp retTemp retType, retType)
 
 --
 -- private
 --
-
-mangleName :: String -> [([IRInstruction], IROperand, IRType)] -> String
-mangleName base ((_, _, IRStruct s) : _) = s ++ "_" ++ base
-mangleName base ((_, _, IRPtr (IRStruct s)) : _) = s ++ "_" ++ base
-mangleName base _ = base
 
 prepareArg :: ([IRInstruction], IROperand, IRType) -> ([IRInstruction], IROperand)
 prepareArg (i, IRTemp n t, IRStruct _) = (i ++ [IRADDR ("p_" ++ n) n (IRPtr t)], IRTemp ("p_" ++ n) (IRPtr t))
