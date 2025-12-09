@@ -23,6 +23,10 @@ rank TypeI8  = 1
 rank TypeU8  = 1
 rank _       = 0
 
+notAny :: Type -> Type -> Type
+notAny TypeAny t = t
+notAny t _ = t
+
 unrank :: Type -> Int -> Either String Type
 unrank t 1 | isInt   t = Right TypeI8
            | isUInt  t = Right TypeU8
@@ -41,17 +45,18 @@ unrank _ _ = Left "\nsomething went wrong in unrank"
 
 inferHigherType :: Type -> Type -> Either String Type
 -- a is of same type as b
-inferHigherType a b = unrank a (max (rank a) (rank b)) 
+inferHigherType a b = unrank (notAny a b) (max (rank a) (rank b)) 
 
 adjustType :: BinaryOp -> Type -> Type -> Either String Type
-adjustType Mul a _ = unrank a 4
+adjustType Mul a b = unrank (notAny a b) 4
 adjustType Add a b = do
   higherType <- inferHigherType a b
-  unrank a $ rank higherType + 1
+  unrank (notAny a b) $ rank higherType + 1
 adjustType _   a b = inferHigherType a b
 
 iHTBinary :: BinaryOp -> Type -> Type -> Either String Type
 iHTBinary op a b
+  | isBoolOp op  = Right TypeBool
   | sameType a b = adjustType op a b
   | otherwise    = Left $ printf
     "WrongType: v1 has type %s and v2 has type %s, they don't match"
@@ -82,8 +87,12 @@ isBool    t = t == TypeBool
 isNull :: Type -> Bool
 isNull    t = t == TypeNull
 
--- isBoolOp :: BinaryOp -> Bool
--- isBoolOp op = op `elem` [Eq, Neq, Lt, Lte, Gt, Gte]
+isBoolOp :: BinaryOp -> Bool
+isBoolOp op = op `elem` [Eq, Neq, Lt, Lte, Gt, Gte, And, Or]
+
+sameStruct :: Type -> Type -> Bool
+sameStruct (TypeCustom a) (TypeCustom b) = a == b
+sameStruct _ _ = False
 
 sameType :: Type -> Type -> Bool
 sameType a b | isInt    a && isInt    b = True
@@ -93,5 +102,6 @@ sameType a b | isInt    a && isInt    b = True
              | isString a && isString b = True
              | isBool   a && isBool   b = True
              | isNull   a && isNull   b = True
+             | sameStruct a b           = True
              | otherwise                = False
 

@@ -61,7 +61,6 @@ exprType _ (ExprLitBool  _)       = Right TypeBool
 exprType _ (ExprStructInit st _)  = Right $ TypeCustom st
 exprType _ ExprLitNull            = Right TypeNull
 exprType _ (ExprAccess _ _)       = Right TypeAny -- don't know how to use struct
--- exprType s (ExprBinary _ expr _) = exprType s expr -- assume both expr are of the same type
 exprType s (ExprBinary op a b)    = do 
   a' <- exprType s a
   b' <- exprType s b
@@ -102,8 +101,8 @@ checkEachParam s i (e:es) (t:at) =
       next = checkEachParam s (i + 1) es at
   in case exprType s e of
     Left err -> Just err
-    Right t' | t == t'   -> next
-             | otherwise -> Just (printf wrong_type i (show t) (show t')) <> next 
+    Right t' | sameType t t'  -> next
+             | otherwise      -> Just (printf wrong_type i (show t) (show t')) <> next 
 checkEachParam _ _ [] [] = Nothing
 checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d where given (too less)") (length at + i) (i)
 checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d where given (too much)") (i) (length es + i)
