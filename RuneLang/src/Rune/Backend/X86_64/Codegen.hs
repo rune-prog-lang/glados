@@ -158,6 +158,8 @@ emitAssign sm dest (IRConstBool b) _ =
   [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ if b then "1" else "0"]
 emitAssign sm dest IRConstNull t =
   [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", 0"]
+emitAssign sm dest (IRGlobal name _) t =
+  [emit 1 $ "mov rax, " ++ name, storeReg sm dest "rax" t]
 emitAssign sm dest (IRTemp name _) t = moveStackToStack sm dest name t
 emitAssign sm dest (IRParam name _) t = moveStackToStack sm dest name t
 emitAssign sm dest op t =
@@ -285,6 +287,7 @@ loadReg _ reg (IRConstInt n) = [emit 1 $ "mov " ++ reg ++ ", " ++ show n]
 loadReg _ reg (IRConstChar c) = [emit 1 $ "mov " ++ reg ++ ", " ++ show (fromEnum c)]
 loadReg _ reg IRConstNull = [emit 1 $ "mov " ++ reg ++ ", 0"]
 loadReg _ reg (IRConstBool b) = [emit 1 $ "mov " ++ reg ++ ", " ++ if b then "1" else "0"]
+loadReg _ reg (IRGlobal name _) = [emit 1 $ "mov " ++ reg ++ ", " ++ name]
 loadReg sm baseReg op@(IRTemp _ t) = loadVarReg sm baseReg op t
 loadReg sm baseReg op@(IRParam _ t) = loadVarReg sm baseReg op t
 loadReg sm baseReg op = [emit 1 $ "mov " ++ baseReg ++ ", qword " ++ varStackAddr sm op]
