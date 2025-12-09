@@ -19,6 +19,7 @@ module Rune.IR.IRHelpers
 where
 
 import Control.Monad.State (gets, modify)
+import qualified Data.Map.Strict
 import Data.Map.Strict (insert)
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
@@ -105,18 +106,39 @@ nextLabelIndex = do
 makeLabel :: String -> Int -> IRLabel
 makeLabel prefix idx = IRLabel $ ".L." ++ prefix ++ show idx
 
+--
+-- create a global new string
+--
+
+-- | check if global string already exists
+--  if so     -> return its name
+--  otherwise -> create a new global string and return its name
 newStringGlobal :: String -> IRGen String
 newStringGlobal value = do
+  mp <- gets gsStringMap
+  maybe (createStringGlobal value) pure (Data.Map.Strict.lookup value mp)
+
+createStringGlobal :: String -> IRGen String
+createStringGlobal value = do
+  name <- freshStringName
+  insertGlobalString name value
+  pure name
+
+freshStringName :: IRGen String
+freshStringName = do
   counter <- gets gsStringCounter
-  maybeFuncName <- gets gsCurrentFunc
-  let baseName = fromMaybe "global" maybeFuncName
-      name = "str_" ++ baseName ++ show counter
+  func    <- gets gsCurrentFunc
+  let base = fromMaybe "global" func
+      name = "str_" <> base <> show counter
+  modify $ \s -> s { gsStringCounter = counter + 1 }
+  pure name
+
+insertGlobalString :: String -> String -> IRGen ()
+insertGlobalString name value =
   modify $ \s ->
-    s
-      { gsStringCounter = counter + 1,
-        gsGlobals = IRGlobalString name value : gsGlobals s
+    s { gsGlobals   = IRGlobalString name value : gsGlobals s
+      , gsStringMap = Data.Map.Strict.insert value name (gsStringMap s)
       }
-  return name
 
 genFormatString :: String -> IRGen ([IRInstruction], IROperand)
 genFormatString value = do
