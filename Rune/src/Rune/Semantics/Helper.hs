@@ -76,16 +76,13 @@ assignVarType :: VarStack -> String -> Type -> Either String VarStack
 assignVarType vs _ TypeAny = Right vs
 assignVarType vs v t =
   let msg = "\n\tTypeOverwrite: %s has already %s but %s were given"
-      updated = trace ("updated: " ++ show t) (Right $ HM.insert v t vs)
-  in
-  trace (printf "updated in: %s %s %s" (show v) (show t) (show (HM.lookup v vs))) (
-    case HM.lookup v vs of
+      updated = Right $ HM.insert v t vs
+  in case HM.lookup v vs of
     Nothing       -> updated
     Just TypeAny  -> updated
     Just TypeNull -> updated
     Just t' | sameType t t' -> updated
             | otherwise     -> Left $ printf msg v (show t') (show t)
-  )
 
 checkMultipleType :: String -> Maybe Type -> Type -> Either String Type
 checkMultipleType _ Nothing e_t         = Right e_t
