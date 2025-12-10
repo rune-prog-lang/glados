@@ -8,6 +8,22 @@ import Rune.Lexer.Tokens (TokenKind (..))
 import Lexer.Utils (tok, lexTest)
 
 --
+-- public
+--
+
+lexerIdentifiersTests :: TestTree
+lexerIdentifiersTests =
+  testGroup
+    "LexerIdentifiers Tests"
+    [ test_id_simple
+    , test_id_underscore_start
+    , test_id_with_numbers
+    , test_id_underscore_and_numbers
+    , test_id_single_underscore
+    , test_id_fail_with_leading_number
+    ]
+
+--
 -- private
 --
 
@@ -40,16 +56,3 @@ test_id_fail_with_leading_number = testCase "Identifier starting with number fai
       , tok EOF "" 1 5
       ] tokens
     Left err -> assertFailure $ "Lexing failed unexpectedly: " ++ show err
-
-lexerIdentifiersTests :: TestTree
-lexerIdentifiersTests =
-  testGroup
-    "LexerIdentifiers Tests"
-    [ test_id_simple
-    , test_id_underscore_start
-    , test_id_with_numbers
-    , test_id_underscore_and_numbers
-    , test_id_single_underscore
-    , test_id_fail_with_leading_number
-    ]
-
