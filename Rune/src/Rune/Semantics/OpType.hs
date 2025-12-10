@@ -41,7 +41,7 @@ unrank t 4 | isInt   t = Right TypeI64
 unrank t 5 | isInt   t = Right TypeI64
            | isUInt  t = Right TypeU64
            | isFloat t = Right TypeF64
-unrank _ _ = Left "\nsomething went wrong in unrank"
+unrank t r = Left $ printf "\n\tFailed to unrank: type family doesn't support rank %d (type: %s)" r (show t)
 
 inferHigherType :: Type -> Type -> Either String Type
 -- a is of same type as b
