@@ -38,9 +38,6 @@ unrank t 3 | isInt   t = Right TypeI32
 unrank t 4 | isInt   t = Right TypeI64
            | isUInt  t = Right TypeU64
            | isFloat t = Right TypeF64
-unrank t 5 | isInt   t = Right TypeI64
-           | isUInt  t = Right TypeU64
-           | isFloat t = Right TypeF64
 unrank t r = Left $ printf "\n\tFailed to unrank: type family doesn't support rank %d (type: %s)" r (show t)
 
 inferHigherType :: Type -> Type -> Either String Type
@@ -51,7 +48,7 @@ adjustType :: BinaryOp -> Type -> Type -> Either String Type
 adjustType Mul a b = unrank (notAny a b) 4
 adjustType Add a b = do
   higherType <- inferHigherType a b
-  unrank (notAny a b) $ rank higherType + 1
+  unrank (notAny a b) $ min 4 (rank higherType + 1)
 adjustType _   a b = inferHigherType a b
 
 iHTBinary :: BinaryOp -> Type -> Type -> Either String Type
