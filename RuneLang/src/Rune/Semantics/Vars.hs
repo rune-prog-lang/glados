@@ -23,11 +23,11 @@ import Rune.Semantics.Helper
   , checkMultipleType
   )
 
-verifVars :: Program -> Either String Program
+verifVars :: Program -> Either String (Program, FuncStack)
 verifVars prog@(Program n defs) = do
   fs        <- findFunc prog
   defs'     <- mapM (verifDefs fs) defs
-  pure $ Program n defs'
+  pure $ (Program n defs', fs)
 
 
 verifDefs :: FuncStack -> TopLevelDef -> Either String TopLevelDef

@@ -6,14 +6,16 @@ import qualified Data.Set as Set
 import Rune.AST.Nodes (Program (..))
 import Rune.IR.Generator.GenTopLevel (genTopLevel)
 import Rune.IR.Nodes (GenState (..), IRFunction (..), IRProgram (..), IRTopLevel (..))
+import Rune.Semantics.Type (FuncStack)
+import Rune.AST.Printer (prettyPrint)
 
 --
 -- public
 --
 
-generateIR :: Program -> IRProgram
-generateIR (Program name defs) =
-  let (irDefs, finalState) = runState (mapM genTopLevel defs) initialState
+generateIR :: Program -> FuncStack -> IRProgram
+generateIR (Program name defs) fs =
+  let (irDefs, finalState) = runState (mapM genTopLevel defs) (initialState fs)
 
       -- INFO: gather all generated definitions (globals & functions)
       generatedDefs = reverse (gsGlobals finalState) ++ concat irDefs
@@ -35,8 +37,8 @@ generateIR (Program name defs) =
 -- private
 --
 
-initialState :: GenState
-initialState =
+initialState :: FuncStack -> GenState
+initialState fs =
   GenState
     { gsTempCounter = 0,
       gsLabelCounter = 0,
@@ -47,7 +49,8 @@ initialState =
       gsStructs = empty,
       gsLoopStack = [],
       gsCalledFuncs = Set.empty,
-      gsStringMap = empty
+      gsStringMap = empty,
+      gsFuncStack = fs
     }
 
 getDefinedFuncName :: IRTopLevel -> [String]

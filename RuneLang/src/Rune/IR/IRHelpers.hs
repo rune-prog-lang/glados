@@ -15,6 +15,7 @@ module Rune.IR.IRHelpers
     mangleMethodName,
     getOperandType,
     getCommonType,
+    selectReturnType
   )
 where
 
@@ -24,10 +25,20 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Rune.AST.Nodes (Type (..))
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRTopLevel (..), IRType (..))
+import Rune.Semantics.Type (FuncStack)
+import Rune.Semantics.Helper (selectSignature)
 
 --
 -- type conversion
 --
+
+selectReturnType :: FuncStack -> String -> [IRType] -> IRType
+selectReturnType fs funcName actualIRTypes =
+  let actualASTTypes = map irTypeToASTType actualIRTypes
+   in case selectSignature fs funcName actualASTTypes of
+        Just retASTType -> astTypeToIRType retASTType
+        Nothing -> error $ "Semantic error: No matching signature found for function call: " ++ funcName
+                            ++ " with arguments: " ++ show actualASTTypes
 
 -- TODO: handle more types
 astTypeToIRType :: Type -> IRType
@@ -47,6 +58,25 @@ astTypeToIRType TypeNull = IRNull
 astTypeToIRType (TypeCustom name) = IRStruct name
 astTypeToIRType TypeString = IRPtr IRChar
 astTypeToIRType _ = error "Unsupported type conversion from AST to IR"
+
+irTypeToASTType :: IRType -> Type
+irTypeToASTType IRI8 = TypeI8
+irTypeToASTType IRI16 = TypeI16
+irTypeToASTType IRI32 = TypeI32
+irTypeToASTType IRI64 = TypeI64
+irTypeToASTType IRF32 = TypeF32
+irTypeToASTType IRF64 = TypeF64
+irTypeToASTType IRBool = TypeBool
+irTypeToASTType IRU8 = TypeU8
+irTypeToASTType IRU16 = TypeU16
+irTypeToASTType IRU32 = TypeU32
+irTypeToASTType IRU64 = TypeU64
+irTypeToASTType IRChar = TypeChar
+irTypeToASTType IRNull = TypeNull
+irTypeToASTType (IRStruct s) = TypeCustom s
+irTypeToASTType (IRPtr IRChar) = TypeString
+irTypeToASTType (IRPtr (IRStruct s)) = TypeCustom s
+irTypeToASTType (IRPtr _) = TypeAny
 
 -- TODO: treat struct properly
 -- currently they are treated as 8 byte references/pointers
