@@ -8,6 +8,8 @@ import Core.LibSpecs (libTests)
 import Core.PipelinesSpecs (pipelinesTests)
 import Core.LoggerSpecs (loggerTests)
 
+import Lexer.LexerSpecs (lexerTests)
+
 --
 -- public
 --
@@ -19,6 +21,7 @@ main =
       testGroup
         "All Tests"
         [ coreSpecs
+        , lexerSpecs
         ]
 
 --
@@ -35,3 +38,9 @@ coreSpecs =
     , loggerTests
     ]
 
+lexerSpecs :: TestTree
+lexerSpecs =
+  testGroup
+    "Lexer Tests"
+    [ lexerTests
+    ]
