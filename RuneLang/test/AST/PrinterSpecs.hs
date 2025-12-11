@@ -1,4 +1,4 @@
-module AST.PrinterSpecs (printerTests) where
+module AST.PrinterSpecs (astPrinterTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertEqual)
@@ -9,8 +9,8 @@ import Rune.AST.Printer (prettyPrint)
 -- public
 --
 
-printerTests :: TestTree
-printerTests =
+astPrinterTests :: TestTree
+astPrinterTests =
   testGroup
     "AST Printer Tests"
     
