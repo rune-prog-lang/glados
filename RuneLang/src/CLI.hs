@@ -26,7 +26,6 @@ data CompileRule
   = All
   | ToObj
   | ToAsm
-  | ToExec
   deriving (Show, Eq)
 
 usage :: String
@@ -90,7 +89,6 @@ isValidInputFile :: CompileRule -> FilePath -> Bool
 isValidInputFile All file = takeExtension file `elem` [".ru", ".o"]
 isValidInputFile ToObj file = takeExtension file `elem` [".ru", ".asm"]
 isValidInputFile ToAsm file = takeExtension file == ".ru"
-isValidInputFile ToExec file = takeExtension file == ".o"
 
 findOutputFile :: [String] -> Either String (Maybe FilePath, [String])
 findOutputFile [] = Right (Nothing, [])
@@ -127,5 +125,4 @@ parseBuild args = do
       All -> isSourceFile inFile outFile
       ToObj -> CompileToObj inFile outFile
       ToAsm -> CreateAsm inFile outFile
-      ToExec -> CompileObjToExec inFile outFile
     else Left $ "Invalid arguments for build command: " ++ unwords args3

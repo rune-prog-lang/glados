@@ -4,6 +4,7 @@
 module Rune.Pipelines (
   compilePipeline,
   compileToObject,
+  compileAsmIntoObject,
   interpretPipeline,
   CompileMode (..)
 ) where
@@ -49,25 +50,24 @@ compilePipeline inFile outFile FullCompile =
   )
 compilePipeline inFile outFile ToAssembly =
   runPipelineAction inFile (\ir -> writeRuneInAsm outFile ir)
-compilePipeline inFile outFile ToObject =
-  runPipelineAction inFile (\ir -> compileToObject inFile outFile ir)
+compilePipeline inFile outFile ToObject = case takeExtension inFile of
+  ".ru" -> runPipelineAction inFile (\ir -> compileToObject inFile outFile ir)
+  ".asm" -> compileAsmIntoObject inFile outFile
+  ext -> logError $ "Unsupported file extension: " ++ ext
 compilePipeline inFile outFile ToExecutable = compileObjectIntoExecutable inFile outFile
 
 writeRuneInAsm :: FilePath -> IRProgram -> IO ()
 writeRuneInAsm asmFile ir = writeFile asmFile (emitAssembly ir)
 
-isRuneSourceFile :: FilePath -> Bool
-isRuneSourceFile fp = takeExtension fp == ".ru"
-
 compileToObject :: FilePath -> FilePath -> IRProgram -> IO ()
 compileToObject inFile outFile ir = do
-  asmFile <- if isRuneSourceFile inFile
-      then do
-        let baseFile = dropExtension inFile ++ ".asm"
-        writeRuneInAsm baseFile ir
-        return $ baseFile
-      else return inFile
-  exitCode <- system $ "nasm -f elf64 " ++ asmFile ++ " -o " ++ outFile
+  let asmFile = dropExtension inFile ++ ".asm"
+  writeRuneInAsm asmFile ir
+  compileAsmIntoObject asmFile outFile
+
+compileAsmIntoObject :: FilePath -> FilePath -> IO ()
+compileAsmIntoObject asmFile objFile = do
+  exitCode <- system $ "nasm -f elf64 " ++ asmFile ++ " -o " ++ objFile
   case exitCode of
     ExitSuccess -> return ()
     ExitFailure code -> logError $ "Assembly to object compilation failed with exit code: " ++ show code
