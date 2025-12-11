@@ -1,5 +1,8 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
+
+#define TESTING_EXPORT
 
 module IR.IRHelpersSpecs (irHelpersTests) where
 

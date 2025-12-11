@@ -1,3 +1,6 @@
+{-# LANGUAGE CPP #-}
+#define TESTING_EXPORT
+
 module IR.PrinterSpecs (irPrinterTests) where
 
 import Test.Tasty (TestTree, testGroup)

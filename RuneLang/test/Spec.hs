@@ -32,6 +32,9 @@ import Semantics.FuncSpecs (funcSemanticsTests)
 import IR.NodesSpecs (irNodesTests)
 import IR.IRHelpersSpecs (irHelpersTests)
 import IR.GeneratorSpecs (generatorTests)
+import IR.Generator.GenTopLevelSpecs (genTopLevelTests)
+import IR.Generator.GenStatementSpecs (genStatementTests)
+import IR.Generator.GenExpressionSpecs (genExpressionTests)
 import IR.PrinterSpecs (irPrinterTests)
 import IR.OptimizerSpecs (optimizerTests)
 
@@ -108,6 +111,9 @@ irSpecs =
     [ irNodesTests
     , irHelpersTests
     , generatorTests
+    , genTopLevelTests
+    , genStatementTests
+    , genExpressionTests
     , irPrinterTests
     , optimizerTests
     ]
