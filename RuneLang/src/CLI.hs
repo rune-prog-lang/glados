@@ -79,6 +79,22 @@ parseRun [file] = Right (Interpret file)
 parseRun [] = Left "The 'run' command requires an input file."
 parseRun _ = Left "The 'run' command takes exactly one file argument."
 
+parseBuild :: [String] -> Either String Action
+parseBuild args = do
+  (rule, args1) <- determineCompileRule args
+  (inFile, args2) <- findInputFile args1 rule
+  (outFile, args3) <- findOutputFile args2
+  if null args3
+    then pure $ case rule of
+      All -> isSourceFile inFile outFile
+      ToObj -> CompileToObj inFile outFile
+      ToAsm -> CreateAsm inFile outFile
+    else Left $ "Invalid arguments for build command: " ++ unwords args3
+
+---
+--- private methods to parse build command
+---
+
 findInputFile :: [String] -> CompileRule -> Either String (FilePath, [String])
 findInputFile args rule =
   case break (isValidInputFile rule) args of
@@ -101,6 +117,11 @@ findOutputFile args =
     (before, "--output":file:after) -> Right (Just file, before ++ after)
     (before, _:after) -> findOutputFile (before ++ after)
 
+isSourceFile :: FilePath -> Maybe FilePath -> Action
+isSourceFile inFile outFile = case takeExtension inFile == ".ru" of
+  True -> CompileAll inFile outFile
+  False -> CompileObjToExec inFile outFile
+
 determineCompileRule :: [String] -> Either String (CompileRule, [String])
 determineCompileRule args
   | hasBoth = Left "Cannot use both -c and -S options together."
@@ -109,20 +130,3 @@ determineCompileRule args
   | otherwise = Right (All, args)
   where
     hasBoth = "-c" `elem` args && "-S" `elem` args
-
-isSourceFile :: FilePath -> Maybe FilePath -> Action
-isSourceFile inFile outFile = case takeExtension inFile == ".ru" of
-  True -> CompileAll inFile outFile
-  False -> CompileObjToExec inFile outFile
-
-parseBuild :: [String] -> Either String Action
-parseBuild args = do
-  (rule, args1) <- determineCompileRule args
-  (inFile, args2) <- findInputFile args1 rule
-  (outFile, args3) <- findOutputFile args2
-  if null args3
-    then pure $ case rule of
-      All -> isSourceFile inFile outFile
-      ToObj -> CompileToObj inFile outFile
-      ToAsm -> CreateAsm inFile outFile
-    else Left $ "Invalid arguments for build command: " ++ unwords args3

@@ -56,29 +56,6 @@ compilePipeline inFile outFile ToObject = case takeExtension inFile of
   ext -> logError $ "Unsupported file extension: " ++ ext
 compilePipeline inFile outFile ToExecutable = compileObjectIntoExecutable inFile outFile
 
-writeRuneInAsm :: FilePath -> IRProgram -> IO ()
-writeRuneInAsm asmFile ir = writeFile asmFile (emitAssembly ir)
-
-compileToObject :: FilePath -> FilePath -> IRProgram -> IO ()
-compileToObject inFile outFile ir = do
-  let asmFile = dropExtension inFile ++ ".asm"
-  writeRuneInAsm asmFile ir
-  compileAsmIntoObject asmFile outFile
-
-compileAsmIntoObject :: FilePath -> FilePath -> IO ()
-compileAsmIntoObject asmFile objFile = do
-  exitCode <- system $ "nasm -f elf64 " ++ asmFile ++ " -o " ++ objFile
-  case exitCode of
-    ExitSuccess -> return ()
-    ExitFailure code -> logError $ "Assembly to object compilation failed with exit code: " ++ show code
-
-compileObjectIntoExecutable :: FilePath -> FilePath -> IO ()
-compileObjectIntoExecutable objFile exeFile = do
-  exitCode <- system $ "gcc -no-pie " ++ objFile ++ " -o " ++ exeFile
-  case exitCode of
-    ExitSuccess -> return ()
-    ExitFailure code -> logError $ "Object to executable compilation failed with exit code: " ++ show code
-
 interpretPipeline :: FilePath -> IO ()
 interpretPipeline inFile = runPipelineAction inFile (putStr . prettyPrintIR)
 
@@ -107,6 +84,33 @@ runPipelineAction inFile onSuccess =
   runPipeline inFile >>= \case
     Left err -> logError err
     Right ir -> onSuccess ir
+
+---
+--- private methods for compilation steps
+---
+
+writeRuneInAsm :: FilePath -> IRProgram -> IO ()
+writeRuneInAsm asmFile ir = writeFile asmFile (emitAssembly ir)
+
+compileToObject :: FilePath -> FilePath -> IRProgram -> IO ()
+compileToObject inFile outFile ir = do
+  let asmFile = dropExtension inFile ++ ".asm"
+  writeRuneInAsm asmFile ir
+  compileAsmIntoObject asmFile outFile
+
+compileAsmIntoObject :: FilePath -> FilePath -> IO ()
+compileAsmIntoObject asmFile objFile = do
+  exitCode <- system $ "nasm -f elf64 " ++ asmFile ++ " -o " ++ objFile
+  case exitCode of
+    ExitSuccess -> return ()
+    ExitFailure code -> logError $ "Assembly to object compilation failed with exit code: " ++ show code
+
+compileObjectIntoExecutable :: FilePath -> FilePath -> IO ()
+compileObjectIntoExecutable objFile exeFile = do
+  exitCode <- system $ "gcc -no-pie " ++ objFile ++ " -o " ++ exeFile
+  case exitCode of
+    ExitSuccess -> return ()
+    ExitFailure code -> logError $ "Object to executable compilation failed with exit code: " ++ show code
 
 --
 -- private encapsulations for error handling
