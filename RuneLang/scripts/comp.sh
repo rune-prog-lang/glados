@@ -14,7 +14,7 @@ BASE="${FILE%.*}"     # filename without extension
 case "$EXT" in
 
     ru)
-        ASM="${BASE}.s"
+        ASM="${BASE}.asm"
         OBJ="${BASE}.o"
         BIN="${BASE}.ru.out"
 
@@ -24,7 +24,7 @@ case "$EXT" in
         ;;
 
     c)
-        ASM="${BASE}.s"
+        ASM="${BASE}.asm"
         OBJ="${BASE}.o"
         BIN="${BASE}.c.out"
 
@@ -33,9 +33,9 @@ case "$EXT" in
         gcc -no-pie -g "$OBJ" -o "$BIN"
         ;;
 
-    s)
+    asm)
         OBJ="${BASE}.o"
-        BIN="${BASE}.s.out"
+        BIN="${BASE}.asm.out"
 
         nasm -f elf64 -g -F dwarf "$FILE" -o "$OBJ"
         gcc -no-pie "$OBJ" -o "$BIN" -g
@@ -48,4 +48,3 @@ case "$EXT" in
 esac
 
 echo "built: $BIN"
-
