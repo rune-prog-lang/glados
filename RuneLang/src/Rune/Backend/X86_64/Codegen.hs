@@ -24,8 +24,6 @@ import Rune.IR.IRHelpers (getOperandType)
 -- public
 --
 
--- explanation
--- Emit full assembly including externs, literals in .rodata, text section, and GNU-stack note
 emitAssembly :: IRProgram -> String
 emitAssembly (IRProgram _ topLevels) =
   let (externs, globalStrings, globalFloats, functions) = collectTopLevels topLevels
@@ -33,17 +31,9 @@ emitAssembly (IRProgram _ topLevels) =
         emitExterns externs
           ++ emitRoDataSection globalStrings globalFloats
           ++ emitTextSection functions
-          ++ [ "    ; this section is to remove the gcc GNU related warning",
-               "section .note.GNU-stack noalloc noexec nowrite"
+          ++ [ "; this section is to remove the gcc GNU related warning"
+             , "section .note.GNU-stack noalloc noexec nowrite"
              ]
--- old code commented out
--- emitAssembly :: IRProgram -> String
--- emitAssembly (IRProgram _ topLevels) =
---   let (externs, globalStrings, functions) = collectTopLevels topLevels
---    in unlines $
---         emitExterns externs
---           ++ emitDataSection globalStrings
---           ++ emitTextSection functions
 
 --
 -- top level
@@ -61,8 +51,6 @@ emitExterns xs = map ("extern " ++) xs
 -- | emit global strings and float literals in read-only data
 -- <label>: db "<value>", 0   ; strings
 -- <label>: dd/dq <value>     ; floats
--- # explanation
--- Emit both string and float literals into a single .rodata section
 emitRoDataSection :: [GlobalString] -> [GlobalFloat] -> [String]
 emitRoDataSection [] [] = []
 emitRoDataSection gs fs = "section .rodata" : (map emitStr gs ++ map emitFloat fs)
@@ -74,30 +62,6 @@ emitRoDataSection gs fs = "section .rodata" : (map emitStr gs ++ map emitFloat f
             IRF64 -> "dq"
             _ -> "dd"
        in name ++ ": " ++ dir ++ " " ++ show val
--- old code commented out
--- -- | emit global strings
--- -- <name> db "<value>", 0
--- -- # explanation
--- -- Emit string literals in the read-only .rodata section alongside float literals
--- emitDataSection :: [GlobalString] -> [String]
--- emitDataSection [] = []
--- emitDataSection gs = "section .rodata" : map emitGlobal gs
---   where
---     emitGlobal (name, val) = name ++ " db " ++ escapeString val ++ ", 0"
---
--- -- | emit global float literals in read-only data
--- -- <label>: dd <value>   ; IRF32
--- -- <label>: dq <value>   ; IRF64
--- emitRoDataSection :: [GlobalFloat] -> [String]
--- emitRoDataSection [] = []
--- emitRoDataSection fs = "section .rodata" : map emitFloat fs
---   where
---     emitFloat (name, val, typ) =
---       let dir = case typ of
---             IRF32 -> "dd"
---             IRF64 -> "dq"
---             _ -> "dd"
---        in name ++ ": " ++ dir ++ " " ++ show val
 
 emitTextSection :: [Function] -> [String]
 emitTextSection [] = []
@@ -130,26 +94,25 @@ emitFunction fn@(IRFunction name params _ body) =
 
 emitFunctionPrologue :: Function -> Int -> [String]
 emitFunctionPrologue (IRFunction name _ _ _) frameSize =
-  [ "global " ++ name,
-    name ++ ":",
-    emit 1 "push rbp",
-    emit 1 "mov rbp, rsp",
-    emit 1 $ "sub rsp, " ++ show frameSize
+  [ "global " ++ name
+  , name ++ ":"
+  , emit 1 "push rbp"
+  , emit 1 "mov rbp, rsp"
+  , emit 1 $ "sub rsp, " ++ show frameSize
   ]
 
 emitFunctionEpilogue :: String -> [String]
 emitFunctionEpilogue endLabel =
-  [ endLabel ++ ":",
-    emit 1 "mov rsp, rbp",
-    emit 1 "pop rbp",
-    emit 1 "ret",
-    ""
+  [ endLabel ++ ":"
+  , emit 1 "mov rsp, rbp"
+  , emit 1 "pop rbp"
+  , emit 1 "ret"
+  , ""
   ]
 
 -- | emit function parameters
 emitParameters :: [(String, IRType)] -> Map String Int -> [String]
--- explanation
--- Store incoming parameters from integer and float argument registers according to SysV AMD64 ABI
+-- REDO this function (its attrocious)
 emitParameters params stackMap =
   let (instrs, _, _) = foldl step ([], 0, 0) params
    in instrs
@@ -169,17 +132,6 @@ emitParameters params stackMap =
               storeInstr = storeReg stackMap irName reg t
            in (acc ++ [storeInstr], intIdx + 1, floatIdx)
       | otherwise = (acc, intIdx, floatIdx)
--- old code commented out
--- emitParameters :: [(String, IRType)] -> Map String Int -> [String]
--- emitParameters params stackMap =
---   let argRegs = x86_64ArgsRegisters
---       indexedParams = zip [0 ..] params
---    in mapMaybe (emitParam stackMap argRegs) indexedParams
---
--- emitParam :: Map String Int -> [String] -> (Int, (String, IRType)) -> Maybe String
--- emitParam sm regs (idx, (irName, t))
---   | idx < length regs = Just $ storeReg sm irName (regs !! idx) t
---   | otherwise = Nothing
 
 --
 -- instruction emission
@@ -217,23 +169,16 @@ emitAssign :: Map String Int -> String -> IROperand -> IRType -> [String]
 emitAssign sm dest (IRConstInt n) t
   | needsRegisterLoad n t = [emit 1 $ "mov rax, " ++ show n, storeReg sm dest "rax" t]
   | otherwise = [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", " ++ show n]
--- explanation
--- Load interned f32 constants via the first SysV float-arg register instead of hard-coded xmm0
 emitAssign sm dest (IRGlobal name IRF32) IRF32 =
   case x86_64FloatArgsRegisters of
     reg : _ ->
-      [ emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]",
-        emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ reg
+      [ emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"
+      , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ reg
       ]
     _ ->
-      [ emit 1 $ "movss xmm0, dword [rel " ++ name ++ "]",
-        emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", xmm0"
+      [ emit 1 $ "movss xmm0, dword [rel " ++ name ++ "]"
+      , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", xmm0"
       ]
--- old code commented out
--- emitAssign sm dest (IRGlobal name IRF32) IRF32 =
---   [ emit 1 $ "movss xmm0, dword [rel " ++ name ++ "]",
---     emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", xmm0"
---   ]
 emitAssign sm dest (IRConstChar c) _ =
   [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
 emitAssign sm dest (IRConstBool b) _ =
@@ -245,13 +190,12 @@ emitAssign sm dest (IRGlobal name _) t =
 emitAssign sm dest (IRTemp name _) t = moveStackToStack sm dest name t
 emitAssign sm dest (IRParam name _) t = moveStackToStack sm dest name t
 emitAssign sm dest op t =
-  [ emit 1 $ "; WARNING: Unsupported IRASSIGN operand: " ++ show op,
-    emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", 0"
+  [ emit 1 $ "; WARNING: Unsupported IRASSIGN operand: " ++ show op
+  , emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", 0"
   ]
 
 -- | emit call dest = funcName(args)
--- explanation
--- Route integer/pointer args into GPRs, float args into XMM registers, and honor printf float promotion
+-- REDO (theres if case and many many layer)
 emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
 emitCall sm dest funcName args mbType =
   let argSetup = setupCallArgs sm args
@@ -259,8 +203,6 @@ emitCall sm dest funcName args mbType =
         if funcName == "printf"
            && any (\op -> maybe False isFloatType (getOperandType op)) args
           then
-            -- explanation
-            -- Promote first float arg using the first SysV float-arg register instead of literal xmm0
             case x86_64FloatArgsRegisters of
               reg0 : _ ->
                 [ emit 1 $ "cvtss2sd " ++ reg0 ++ ", " ++ reg0
@@ -278,6 +220,7 @@ emitCall sm dest funcName args mbType =
 
 -- explanation
 -- Assign call arguments to integer or float registers based on operand IRType
+-- REDO wtf
 setupCallArgs :: Map String Int -> [IROperand] -> [String]
 setupCallArgs sm args =
   let (instrs, _, _) = foldl step ([], 0, 0) args
@@ -300,6 +243,7 @@ saveCallResult :: Map String Int -> String -> Maybe IRType -> [String]
 saveCallResult _ "" _ = []
 -- explanation
 -- Store float return values from xmm0 and integer/pointer returns from rax
+-- REDO weeeeeesh
 saveCallResult sm dest (Just t)
   | isFloatType t =
       case t of
@@ -318,19 +262,6 @@ saveCallResult sm dest (Just t)
         _ -> [emit 1 $ "; TODO: unsupported float return type: " ++ show t]
   | otherwise = [storeReg sm dest "rax" t]
 saveCallResult sm dest Nothing = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
--- old code commented out
--- -- | emit call dest = funcName(args)
--- emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
--- emitCall sm dest funcName args mbType =
---   let argSetup = concatMap (loadRegWithExt sm) (zip x86_64ArgsRegisters args)
---       callInstr = [emit 1 $ "call " ++ funcName]
---       retSave = saveCallResult sm dest mbType
---    in argSetup ++ callInstr ++ retSave
---
--- saveCallResult :: Map String Int -> String -> Maybe IRType -> [String]
--- saveCallResult _ "" _ = []
--- saveCallResult sm dest (Just t) = [storeReg sm dest "rax" t]
--- saveCallResult sm dest Nothing = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
 
 -- | emit a return instruction
 --  cases:
@@ -339,6 +270,7 @@ saveCallResult sm dest Nothing = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ 
 emitRet :: Map String Int -> String -> Maybe IROperand -> [String]
 -- explanation
 -- Return float values via xmm0 and integer/pointer values via rax
+-- REDO maybe
 emitRet _ endLbl Nothing = [emit 1 "xor rax, rax", emit 1 $ "jmp " ++ endLbl]
 emitRet sm endLbl (Just op) =
   case getOperandType op of
@@ -350,10 +282,6 @@ emitRet sm endLbl (Just op) =
           loadFloatOperand sm "xmm0" op t ++ [emit 1 $ "jmp " ++ endLbl]
     _ ->
       loadReg sm "rax" op ++ [emit 1 $ "jmp " ++ endLbl]
--- old code commented out
--- emitRet :: Map String Int -> String -> Maybe IROperand -> [String]
--- emitRet _ endLbl Nothing = [emit 1 "xor rax, rax", emit 1 $ "jmp " ++ endLbl]
--- emitRet sm endLbl (Just op) = loadReg sm "rax" op ++ [emit 1 $ "jmp " ++ endLbl]
 
 -- | emit deref ptr
 --  cases:
@@ -362,9 +290,9 @@ emitRet sm endLbl (Just op) =
 --  3- store rax into dest stack location
 emitDeref :: Map String Int -> String -> IROperand -> IRType -> [String]
 emitDeref sm dest ptr typ =
-  [ emit 1 $ "mov rax, qword " ++ operandAddr sm ptr,
-    emit 1 $ getMovType typ ++ " [rax]",
-    storeReg sm dest "rax" typ
+  [ emit 1 $ "mov rax, qword " ++ operandAddr sm ptr
+  , emit 1 $ getMovType typ ++ " [rax]"
+  , storeReg sm dest "rax" typ
   ]
 
 -- | emit INC/DEC on pointer or numeric operand
@@ -394,6 +322,7 @@ emitConditionalJump sm op jumpInstr lbl =
 emitBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> IRType -> [String]
 -- explanation
 -- Use SSE for float arithmetic and GPRs for integer/bitwise operations
+-- REDO maybe good ?
 emitBinaryOp sm dest asmOp leftOp rightOp t
   | isFloatType t = emitFloatBinaryOp sm dest asmOp leftOp rightOp t
   | otherwise =
@@ -406,6 +335,7 @@ emitBinaryOp sm dest asmOp leftOp rightOp t
 
 -- explanation
 -- Map IR float binary ops to scalar SSE instructions and store results back to the stack
+-- REDO less case of
 emitFloatBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> IRType -> [String]
 emitFloatBinaryOp sm dest asmOp leftOp rightOp t =
   let (xmmL, xmmR) =
@@ -432,15 +362,6 @@ emitFloatBinaryOp sm dest asmOp leftOp rightOp t =
         ++ loadR
         ++ [emit 1 $ opInstr ++ " " ++ xmmL ++ ", " ++ xmmR]
         ++ [storeInstr]
--- old code commented out
--- emitBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> IRType -> [String]
--- emitBinaryOp sm dest asmOp leftOp rightOp t =
---   let regL = getRegisterName "rax" t
---       regR = getRegisterName "rbx" t
---    in loadReg sm "rax" leftOp
---         ++ loadReg sm "rbx" rightOp
---         ++ [emit 1 $ asmOp ++ " " ++ regL ++ ", " ++ regR]
---         ++ [storeReg sm dest "rax" t]
 
 --
 -- helpers
