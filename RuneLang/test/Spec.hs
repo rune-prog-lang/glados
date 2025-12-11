@@ -19,6 +19,8 @@ import Lexer.LexerPrimitivesSpecs (lexerPrimitivesTests)
 import Lexer.TokensSpecs (tokensTests)
 
 import AST.TypesSpecs (astTypesTests)
+import AST.NodesSpecs (astNodesTests)
+import AST.ParserHelperSpecs (parserHelperTests)
 
 --
 -- public
@@ -69,4 +71,6 @@ astSpecs =
   testGroup
     "AST Tests"
     [ astTypesTests
+    , parserHelperTests
+    , astNodesTests
     ]
