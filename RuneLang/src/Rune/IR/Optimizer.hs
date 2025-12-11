@@ -12,11 +12,19 @@ module Rune.IR.Optimizer
 where
 #endif
 
-import Rune.IR.Nodes (IRProgram)
+import Rune.IR.Nodes
 
 --
 -- public
 --
 
 runIROptimizer :: IRProgram -> IRProgram
-runIROptimizer p = p
+runIROptimizer (IRProgram name tops) = IRProgram name (optimizeTopLevel <$> tops)
+
+
+--
+-- private
+--
+
+optimizeTopLevel :: IRTopLevel -> IRTopLevel
+optimizeTopLevel = id
