@@ -1,4 +1,15 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.Generator
+  ( generateIR,
+    initialState,
+    getDefinedFuncName
+  )
+where
+#else
 module Rune.IR.Generator (generateIR) where
+#endif
 
 import Control.Monad.State (runState)
 import Data.Map (empty)
