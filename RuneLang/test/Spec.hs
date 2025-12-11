@@ -26,6 +26,8 @@ import AST.ParserSpecs (parserTests)
 
 import Semantics.VarsSpecs (varsSemanticsTests)
 import Semantics.OpTypeSpecs (opTypeSemanticsTests)
+import Semantics.HelperSpecs (helperSemanticsTests)
+import Semantics.FuncSpecs (funcSemanticsTests)
 
 import IR.NodesSpecs (irNodesTests)
 
@@ -91,6 +93,8 @@ semanticsSpecs =
     "Semantics Tests"
     [ varsSemanticsTests
     , opTypeSemanticsTests
+    , helperSemanticsTests
+    , funcSemanticsTests
     ]
 
 irSpecs :: TestTree
