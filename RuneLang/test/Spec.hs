@@ -35,6 +35,11 @@ import IR.GeneratorSpecs (generatorTests)
 import IR.Generator.GenTopLevelSpecs (genTopLevelTests)
 import IR.Generator.GenStatementSpecs (genStatementTests)
 import IR.Generator.GenExpressionSpecs (genExpressionTests)
+import IR.Generator.Expression.BinarySpecs (binaryExprTests)
+import IR.Generator.Expression.UnarySpecs (unaryExprTests)
+import IR.Generator.Expression.LiteralsSpecs (literalsTests)
+import IR.Generator.Statement.ControlFlowSpecs (controlFlowTests)
+import IR.Generator.Statement.LoopsSpecs (loopsTests)
 import IR.PrinterSpecs (irPrinterTests)
 import IR.OptimizerSpecs (optimizerTests)
 
@@ -114,6 +119,11 @@ irSpecs =
     , genTopLevelTests
     , genStatementTests
     , genExpressionTests
+    , binaryExprTests
+    , unaryExprTests
+    , literalsTests
+    , controlFlowTests
+    , loopsTests
     , irPrinterTests
     , optimizerTests
     ]
