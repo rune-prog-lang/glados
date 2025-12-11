@@ -59,8 +59,12 @@ testFunctionWithGlobalStrings =
         irProg = IRProgram "test" [IRGlobalString "str0" "hello", IRFunctionDef func]
         asm = emitAssembly irProg
      in do
-          assertBool "contains section .data" ("section .data" `elem` lines asm)
+          -- # explanation
+          -- Strings are now emitted into .rodata alongside float literals
+          assertBool "contains section .rodata" ("section .rodata" `elem` lines asm)
           assertBool "contains string definition" (any ("str0" `isInfixOf`) (lines asm))
+          -- # old code commented out
+          -- assertBool "contains section .data" ("section .data" `elem` lines asm)
 
 testFunctionWithGlobalFloats :: TestTree
 testFunctionWithGlobalFloats =

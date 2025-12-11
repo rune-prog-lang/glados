@@ -59,11 +59,19 @@ emitExterns xs = map ("extern " ++) xs
 
 -- | emit global strings
 -- <name> db "<value>", 0
+-- # explanation
+-- Emit string literals in the read-only .rodata section alongside float literals
 emitDataSection :: [GlobalString] -> [String]
 emitDataSection [] = []
-emitDataSection gs = "section .data" : map emitGlobal gs
+emitDataSection gs = "section .rodata" : map emitGlobal gs
   where
     emitGlobal (name, val) = name ++ " db " ++ escapeString val ++ ", 0"
+-- # old code commented out
+-- emitDataSection :: [GlobalString] -> [String]
+-- emitDataSection [] = []
+-- emitDataSection gs = "section .data" : map emitGlobal gs
+--   where
+--     emitGlobal (name, val) = name ++ " db " ++ escapeString val ++ ", 0"
 
 -- | emit global float literals in read-only data
 -- <label>: dd <value>   ; IRF32
