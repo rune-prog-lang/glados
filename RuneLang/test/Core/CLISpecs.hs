@@ -33,7 +33,9 @@ usageString =
       "  run   [file]   Interpret the given source file",
       "",
       "Options:",
-      "  -o, --output   Specify the output file for compilation"
+      "  -o, --output <file>   Specify the output file for compilation",
+      "  -c                    Compile to object file",
+      "  -S                    Compile to assembly code"
     ]
 
 cleanOutput :: String -> String
@@ -65,9 +67,9 @@ parseDerivingTests =
             action3 = Interpret "run"
             action4 = CompileAll "file" Nothing
         assertEqual "Show ShowUsage" "ShowUsage" (show action1)
-        assertEqual "Show Compile Just" "Compile \"in\" (Just \"out\")" (show action2)
+        assertEqual "Show Compile Just" "CompileAll \"in\" (Just \"out\")" (show action2)
         assertEqual "Show Interpret" "Interpret \"run\"" (show action3)
-        assertEqual "Show Compile Nothing" "Compile \"file\" Nothing" (show action4)
+        assertEqual "Show Compile Nothing" "CompileAll \"file\" Nothing" (show action4)
     , testCase "Eq coverage" $ do
         let c1 = CompileAll "f" Nothing
             c2 = CompileAll "f" Nothing
@@ -123,11 +125,11 @@ parseBuildFailureTests :: TestTree
 parseBuildFailureTests =
   testGroup
     "Build Command Failure Parsing"
-    [ shouldFailWith ["build"] "The 'build' command requires an input file.",
-      shouldFailWith ["-b", "input.ru", "-o"] "Invalid arguments for build command: input.ru -o",
-      shouldFailWith ["--build", "input.ru", "--output"] "Invalid arguments for build command: input.ru --output",
-      shouldFailWith ["build", "input.ru", "extra"] "Invalid arguments for build command: input.ru extra",
-      shouldFailWith ["build", "input.ru", "-o", "out1", "out2"] "Invalid arguments for build command: input.ru -o out1 out2"
+    [ shouldFailWith ["build"] "No input file provided.",
+      shouldFailWith ["-b", "input.ru", "-o"] "-o flag requires an output file.",
+      shouldFailWith ["--build", "input.ru", "--output"] "--output flag requires an output file.",
+      shouldFailWith ["build", "input.ru", "extra"] "Invalid arguments for build command: extra",
+      shouldFailWith ["build", "input.ru", "-o", "out1", "out2"] "Invalid arguments for build command: out2"
     ]
 
 parseOtherTests :: TestTree

@@ -39,7 +39,9 @@ usage =
       "  run   [file]   Interpret the given source file",
       "",
       "Options:",
-      "  -o, --output   Specify the output file for compilation"
+      "  -o, --output <file>   Specify the output file for compilation",
+      "  -c                    Compile to object file",
+      "  -S                    Compile to assembly code"
     ]
 
 parseArgs :: [String] -> Either String Action
@@ -111,9 +113,9 @@ findOutputFile [] = Right (Nothing, [])
 findOutputFile args =
   case break (\x -> x `elem` ["-o", "--output"]) args of
     (before, []) -> Right (Nothing, before)
-    (_, "-o":[]) -> Left "Error: -o flag requires an output file."
+    (_, "-o":[]) -> Left "-o flag requires an output file."
     (before, "-o":file:after) -> Right (Just file, before ++ after)
-    (_, "--output":[]) -> Left "Error: --output flag requires an output file."
+    (_, "--output":[]) -> Left "--output flag requires an output file."
     (before, "--output":file:after) -> Right (Just file, before ++ after)
     (before, _:after) -> findOutputFile (before ++ after)
 
