@@ -7,9 +7,9 @@ module Rune.Backend.Helpers
   )
 where
 
-import Data.List (intercalate, nub)
+import Data.List (foldl', intercalate, nub)
 import qualified Data.Map.Strict as Map
-import Rune.Backend.Types (Extern, Function, GlobalString)
+import Rune.Backend.Types (Extern, Function, GlobalString, GlobalFloat)
 import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
 import Lib (isPrintable)
@@ -21,10 +21,12 @@ import Lib (isPrintable)
 emit :: Int -> String -> String
 emit lvl s = replicate (lvl * 4) ' ' ++ s
 
-collectTopLevels :: [IRTopLevel] -> ([Extern], [GlobalString], [Function])
+-- explanation
+-- Collect externs, global strings, global floats, and functions from IR top levels for backend emission
+collectTopLevels :: [IRTopLevel] -> ([Extern], [GlobalString], [GlobalFloat], [Function])
 collectTopLevels tls =
-  let (es, gs, fs) = foldr collectTopLevel ([], [], []) tls
-   in (nub es, reverse gs, reverse fs)
+  let (es, gs, gfs, fs) = foldr collectTopLevel ([], [], [], []) tls
+   in (nub es, reverse gs, reverse gfs, reverse fs)
 
 calculateStackMap :: Function -> (Map.Map String Int, Int)
 calculateStackMap func =
@@ -45,10 +47,11 @@ escapeString = intercalate "," . encodeCharacter
 alignUp :: Int -> Int -> Int
 alignUp x n = (x + n - 1) `div` n * n
 
-collectTopLevel :: IRTopLevel -> ([Extern], [GlobalString], [Function]) -> ([Extern], [GlobalString], [Function])
-collectTopLevel (IRExtern name) (e, g, f) = (name : e, g, f)
-collectTopLevel (IRGlobalString n v) (e, g, f) = (e, (n, v) : g, f)
-collectTopLevel (IRFunctionDef fn) (e, g, f) = (e, g, fn : f)
+collectTopLevel :: IRTopLevel -> ([Extern], [GlobalString], [GlobalFloat], [Function]) -> ([Extern], [GlobalString], [GlobalFloat], [Function])
+collectTopLevel (IRExtern name) (e, g, gf, f) = (name : e, g, gf, f)
+collectTopLevel (IRGlobalString n v) (e, g, gf, f) = (e, (n, v) : g, gf, f)
+collectTopLevel (IRGlobalFloat n v t) (e, g, gf, f) = (e, g, (n, v, t) : gf, f)
+collectTopLevel (IRFunctionDef fn) (e, g, gf, f) = (e, g, gf, fn : f)
 collectTopLevel _ acc = acc
 
 collectIRVars :: Function -> Map.Map String IRType

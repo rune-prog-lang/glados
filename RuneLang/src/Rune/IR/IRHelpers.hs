@@ -7,6 +7,7 @@ module Rune.IR.IRHelpers
     nextLabelIndex,
     makeLabel,
     newStringGlobal,
+    newFloatGlobal,
     genFormatString,
     endsWithRet,
     pushLoopContext,
@@ -105,10 +106,6 @@ nextLabelIndex = do
 makeLabel :: String -> Int -> IRLabel
 makeLabel prefix idx = IRLabel $ ".L." ++ prefix ++ show idx
 
---
--- create a global new string
---
-
 -- | check if global string already exists
 --  if so     -> return its name
 --  otherwise -> create a new global string and return its name
@@ -138,6 +135,59 @@ insertGlobalString name value =
     s { gsGlobals   = IRGlobalString name value : gsGlobals s
       , gsStringMap = Map.insert value name (gsStringMap s)
       }
+
+-- explanation
+-- Create or reuse a global float literal, interning by value and tracking IR type for correct emission
+newFloatGlobal :: Double -> IRType -> IRGen String
+newFloatGlobal value typ = do
+  mp <- gets gsFloatMap
+  case Map.lookup value mp of
+    Just name -> pure name
+    Nothing -> createFloatGlobal value typ
+
+createFloatGlobal :: Double -> IRType -> IRGen String
+createFloatGlobal value typ = do
+  counter <- gets gsFloatCounter
+  let name = ".float" ++ show counter
+  modify $ \s ->
+    s
+      { gsFloatCounter = counter + 1,
+        gsGlobals = IRGlobalFloat name value typ : gsGlobals s,
+        gsFloatMap = Map.insert value name (gsFloatMap s)
+      }
+  pure name
+-- old code commented out
+-- -- create a global new string
+-- --
+-- -- | check if global string already exists
+-- --  if so     -> return its name
+-- --  otherwise -> create a new global string and return its name
+-- newStringGlobal :: String -> IRGen String
+-- newStringGlobal value = do
+--   mp <- gets gsStringMap
+--   maybe (createStringGlobal value) pure (Map.lookup value mp)
+--
+-- createStringGlobal :: String -> IRGen String
+-- createStringGlobal value = do
+--   name <- freshStringName
+--   insertGlobalString name value
+--   pure name
+--
+-- freshStringName :: IRGen String
+-- freshStringName = do
+--   counter <- gets gsStringCounter
+--   func    <- gets gsCurrentFunc
+--   let base = fromMaybe "global" func
+--       name = "str_" <> base <> show counter
+--   modify $ \s -> s { gsStringCounter = counter + 1 }
+--   pure name
+--
+-- insertGlobalString :: String -> String -> IRGen ()
+-- insertGlobalString name value =
+--   modify $ \s ->
+--     s { gsGlobals   = IRGlobalString name value : gsGlobals s
+--       , gsStringMap = Map.insert value name (gsStringMap s)
+--       }
 
 genFormatString :: String -> IRGen ([IRInstruction], IROperand)
 genFormatString value = do

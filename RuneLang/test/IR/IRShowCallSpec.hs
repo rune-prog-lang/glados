@@ -37,7 +37,8 @@ initialState =
       gsStructs = mempty,
       gsLoopStack = [],
       gsCalledFuncs = mempty,
-      gsStringMap = mempty
+      gsStringMap = mempty,
+      gsFloatMap = mempty
     }
 
 mockGenExpr :: Expression -> ([IRInstruction], IROperand, IRType)

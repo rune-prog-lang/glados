@@ -114,13 +114,15 @@ testGenState =
                 { gsTempCounter = 5,
                   gsLabelCounter = 3,
                   gsStringCounter = 1,
+                  gsFloatCounter = 0,
                   gsGlobals = [IRGlobalString "s0" "str"],
                   gsCurrentFunc = Just "main",
                   gsSymTable = symTable,
                   gsStructs = structTable,
                   gsLoopStack = loopStack,
                   gsCalledFuncs = Set.empty,
-                  gsStringMap = empty
+                  gsStringMap = empty,
+                  gsFloatMap = empty
                 }
             dummyOp :: IRGen Int
             dummyOp = return 10
@@ -135,8 +137,8 @@ testGenState =
               gsLoopStack initialState @?= loopStack
               evalState dummyOp initialState @?= 10,
       testCase "Deriving Show/Eq" $
-        let state1 = GenState 0 0 0 [] Nothing empty empty [] Set.empty empty
-            state2 = GenState 0 0 0 [] Nothing empty empty [] Set.empty empty
+        let state1 = GenState 0 0 0 0 [] Nothing empty empty [] Set.empty empty empty
+            state2 = GenState 0 0 0 0 [] Nothing empty empty [] Set.empty empty empty
          in state1 @?= state2
     ]
 

@@ -25,13 +25,15 @@ data GenState = GenState
   { gsTempCounter :: Int,
     gsLabelCounter :: Int,
     gsStringCounter :: Int,
+    gsFloatCounter :: Int,
     gsGlobals :: [IRTopLevel],
     gsCurrentFunc :: Maybe String,
     gsSymTable :: Map String (IROperand, IRType),
     gsStructs :: Map String [(String, IRType)],
     gsLoopStack :: [(IRLabel, IRLabel)],
     gsCalledFuncs :: Set String,
-    gsStringMap :: Map String String
+    gsStringMap :: Map String String,
+    gsFloatMap :: Map Double String
   }
   deriving (Show, Eq)
 
@@ -141,6 +143,7 @@ data IRFunction = IRFunction
 
 data IRTopLevel
   = IRGlobalString String String
+  | IRGlobalFloat String Double IRType
   | IRFunctionDef IRFunction
   | IRStructDef String [(String, IRType)]
   | IRExtern String

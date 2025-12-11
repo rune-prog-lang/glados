@@ -3,6 +3,7 @@ module Rune.Backend.Types
     Extern,
     Function,
     GlobalString,
+    GlobalFloat,
     Struct,
     AsmState (..),
   )
@@ -23,6 +24,8 @@ type Extern = String
 type Function = IRFunction
 
 type GlobalString = (String, String)
+
+type GlobalFloat = (String, Double, IRType)
 
 type Struct = [(String, IRType)]
 

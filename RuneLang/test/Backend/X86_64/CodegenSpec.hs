@@ -13,6 +13,7 @@ codegenTests =
       testSimpleFunction,
       testFunctionWithExterns,
       testFunctionWithGlobalStrings,
+      testFunctionWithGlobalFloats,
       testFunctionWithParameters,
       testFunctionWithReturn,
       testArithmeticInstructions,
@@ -60,6 +61,24 @@ testFunctionWithGlobalStrings =
      in do
           assertBool "contains section .data" ("section .data" `elem` lines asm)
           assertBool "contains string definition" (any ("str0" `isInfixOf`) (lines asm))
+
+testFunctionWithGlobalFloats :: TestTree
+testFunctionWithGlobalFloats =
+  testCase "emit assembly with global float literals in .rodata" $
+    let func = IRFunction "main" [] Nothing [IRRET Nothing]
+        irProg =
+          IRProgram
+            "test"
+            [ IRGlobalFloat ".float0" 42.0 IRF32,
+              IRGlobalFloat ".float1" 13.37 IRF32,
+              IRFunctionDef func
+            ]
+        asm = emitAssembly irProg
+        ls = lines asm
+     in do
+          assertBool "contains section .rodata" ("section .rodata" `elem` ls)
+          assertBool "contains first float literal" (any (".float0: dd 42.0" `isInfixOf`) ls)
+          assertBool "contains second float literal" (any (".float1: dd 13.37" `isInfixOf`) ls)
 
 testFunctionWithParameters :: TestTree
 testFunctionWithParameters =

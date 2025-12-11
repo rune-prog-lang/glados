@@ -25,13 +25,15 @@ initialState =
     { gsTempCounter = 0,
       gsLabelCounter = 0,
       gsStringCounter = 0,
+      gsFloatCounter = 0,
       gsGlobals = [],
       gsCurrentFunc = Nothing,
       gsSymTable = empty,
       gsStructs = empty,
       gsLoopStack = [],
       gsCalledFuncs = Set.empty,
-      gsStringMap = empty
+      gsStringMap = empty,
+      gsFloatMap = empty
     }
 
 runIRGen :: IRGen a -> (a, GenState)
@@ -68,9 +70,13 @@ testGenLitInt =
 testGenLitFloat :: IO ()
 testGenLitFloat =
   let expr = ExprLitFloat 3.14
-      (result, _) = runIRGen (genExpression expr)
-      expected = ([], IRConstFloat 3.14, IRF32)
-   in result @?= expected
+      (result, finalState) = runIRGen (genExpression expr)
+      expectedOperand = IRGlobal ".float0" IRF32
+      expectedType = IRF32
+      expectedGlobals = [IRGlobalFloat ".float0" 3.14 IRF32]
+   in do
+        result @?= ([], expectedOperand, expectedType)
+        gsGlobals finalState @?= expectedGlobals
 
 testGenLitChar :: IO ()
 testGenLitChar =
