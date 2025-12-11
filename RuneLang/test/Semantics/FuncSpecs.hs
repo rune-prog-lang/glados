@@ -24,7 +24,15 @@ funcSemanticsTests =
         let stack = either error id (findFunc shadowProgram)
          in HM.lookup "dup" stack @?= Just [(TypeI32, [TypeI32]), (TypeBool, [TypeBool])],
       testCase "struct method signatures are ignored" $
-        findFunc structMethodProgram @?= (Right $ HM.fromList [("show",[(TypeNull,[TypeAny])]),("error",[(TypeNull,[TypeAny])])])
+        findFunc structMethodProgram @?= (Right $ HM.fromList [("show",[(TypeNull,[TypeAny])]),("error",[(TypeNull,[TypeAny])])]),
+      testCase "rejects duplicate function definition" $
+        case findFunc duplicateFunctionProgram of
+          Left err -> "FuncAlreadyExist:" `isInfixOf` err @? "Expected FuncAlreadyExist error for foo"
+          Right _ -> assertFailure "Expected error for duplicate function",
+      testCase "rejects override without base function" $
+        case findFunc lonelyOverrideProgram of
+          Left err -> "WrongOverrideDef:" `isInfixOf` err @? "Expected WrongOverrideDef error for nonExistent"
+          Right _ -> assertFailure "Expected error for lonely override"
     ]
 
 --
@@ -85,4 +93,19 @@ structMethodProgram =
             TypeI32
             []
         ]
+    ]
+
+duplicateFunctionProgram :: Program
+duplicateFunctionProgram =
+  Program
+    "duplicate-func"
+    [ DefFunction "foo" [Parameter "x" TypeI32] TypeI32 [],
+      DefFunction "foo" [Parameter "y" TypeF32] TypeF32 []
+    ]
+
+lonelyOverrideProgram :: Program
+lonelyOverrideProgram =
+  Program
+    "lonely-override"
+    [ DefOverride "nonExistent" [Parameter "x" TypeI32] TypeI32 []
     ]

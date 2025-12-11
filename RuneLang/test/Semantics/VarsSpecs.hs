@@ -29,6 +29,7 @@ varsSemanticsTests =
       expectErr "call argument must exist" callArgsErrorProgram "arg",
       expectErr "struct init fields must exist" structInitErrorProgram "fieldVal",
       expectErr "access target must exist" accessErrorProgram "target",
+      expectTypeOverwrite "detects assignment type overwrite error" assignmentTypeOverwriteProgram,
       expectErr "binary operands validated" binaryErrorProgram "lhs",
       expectErr "unary operand validated" unaryErrorProgram "value",
       expectTypeOverwrite "detects type overwrite error" typeOverwriteProgram,
@@ -303,6 +304,19 @@ accessErrorProgram =
         []
         TypeNull
         [StmtExpr (ExprAccess (ExprVar "target") "field")]
+    ]
+
+assignmentTypeOverwriteProgram :: Program
+assignmentTypeOverwriteProgram =
+  Program
+    "assign-type-overwrite"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtVarDecl "x" (Just TypeI32) (ExprLitInt 1),
+          StmtAssignment (ExprVar "x") (ExprLitFloat 1.0)
+        ]
     ]
 
 binaryErrorProgram :: Program

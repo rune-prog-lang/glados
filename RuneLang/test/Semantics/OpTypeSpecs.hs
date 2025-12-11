@@ -33,6 +33,13 @@ opTypeSemanticsTests =
             sameType TypeChar   TypeChar   @?= True
             sameType TypeString TypeString @?= True
             sameType TypeNull   TypeNull   @?= True,
+
+          testCase "returns True for identical custom types" $ do
+            sameType (TypeCustom "Vec2f") (TypeCustom "Vec2f") @?= True,
+
+          testCase "returns False for different custom types or custom vs primitive" $ do
+            sameType (TypeCustom "A") (TypeCustom "B") @?= False
+            sameType (TypeCustom "A") TypeI32 @?= False,
         
           testCase "returns False for different type families" $ do
             sameType TypeI32 TypeU32 @?= False
@@ -51,6 +58,14 @@ opTypeSemanticsTests =
         
           testCase "handles compatible float types with Add operation" $
             iHTBinary Add TypeF32 TypeF64 @?= Right TypeF64,
+
+          testCase "handles logical operations (And, Or)" $ do
+            iHTBinary And TypeBool TypeBool @?= Right TypeBool
+            iHTBinary Or TypeBool TypeBool @?= Right TypeBool,
+
+          testCase "handles comparison operations (Eq, Gt) promoting to Bool" $ do
+            iHTBinary Eq TypeI32 TypeI32 @?= Right TypeBool
+            iHTBinary Gt TypeF64 TypeF64 @?= Right TypeBool,
         
           testCase "handles Mul operation promoting to highest precision" $ do
             iHTBinary Mul TypeI32 TypeI32 @?= Right TypeI64
@@ -92,6 +107,10 @@ opTypeSemanticsTests =
         
           testCase "promotion behavior for division" $
             iHTBinary Div TypeU8 TypeU16 @?= Right TypeU16,
+
+          testCase "promotion behavior for Add and Mul with TypeAny" $ do
+            iHTBinary Add TypeI32 TypeAny @?= Right TypeI64
+            iHTBinary Mul TypeF32 TypeAny @?= Right TypeF64,
         
           testCase "handles TypeAny in int family" $ do
             iHTBinary Add TypeI32 TypeAny @?= Right TypeI64
