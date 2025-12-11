@@ -1,4 +1,16 @@
-module Rune.IR.Printer (prettyPrintIR) where
+{-# OPTIONS_GHC -cpp #-}
+
+module Rune.IR.Printer 
+  ( prettyPrintIR
+#if defined(TESTING_EXPORT)
+  , printProgram
+  , printTopLevel
+  , printFunction
+  , printInstruction
+  , printOperand
+  , printType
+#endif
+  ) where
 
 import Data.List (intercalate)
 import Lib (escapeString)
