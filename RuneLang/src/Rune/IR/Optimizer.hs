@@ -104,7 +104,6 @@ optimizeInstr (IRCALL target fun args retType) rest =
 -- pass other instructions as is
 optimizeInstr inst rest = emitInstr inst rest
 
-
 inlineFunction :: String -> String -> IRFunction -> [IROperand] -> [IRInstruction] -> OptM [IRInstruction]
 inlineFunction target fun callee args rest =
   let prefix = fun <> "_" <> target <> "_"
@@ -122,7 +121,11 @@ isInlineable f =
   let body = irFuncBody f
       len = length body
       hasControlFlow = any isControlFlow body
-  in len < 15 && not hasControlFlow
+      isRecursive = any isSelfCall body
+  in len < 15 && not hasControlFlow && not isRecursive
+  where
+    isSelfCall (IRCALL _ name _ _) = name == irFuncName f
+    isSelfCall _ = False
 
 isControlFlow :: IRInstruction -> Bool
 isControlFlow (IRLABEL _) = True
