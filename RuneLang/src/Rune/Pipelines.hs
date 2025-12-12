@@ -6,10 +6,9 @@
 module Rune.Pipelines
   ( CompileMode (..),
     compilePipeline,
-    compileToObject,
-    compileAsmIntoObject,
+    compileAsmToObject,
     compileObjectIntoExecutable,
-    writeRuneInAsm,
+    translateRuneInAsm,
     interpretPipeline,
     pipeline,
     verifAndGenIR,
@@ -31,8 +30,8 @@ module Rune.Pipelines
 where
 #endif
 
-import Control.Exception (IOException, try)
-import Control.Monad ((>=>))
+import Control.Exception (IOException, try, bracket)
+import Control.Monad ((>=>), when)
 import Logger (logError)
 import Rune.AST.Nodes (Program)
 import Rune.AST.Parser (parseRune)
@@ -50,6 +49,8 @@ import Text.Megaparsec (errorBundlePretty)
 import System.Process (system)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess))
 import System.FilePath (takeExtension, dropExtension)
+import System.IO (hPutStr, hClose, openTempFile)
+import System.Directory (removeFile, getTemporaryDirectory)
 
 data CompileMode
   = ToObject
@@ -65,18 +66,21 @@ data CompileMode
 compilePipeline :: FilePath -> FilePath -> CompileMode -> IO ()
 compilePipeline inFile outFile FullCompile =
   runPipelineAction inFile (\ir -> do
-    let fileWithoutExt = dropExtension inFile
-    let asmFile = fileWithoutExt ++ ".asm"
-    let objFile = fileWithoutExt ++ ".o"
-    writeRuneInAsm asmFile ir
-    compileToObject asmFile objFile ir
+    let objFile = dropExtension inFile ++ ".o"
+    let asmContent = translateRuneInAsm ir
+    compileAsmToObject asmContent objFile
     compileObjectIntoExecutable objFile outFile
   )
 compilePipeline inFile outFile ToAssembly =
-  runPipelineAction inFile (\ir -> writeRuneInAsm outFile ir)
+  runPipelineAction inFile (\ir -> writeFile outFile (translateRuneInAsm ir))
 compilePipeline inFile outFile ToObject = case takeExtension inFile of
-  ".ru" -> runPipelineAction inFile (\ir -> compileToObject inFile outFile ir)
-  ".asm" -> compileAsmIntoObject inFile outFile
+  ".ru" -> runPipelineAction inFile (\ir -> do
+            let asmContent = translateRuneInAsm ir
+            compileAsmToObject asmContent outFile
+           )
+  ".asm" -> do
+    asmContent <- readFile inFile
+    compileAsmToObject asmContent outFile
   ext -> logError $ "Unsupported file extension: " ++ ext
 compilePipeline inFile outFile ToExecutable = compileObjectIntoExecutable inFile outFile
 
@@ -118,21 +122,19 @@ runPipelineAction inFile onSuccess =
 --- private methods for compilation steps
 ---
 
-writeRuneInAsm :: FilePath -> IRProgram -> IO ()
-writeRuneInAsm asmFile ir = writeFile asmFile (emitAssembly ir)
+translateRuneInAsm :: IRProgram -> String
+translateRuneInAsm = emitAssembly
 
-compileToObject :: FilePath -> FilePath -> IRProgram -> IO ()
-compileToObject inFile outFile ir = do
-  let asmFile = dropExtension inFile ++ ".asm"
-  writeRuneInAsm asmFile ir
-  compileAsmIntoObject asmFile outFile
-
-compileAsmIntoObject :: FilePath -> FilePath -> IO ()
-compileAsmIntoObject asmFile objFile = do
-  exitCode <- system $ "nasm -f elf64 " ++ asmFile ++ " -o " ++ objFile
-  case exitCode of
-    ExitSuccess -> return ()
-    ExitFailure code -> logError $ "Assembly to object compilation failed with exit code: " ++ show code
+compileAsmToObject :: String -> FilePath -> IO ()
+compileAsmToObject asmContent objFile = do
+  tmpDir <- getTemporaryDirectory
+  bracket (openTempFile tmpDir "asm.asm")
+          (\(asmFile, h) -> hClose h >> removeFile asmFile)
+          (\(asmFile, h) -> do
+              hPutStr h asmContent >> hClose h
+              exitCode <- system $ "nasm -f elf64 " ++ asmFile ++ " -o " ++ objFile
+              when (exitCode /= ExitSuccess) $
+                logError $ "Assembly to object compilation failed with exit code: " ++ show exitCode)
 
 compileObjectIntoExecutable :: FilePath -> FilePath -> IO ()
 compileObjectIntoExecutable objFile exeFile = do
