@@ -74,8 +74,8 @@ testFunctionWithGlobalFloats =
         irProg =
           IRProgram
             "test"
-            [ IRGlobalFloat ".float0" 42.0 IRF32,
-              IRGlobalFloat ".float1" 13.37 IRF32,
+            [ IRGlobalFloat "float_global0" 42.0 IRF32,
+              IRGlobalFloat "float_global1" 13.37 IRF32,
               IRFunctionDef func
             ]
         asm = emitAssembly irProg
