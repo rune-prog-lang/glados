@@ -201,6 +201,12 @@ visitExpression (ExprAccess target field) = do
   newLine
   visitExpression target
   dedent
+visitExpression (ExprCast expr t) = do
+  emit $ "ExprCast as " ++ showType t
+  indent
+  newLine
+  visitExpression expr
+  dedent
 visitExpression (ExprLitInt i) = emit $ "ExprLitInt " ++ show i
 visitExpression (ExprLitFloat f) = emit $ "ExprLitFloat " ++ show f
 visitExpression (ExprLitString s) = emit $ "ExprLitString " ++ show s

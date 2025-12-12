@@ -7,7 +7,7 @@ where
 
 import Control.Applicative ((<|>))
 import Rune.AST.Nodes (BinaryOp (..), Expression (..), UnaryOp (..))
-import Rune.AST.Parser.ParseTypes (parseIdentifier)
+import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
 import Rune.AST.ParserHelper (between, chainPostfix, chainl1, choice, expect, failParse, sepBy, sepEndBy, tokenMap, try, withContext)
 import Rune.AST.Types (Parser (..))
 import qualified Rune.Lexer.Tokens as T
@@ -22,6 +22,15 @@ parseExpression = parseLogicalOr
 --
 -- private parsers
 --
+
+parseCast :: Parser Expression
+parseCast = do
+  expr <- parsePostfix
+  (do
+    _ <- expect T.KwAs
+    t <- parseType
+    pure $ ExprCast expr t)
+    <|> pure expr
 
 parseLogicalOr :: Parser Expression
 parseLogicalOr = chainl1 parseLogicalAnd (ExprBinary Or <$ expect T.OpOr)
@@ -66,7 +75,7 @@ parseUnary =
     [ ExprUnary Negate <$ expect T.OpMinus <*> parseUnary,
       ExprUnary PrefixInc <$ expect T.OpInc <*> parseUnary,
       ExprUnary PrefixDec <$ expect T.OpDec <*> parseUnary,
-      parsePostfix
+      parseCast
     ]
 
 parsePostfix :: Parser Expression

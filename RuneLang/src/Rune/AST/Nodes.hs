@@ -261,6 +261,12 @@ data Expression
       { accessTarget :: Expression,
         accessField :: String
       }
+  | -- | type cast
+    -- value as Type
+    ExprCast
+      { castExpr :: Expression,
+        castType :: Type
+      }
   | -- | literals and variables
     -- 42
     ExprLitInt Int
