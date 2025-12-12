@@ -63,7 +63,7 @@ testGenIfElse = testGroup "genIfElse"
             case stmts of
               [] -> return []
               _  -> return [IRRET Nothing]
-          instrs = runGen (genIfElse genExpr genBlock (ExprLitBool True) [ExprLitInt 1] [ExprLitInt 2])
+          instrs = runGen (genIfElse genExpr genBlock (ExprLitBool True) [ExprReturn (Just (ExprLitInt 1))] [ExprReturn Nothing])
           hasJumpToEnd = any isJumpToEnd instrs
       in assertBool "Should not emit jump to end when then-branch ends with IRRET" (not hasJumpToEnd)
       -- old code commented out
