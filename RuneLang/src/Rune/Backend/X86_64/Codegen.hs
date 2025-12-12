@@ -421,55 +421,44 @@ loadVarReg sm baseReg op t =
    in [emit 1 $ "mov " ++ reg ++ ", " ++ sizeSpec ++ " " ++ varStackAddr sm op]
 
 varStackAddr :: Map String Int -> IROperand -> String
-varStackAddr sm (IRTemp name _) = stackAddr sm name
+varStackAddr sm (IRTemp  name _) = stackAddr sm name
 varStackAddr sm (IRParam name _) = stackAddr sm name
 varStackAddr _ op = error $ "Unsupported IROperand for stack address: " ++ show op
 
 -- | emit: mov <reg>, <operand> with proper sign/zero extension for arguments
 loadRegWithExt :: Map String Int -> (String, IROperand) -> [String]
-loadRegWithExt _ (reg, IRConstInt n) = [emit 1 $ "mov " ++ reg ++ ", " ++ show n]
-loadRegWithExt _ (reg, IRConstChar c) = [emit 1 $ "mov " ++ reg ++ ", " ++ show (fromEnum c)]
-loadRegWithExt _ (reg, IRConstNull) = [emit 1 $ "mov " ++ reg ++ ", 0"]
-loadRegWithExt _ (reg, IRConstBool b) = [emit 1 $ "mov " ++ reg ++ ", " ++ if b then "1" else "0"]
-loadRegWithExt _ (reg, IRGlobal name _) = [emit 1 $ "mov " ++ reg ++ ", " ++ name]
-loadRegWithExt sm (reg, op@(IRTemp _ t)) = extendVar sm reg op t
+loadRegWithExt _  (reg, IRConstInt n)     = [emit 1 $ "mov " ++ reg ++ ", " ++ show n]
+loadRegWithExt _  (reg, IRConstChar c)    = [emit 1 $ "mov " ++ reg ++ ", " ++ show (fromEnum c)]
+loadRegWithExt _  (reg, IRConstNull)      = [emit 1 $ "mov " ++ reg ++ ", 0"]
+loadRegWithExt _  (reg, IRConstBool b)    = [emit 1 $ "mov " ++ reg ++ ", " ++ if b then "1" else "0"]
+loadRegWithExt _  (reg, IRGlobal name _)  = [emit 1 $ "mov " ++ reg ++ ", " ++ name]
+loadRegWithExt sm (reg, op@(IRTemp _ t))  = extendVar sm reg op t
 loadRegWithExt sm (reg, op@(IRParam _ t)) = extendVar sm reg op t
-loadRegWithExt sm (reg, op) = [emit 1 $ "mov " ++ reg ++ ", qword " ++ varStackAddr sm op]
+loadRegWithExt sm (reg, op)               = [emit 1 $ "mov " ++ reg ++ ", qword " ++ varStackAddr sm op]
 
 extendVar :: Map String Int -> String -> IROperand -> IRType -> [String]
-extendVar sm reg op IRI8 = [emit 1 $ "movsx " ++ reg ++ ", byte " ++ varStackAddr sm op]
-extendVar sm reg op IRI16 = [emit 1 $ "movsx " ++ reg ++ ", word " ++ varStackAddr sm op]
-extendVar sm reg op IRI32 = [emit 1 $ "movsxd " ++ reg ++ ", dword " ++ varStackAddr sm op]
-extendVar sm reg op IRU8 = [emit 1 $ "movzx " ++ reg ++ ", byte " ++ varStackAddr sm op]
+extendVar sm reg op IRI8   = [emit 1 $ "movsx " ++ reg ++ ", byte " ++ varStackAddr sm op]
+extendVar sm reg op IRI16  = [emit 1 $ "movsx " ++ reg ++ ", word " ++ varStackAddr sm op]
+extendVar sm reg op IRI32  = [emit 1 $ "movsxd " ++ reg ++ ", dword " ++ varStackAddr sm op]
+extendVar sm reg op IRU8   = [emit 1 $ "movzx " ++ reg ++ ", byte " ++ varStackAddr sm op]
 extendVar sm reg op IRChar = [emit 1 $ "movzx " ++ reg ++ ", byte " ++ varStackAddr sm op]
-extendVar sm reg op IRU16 = [emit 1 $ "movzx " ++ reg ++ ", word " ++ varStackAddr sm op]
-extendVar sm reg op IRU32 = [emit 1 $ "mov " ++ getRegisterName reg IRU32 ++ ", dword " ++ varStackAddr sm op]
+extendVar sm reg op IRU16  = [emit 1 $ "movzx " ++ reg ++ ", word " ++ varStackAddr sm op]
+extendVar sm reg op IRU32  = [emit 1 $ "mov " ++ getRegisterName reg IRU32 ++ ", dword " ++ varStackAddr sm op]
 extendVar sm reg op IRBool = [emit 1 $ "movzx " ++ reg ++ ", byte " ++ varStackAddr sm op]
 extendVar sm reg op t =
   let targetReg = getRegisterName reg t
       sizeSpec = getSizeSpecifier t
    in [emit 1 $ "mov " ++ targetReg ++ ", " ++ sizeSpec ++ " " ++ varStackAddr sm op]
 
--- explanation
--- Load float operands into xmm registers from stack slots or interned .rodata literals
 loadFloatOperand :: Map String Int -> String -> IROperand -> IRType -> [String]
-loadFloatOperand sm reg (IRTemp name _) IRF32 =
-  [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRParam name _) IRF32 =
-  [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRTemp name _) IRF64 =
-  [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRParam name _) IRF64 =
-  [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
-loadFloatOperand _ reg (IRGlobal name IRF32) IRF32 =
-  [emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"]
-loadFloatOperand _ reg (IRGlobal name IRF64) IRF64 =
-  [emit 1 $ "movsd " ++ reg ++ ", qword [rel " ++ name ++ "]"]
-loadFloatOperand _ reg _ _ =
-  [emit 1 $ "; WARNING: unsupported float operand, zeroing " ++ reg, emit 1 $ "xorps " ++ reg ++ ", " ++ reg]
+loadFloatOperand sm reg (IRTemp   name _    ) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
+loadFloatOperand sm reg (IRParam  name _    ) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
+loadFloatOperand sm reg (IRTemp   name _    ) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
+loadFloatOperand sm reg (IRParam  name _    ) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
+loadFloatOperand _  reg (IRGlobal name IRF32) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"]
+loadFloatOperand _  reg (IRGlobal name IRF64) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword [rel " ++ name ++ "]"]
+loadFloatOperand _  reg _ _                         = [emit 1 $ "; WARNING: unsupported float operand, zeroing " ++ reg, emit 1 $ "xorps " ++ reg ++ ", " ++ reg]
 
--- explanation
--- Helper to detect float IR types used in backend lowering
 isFloatType :: IRType -> Bool
 isFloatType IRF32 = True
 isFloatType IRF64 = True
