@@ -165,18 +165,27 @@ emitAssign :: Map String Int -> String -> IROperand -> IRType -> [String]
 emitAssign sm dest (IRConstInt n) t
   | needsRegisterLoad n t = [emit 1 $ "mov rax, " ++ show n, storeReg sm dest "rax" t]
   | otherwise = [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", " ++ show n]
+-- explanation: always use at least xmm0 for f32 globals instead of
+--              emitting a spurious \"no more float register\" warning
 emitAssign sm dest (IRGlobal name IRF32) IRF32 =
   case x86_64FloatArgsRegisters of
-    []      -> [ emit 1 $ "; WARNING: no more float register" ]
+    -- old code commented out:
+    -- []      -> [ emit 1 $ \"; WARNING: no more float register\" ]
+    []      -> [ emit 1 $ "movss xmm0, dword [rel " ++ name ++ "]"
+               , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", xmm0"
+               ]
     (reg:_) -> [ emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"
                , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ reg
                ]
 -- explanation: load f64 globals by value (dq) instead of as pointers
--- emitAssign sm dest (IRGlobal name IRF64) IRF64 =
---   [emit 1 $ "; TODO: f64 global assignment not yet implemented for X86_64"]
+--              and avoid emitting a \"no more float register\" warning
 emitAssign sm dest (IRGlobal name IRF64) IRF64 =
   case x86_64FloatArgsRegisters of
-    []      -> [ emit 1 $ "; WARNING: no more float register" ]
+    -- old code commented out:
+    -- []      -> [ emit 1 $ \"; WARNING: no more float register\" ]
+    []      -> [ emit 1 $ "movsd xmm0, qword [rel " ++ name ++ "]"
+               , emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", xmm0"
+               ]
     (reg:_) -> [ emit 1 $ "movsd " ++ reg ++ ", qword [rel " ++ name ++ "]"
                , emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", " ++ reg
                ]
@@ -221,8 +230,12 @@ emitCall sm dest funcName args mbType =
         [ emit 1 "mov eax, 1" ]
     printfFixupHelp _ _
       | funcName == "printf" = []
-    printfFixupHelp _ _
-      = [ emit 1 $ "; WARNING: no more float register" ]
+    -- explanation: do not emit a bogus \"no more float register\" warning
+    --              for non-printf calls; simply omit any fixup
+    -- old code commented out:
+    -- printfFixupHelp _ _
+    --   = [ emit 1 $ \"; WARNING: no more float register\" ]
+    printfFixupHelp _ _ = []
 
 setupCallArgs :: Map String Int -> [IROperand] -> [String]
 setupCallArgs sm args =
