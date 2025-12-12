@@ -43,11 +43,11 @@ testGenExpression = testGroup "genExpression"
       in do
         instrs @?= []
         -- explanation
-        -- Float literals are now interned as globals; at top level they use the 'global_float<counter>' naming pattern
-        op @?= IRGlobal "global_float0" IRF32
+        -- Float literals are now interned as globals; at top level they use the 'float_global<counter>' naming pattern
+        op @?= IRGlobal "float_global0" IRF32
         typ @?= IRF32
         -- old code commented out
-        -- op @?= IRGlobal "float_global0" IRF32
+        -- op @?= IRGlobal "global_float0" IRF32
         -- typ @?= IRF32
 
   , testCase "Generates char literal" $

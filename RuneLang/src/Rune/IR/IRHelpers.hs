@@ -220,9 +220,9 @@ createFloatGlobal value typ = do
   counter <- gets gsFloatCounter
   func    <- gets gsCurrentFunc
   -- explanation
-  -- Name float literals using the '<func>_float<counter>' pattern, with 'global' as the top-level prefix
+  -- Name float literals using the 'float_<function/global><counter>' pattern, mirroring string globals (str_<base><counter>)
   let base = fromMaybe "global" func
-      name = base ++ "_float" ++ show counter
+      name = "float_" ++ base ++ show counter
   modify $ \s ->
     s { gsFloatCounter = counter + 1
       , gsGlobals = IRGlobalFloat name value typ : gsGlobals s
@@ -231,7 +231,7 @@ createFloatGlobal value typ = do
   pure name
   -- old code commented out
   -- let base = fromMaybe "global" func
-  --     name = "float_" ++ base ++ show counter
+  --     name = base ++ "_float" ++ show counter
   -- modify $ \s ->
   --   s { gsFloatCounter = counter + 1
   --     , gsGlobals = IRGlobalFloat name value typ : gsGlobals s

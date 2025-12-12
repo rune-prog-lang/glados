@@ -48,11 +48,11 @@ testGenLitFloat = testGroup "genLitFloat"
       in do
         instrs @?= []
         -- explanation
-        -- genLitFloat now returns an interned global operand named using '<func>_float<counter>' with 'global' as prefix at top level
-        op @?= IRGlobal "global_float0" IRF32
+        -- genLitFloat now returns an interned global operand named using 'float_<function/global><counter>' with 'global' as prefix at top level
+        op @?= IRGlobal "float_global0" IRF32
         typ @?= IRF32
         -- old code commented out
-        -- op @?= IRGlobal "float_global0" IRF32
+        -- op @?= IRGlobal "global_float0" IRF32
         -- typ @?= IRF32
   ]
 

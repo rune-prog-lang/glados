@@ -271,15 +271,15 @@ testFloatGlobalHelpers :: TestTree
 testFloatGlobalHelpers = testGroup "Float Global Helpers"
   [ testCase "newFloatGlobal creates new global when not interned" $
       -- explanation
-      -- Float globals are interned and named using '<func>_float<counter>' with 'global' as top-level prefix
+      -- Float globals are interned and named using 'float_<function/global><counter>' with 'global' as top-level prefix
       let (name, state) = runState (newFloatGlobal 3.14 IRF32) emptyState
       in do
-        name @?= "global_float0"
+        name @?= "float_global0"
         gsFloatCounter state @?= 1
-        Map.lookup 3.14 (gsFloatMap state) @?= Just "global_float0"
+        Map.lookup 3.14 (gsFloatMap state) @?= Just "float_global0"
         case gsGlobals state of
           (IRGlobalFloat n v t : _) -> do
-            n @?= "global_float0"
+            n @?= "float_global0"
             v @?= 3.14
             t @?= IRF32
           _ -> assertFailure "Expected IRGlobalFloat"
@@ -290,12 +290,12 @@ testFloatGlobalHelpers = testGroup "Float Global Helpers"
       let initial =
             emptyState
               { gsFloatCounter = 1
-              , gsFloatMap = Map.singleton 2.71 "global_float0"
-              , gsGlobals = [IRGlobalFloat "global_float0" 2.71 IRF32]
+              , gsFloatMap = Map.singleton 2.71 "float_global0"
+              , gsGlobals = [IRGlobalFloat "float_global0" 2.71 IRF32]
               }
           (name, state) = runState (newFloatGlobal 2.71 IRF32) initial
       in do
-        name @?= "global_float0"
+        name @?= "float_global0"
         gsFloatCounter state @?= 1
         gsGlobals state @?= gsGlobals initial
   ]
