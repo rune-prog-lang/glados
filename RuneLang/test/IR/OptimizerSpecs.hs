@@ -161,6 +161,7 @@ testRenameInstr = testGroup "renameInstr"
         check (IRINC t) (IRINC (renameOp pre t))
         check (IRDEC t) (IRDEC (renameOp pre t))
         check (IRASSIGN "x" t IRI32) (IRASSIGN "p_x" (renameOp pre t) IRI32)
+        check (IRCAST "x" t IRI32) (IRCAST "p_x" (renameOp pre t) IRI32)
   ]
 
 testSimplify :: TestTree
@@ -216,6 +217,7 @@ testSimplify = testGroup "Simplification"
         check (IRDEC c) (IRDEC (IRConstInt 10))
         
         check (IRALLOC "x" IRI64) (IRALLOC "x" IRI64)
+        check (IRCAST "x" c IRI64) (IRCAST "x" (IRConstInt 10) IRI64)
   ]
 
 testOptimizationLogic :: TestTree

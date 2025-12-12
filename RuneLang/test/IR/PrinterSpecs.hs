@@ -69,6 +69,7 @@ testPrintInstruction = testGroup "printinstruction"
         lbl_true   = IRLabel "L_true"
     in testGroup "instructions"
     [ testCase "irassign" $ printInstruction (IRASSIGN "dest" op_i32_c10 IRI32) @?= "dest: i32 = 10"
+    , testCase "ircast" $ printInstruction (IRCAST "dest" op_i32_c10 IRF32) @?= "dest: f32 = CAST 10"
     
     , testCase "iradd_op" $ printInstruction (IRADD_OP "d" op_i32_t1 op_i32_c10 IRI32) @?= "d: i32 = ADD t1, 10"
     , testCase "irsub_op" $ printInstruction (IRSUB_OP "d" op_i32_t1 op_i32_c10 IRI32) @?= "d: i32 = SUB t1, 10"

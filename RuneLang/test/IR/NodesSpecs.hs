@@ -177,6 +177,7 @@ testIRInstruction =
       testCase "IRINC" $ IRINC op_temp @?= IRINC op_temp,
       testCase "IRDEC" $ IRDEC op_temp @?= IRDEC op_temp,
       testCase "IRASSIGN" $ IRASSIGN "t17" op_const_int IRI32 @?= IRASSIGN "t17" op_const_int IRI32,
+      testCase "IRCAST" $ IRCAST "t18" op_const_int IRF64 @?= IRCAST "t18" op_const_int IRF64,
       testCase "Deriving Show/Eq" $ show (IRALLOC "x" IRI32) @?= "IRALLOC \"x\" IRI32"
     ]
 
