@@ -3,8 +3,13 @@
 
 module Backend.X86_64.CodegenSpecs (codegenTests) where
 
+-- explanation: use isInfixOf to search substrings in emitted assembly
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertBool)
+import Data.List (isInfixOf)
+-- old code commented out
+-- import Test.Tasty (TestTree, testGroup)
+-- import Test.Tasty.HUnit (testCase, assertBool)
 import Rune.Backend.X86_64.Codegen
 import Rune.IR.Nodes (IRProgram(..), IRTopLevel(..), IRFunction(..), IRInstruction(..), IRType(..), IROperand(..), IRGlobalValue(..), IRLabel(..))
 
@@ -74,8 +79,14 @@ testFloatRoDataAndGlobals = testGroup "emitAssembly .rodata floats"
           asmLines = lines (emitAssembly prog)
       in do
         assertBool "Contains .rodata section" $ "section .rodata" `elem` asmLines
-        assertBool "Contains f32 dd line" $ any ("g_f32 dd  42.0" `elem`) (map words asmLines) || any ("g_f32 dd 42.0" `elem`) (map words asmLines)
-        assertBool "Contains f64 dq line" $ any ("g_f64 dq  13.37" `elem`) (map words asmLines) || any ("g_f64 dq 13.37" `elem`) (map words asmLines)
+        -- explanation: check float lines using substring matches instead of word equality
+        assertBool "Contains f32 dd line" $
+          any (isInfixOf "g_f32 dd") asmLines && any (isInfixOf "42.0") asmLines
+        assertBool "Contains f64 dq line" $
+          any (isInfixOf "g_f64 dq") asmLines && any (isInfixOf "13.37") asmLines
+        -- old code commented out
+        -- assertBool "Contains f32 dd line" $ any ("g_f32 dd  42.0" `elem`) (map words asmLines) || any ("g_f32 dd 42.0" `elem`) (map words asmLines)
+        -- assertBool "Contains f64 dq line" $ any ("g_f64 dq  13.37" `elem`) (map words asmLines) || any ("g_f64 dq 13.37" `elem`) (map words asmLines)
   ]
 
 -- explanation
@@ -93,9 +104,17 @@ testParametersAndCalls = testGroup "parameters and calls"
           prog = IRProgram [] [IRFunctionDef callee]
           asmLines = lines (emitAssembly prog)
       in do
-        assertBool "Uses mov for integer param" $ any ("mov dword" `elem`) (map words asmLines)
-        assertBool "Uses movss for f32 param" $ any ("movss dword" `elem`) (map words asmLines)
-        assertBool "Uses movsd for f64 param" $ any ("movsd qword" `elem`) (map words asmLines)
+        -- explanation: detect parameter stores by looking for expected instruction substrings
+        assertBool "Uses mov for integer param" $
+          any (isInfixOf "mov dword") asmLines
+        assertBool "Uses movss for f32 param" $
+          any (isInfixOf "movss dword") asmLines
+        assertBool "Uses movsd for f64 param" $
+          any (isInfixOf "movsd qword") asmLines
+        -- old code commented out
+        -- assertBool "Uses mov for integer param" $ any ("mov dword" `elem`) (map words asmLines)
+        -- assertBool "Uses movss for f32 param" $ any ("movss dword" `elem`) (map words asmLines)
+        -- assertBool "Uses movsd for f64 param" $ any ("movsd qword" `elem`) (map words asmLines)
 
   , testCase "Emits call with float argument and saves float result" $
       let callee =
@@ -120,8 +139,12 @@ testParametersAndCalls = testGroup "parameters and calls"
               ]
           asmLines = lines (emitAssembly prog)
       in do
-        assertBool "Contains call to callee" $ any ("call callee" `elem`) (map words asmLines)
+        -- explanation: look for direct call to callee using substring search
+        assertBool "Contains call to callee" $
+          any (isInfixOf "call callee") asmLines
         assertBool "Saves float return value with movss" $ any ("movss" `elem`) (map words asmLines)
+        -- old code commented out
+        -- assertBool "Contains call to callee" $ any ("call callee" `elem`) (map words asmLines)
 
   , testCase "Applies printf float fixup (cvtss2sd) when passing float" $
       let fmt  = IRGlobalDef "fmt" (IRGlobalStringVal "%f")
@@ -175,8 +198,9 @@ testComplexInstructions = testGroup "complex instruction emission"
               ]
           asmLines = lines (emitAssembly prog)
       in do
+        -- explanation: verify needsRegisterLoad path by checking for mov rax, <imm> pattern via substring
         assertBool "Contains mov rax for large constant (needsRegisterLoad path)" $
-          any ("mov rax," `elem`) (map (take 2 . words) asmLines)
+          any (isInfixOf "mov rax,") asmLines
         assertBool "Contains add or imul for integer binary op" $
           any (\ws -> "add" `elem` ws || "imul" `elem` ws) (map words asmLines)
         assertBool "Contains SSE float op for fsum" $
@@ -187,4 +211,7 @@ testComplexInstructions = testGroup "complex instruction emission"
           any (\ws -> "add" `elem` ws || "sub" `elem` ws) (map words asmLines)
         assertBool "Contains conditional jump based on test" $
           any (\ws -> "test" `elem` ws && any (`elem` ws) ["je", "jne"]) (map words asmLines)
+        -- old code commented out
+        -- assertBool "Contains mov rax for large constant (needsRegisterLoad path)" $
+        --   any ("mov rax," `elem`) (map (take 2 . words) asmLines)
   ]
