@@ -133,8 +133,13 @@ testParametersAndCalls = testGroup "parameters and calls"
           func = IRFunction "print_float" [] (Just IRNull) funcBody
           prog = IRProgram [] [IRExtern "printf", fmt, fval, IRFunctionDef func]
           asm = emitAssembly prog
-      in assertBool "Contains cvtss2sd for printf float argument" $
-           "cvtss2sd" `elem` (map head (filter (not . null) (map words (lines asm))))
+      in
+        -- explanation: search for cvtss2sd without using partial functions
+        assertBool "Contains cvtss2sd for printf float argument" $
+          any ("cvtss2sd" `elem`) (map words (lines asm))
+        -- old code commented out
+        -- assertBool "Contains cvtss2sd for printf float argument" $
+        --   "cvtss2sd" `elem` (map head (filter (not . null) (map words (lines asm))))
   ]
 
 -- explanation

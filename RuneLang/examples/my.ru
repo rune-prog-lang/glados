@@ -1,1 +1,4 @@
-def main() -> null { a: f64 = 32.0; show(a) }
+def main() -> null
+{
+    a: f32 = 32.0; show(32.0)
+}
