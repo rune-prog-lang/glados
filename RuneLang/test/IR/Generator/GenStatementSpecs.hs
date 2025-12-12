@@ -178,13 +178,13 @@ testGenLoopControlFlow = testGroup "genStatement loop-control-flow"
   [ testCase "StmtStop inside loop jumps to loop end label" $
       let loopBody = [StmtStop]
           result = runGen (genStatement (StmtLoop loopBody))
-          hasJumpToEnd = any isJumpToEnd result
+          hasJumpToEnd = any isJumpToLoopEnd result
       in assertBool "Should emit jump to loop end label for StmtStop" hasJumpToEnd
 
   , testCase "StmtNext inside loop jumps to loop header label" $
       let loopBody = [StmtNext]
           result = runGen (genStatement (StmtLoop loopBody))
-          hasJumpToHeader = any isJumpToHeader result
+          hasJumpToHeader = any isJumpToLoopHeader result
       in assertBool "Should emit jump to loop header label for StmtNext" hasJumpToHeader
 
   , testCase "StmtStop outside loop produces no instructions" $
@@ -196,11 +196,21 @@ testGenLoopControlFlow = testGroup "genStatement loop-control-flow"
       in result @?= []
   ]
   where
-    isJumpToEnd (IRJUMP (IRLabel ".L.loop_end0")) = True
-    isJumpToEnd _ = False
+    -- explanation
+    -- Match jumps targeting the underlying loop_header/loop_end labels used by genLoop to prove genStop/genNext hook into the right labels
+    isJumpToLoopEnd (IRJUMP (IRLabel ".L.loop_end0")) = True
+    isJumpToLoopEnd _ = False
 
-    isJumpToHeader (IRJUMP (IRLabel ".L.loop0")) = True
-    isJumpToHeader _ = False
+    isJumpToLoopHeader (IRJUMP (IRLabel ".L.loop_header0")) = True
+    isJumpToLoopHeader _ = False
+
+-- old code commented out
+--   where
+--     isJumpToEnd (IRJUMP (IRLabel ".L.loop_end0")) = True
+--     isJumpToEnd _ = False
+--
+--     isJumpToHeader (IRJUMP (IRLabel ".L.loop0")) = True
+--     isJumpToHeader _ = False
 
 -- old code commented out
 -- testGenIfControlFlow :: TestTree
