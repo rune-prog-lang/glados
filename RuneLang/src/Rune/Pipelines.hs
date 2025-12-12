@@ -8,6 +8,8 @@ module Rune.Pipelines
     compilePipeline,
     compileToObject,
     compileAsmIntoObject,
+    compileObjectIntoExecutable,
+    writeRuneInAsm,
     interpretPipeline,
     pipeline,
     verifAndGenIR,

@@ -12,7 +12,11 @@ import System.IO (hClose, hPutStr, openTempFile)
 import Data.Either (isLeft, isRight)
 
 import Rune.Pipelines
-  ( compilePipeline,
+  ( CompileMode (..),
+    compilePipeline,
+    compileToObject,
+    compileAsmIntoObject,
+    writeRuneInAsm,
     interpretPipeline,
     pipeline,
     verifAndGenIR,
@@ -24,7 +28,6 @@ import Rune.Pipelines
     safeRead,
     parseLexer,
     parseAST,
-    CompileMode(..),
   )
 import Rune.AST.Nodes (Program(..))
 import Rune.IR.Nodes (IRProgram (..))
@@ -37,7 +40,8 @@ pipelinesTests :: TestTree
 pipelinesTests =
   testGroup
     "Pipeline Tests"
-    [ pipelinesValidTests
+    [ compileModeDerivingTests
+    , pipelinesValidTests
     , pipelinesInvalidTests
     , pipelinePrivateTests
     ]
@@ -87,6 +91,34 @@ withTempFile content action = do
 -- private
 --
 
+compileModeDerivingTests :: TestTree
+compileModeDerivingTests =
+  testGroup
+    "Deriving Show/Eq Coverage for CompileMode"
+    [ testCase "Show coverage for all CompileMode constructors" $ do
+        let mode1 = ToObject
+            mode2 = ToExecutable
+            mode3 = ToAssembly
+            mode4 = FullCompile
+        assertEqual "Show ToObject" "ToObject" (show mode1)
+        assertEqual "Show ToExecutable" "ToExecutable" (show mode2)
+        assertEqual "Show ToAssembly" "ToAssembly" (show mode3)
+        assertEqual "Show FullCompile" "FullCompile" (show mode4)
+    , testCase "Eq coverage for CompileMode" $ do
+        let obj1 = ToObject
+            obj2 = ToObject
+            exe1 = ToExecutable
+            asm1 = ToAssembly
+            full1 = FullCompile
+        assertEqual "Equal modes (ToObject)" obj1 obj2
+        assertBool "Unequal modes (ToObject/ToExecutable)" (obj1 /= exe1)
+        assertBool "Unequal modes (ToObject/ToAssembly)" (obj1 /= asm1)
+        assertBool "Unequal modes (ToObject/FullCompile)" (obj1 /= full1)
+        assertBool "Unequal modes (ToExecutable/ToAssembly)" (exe1 /= asm1)
+        assertBool "Unequal modes (ToExecutable/FullCompile)" (exe1 /= full1)
+        assertBool "Unequal modes (ToAssembly/FullCompile)" (asm1 /= full1)
+    ]
+
 pipelinesValidTests :: TestTree
 pipelinesValidTests =
   testGroup
@@ -128,6 +160,10 @@ pipelinePrivateTests =
     , testCase "runPipeline_read_failure" test_runPipeline_read_failure
     , testCase "runPipelineAction_success" test_runPipelineAction_success
     , testCase "runPipelineAction_failure" test_runPipelineAction_failure
+    , testCase "writeRuneInAsm_success" test_writeRuneInAsm_success
+    , testCase "compileToObject_success" test_compileToObject_success
+    , testCase "compileAsmIntoObject_success" test_compileAsmIntoObject_success
+    , testCase "compileAsmIntoObject_failure" test_compileAsmIntoObject_failure
     ]
 
 --
@@ -322,3 +358,33 @@ test_runPipelineAction_failure = do
         let onSuccess _ = assertFailure "onSuccess should not be called"
         res <- catchExitCode (runPipelineAction fp onSuccess)
         assertEqual "runPipelineAction_failure should exit with 84" (ExitFailure 84) res
+
+test_writeRuneInAsm_success :: IO ()
+test_writeRuneInAsm_success = do
+    withTempFile "" $ \asmFile -> do
+        let irProg = mockIRProgram
+        writeRuneInAsm asmFile irProg
+        exists <- doesFileExist asmFile
+        assertBool "Output file should exist" exists
+
+test_compileToObject_success :: IO ()
+test_compileToObject_success = do
+    withTempFile "" $ \inFile -> do
+        let outFile = inFile ++ ".o"
+        compileToObject inFile outFile mockIRProgram
+        exists <- doesFileExist outFile
+        assertBool "Object file should exist" exists
+
+test_compileAsmIntoObject_success :: IO ()
+test_compileAsmIntoObject_success = do
+    withTempFile "" $ \asmFile -> do
+        let outFile = asmFile ++ ".o"
+        res <- catchExitCode (compileAsmIntoObject asmFile outFile)
+        assertEqual "compileAsmIntoObject should succeed" ExitSuccess res
+        exists <- doesFileExist outFile
+        assertBool "Object file should exist" exists
+
+test_compileAsmIntoObject_failure :: IO ()
+test_compileAsmIntoObject_failure = do
+    res <- catchExitCode (compileAsmIntoObject "non_existent.asm" "dummy.o")
+    assertEqual "compileAsmIntoObject should fail on non-existent asm file" (ExitFailure 84) res
