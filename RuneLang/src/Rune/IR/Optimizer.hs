@@ -154,6 +154,7 @@ isControlFlow _ = False
 
 simplifyInstr :: IRInstruction -> OptM IRInstruction
 simplifyInstr (IRASSIGN t op ty) = IRASSIGN t <$> simplifyOp op <*> pure ty
+simplifyInstr (IRCAST t op ty) = IRCAST t <$> simplifyOp op <*> pure ty
 simplifyInstr (IRCALL t f args rt) = IRCALL t f <$> mapM simplifyOp args <*> pure rt
 simplifyInstr (IRSTORE addr val) = IRSTORE <$> simplifyOp addr <*> simplifyOp val
 simplifyInstr (IRLOAD t addr ty) = IRLOAD t <$> simplifyOp addr <*> pure ty
@@ -216,6 +217,7 @@ renameInstr pre (IRADDR t s ty) = IRADDR (pre <> t) (pre <> s) ty
 renameInstr pre (IRINC o) = IRINC (renameOp pre o)
 renameInstr pre (IRDEC o) = IRDEC (renameOp pre o)
 renameInstr pre (IRASSIGN t o ty) = IRASSIGN (pre <> t) (renameOp pre o) ty
+renameInstr pre (IRCAST t o ty) = IRCAST (pre <> t) (renameOp pre o) ty
 
 renameOp :: String -> IROperand -> IROperand
 renameOp pre (IRTemp t ty) = IRTemp (pre <> t) ty

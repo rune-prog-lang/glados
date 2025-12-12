@@ -62,6 +62,8 @@ printFunction (IRFunction name params _ body) =
 printInstruction :: IRInstruction -> String
 printInstruction (IRASSIGN name op typ) =
   name ++ ": " ++ printType typ ++ " = " ++ printOperand op
+printInstruction (IRCAST dest op typ) =
+  dest ++ ": " ++ printType typ ++ " = CAST " ++ printOperand op
 printInstruction (IRADD_OP dest left right typ) =
   dest ++ ": " ++ printType typ ++ " = ADD " ++ printOperand left ++ ", " ++ printOperand right
 printInstruction (IRSUB_OP dest left right typ) =

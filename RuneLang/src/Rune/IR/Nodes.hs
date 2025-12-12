@@ -131,6 +131,7 @@ data IRInstruction
   | IRINC IROperand
   | IRDEC IROperand
   | IRASSIGN String IROperand IRType
+  | IRCAST String IROperand IRType
   deriving (Show, Eq)
 
 data IRFunction = IRFunction

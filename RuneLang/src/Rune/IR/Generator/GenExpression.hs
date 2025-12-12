@@ -16,6 +16,7 @@ import Rune.AST.Nodes (Expression (..))
 import Rune.IR.Generator.Expression.Binary (genBinary)
 import Rune.IR.Generator.Expression.Call (genCall)
 import Rune.IR.Generator.Expression.Call.Show (genShowCall)
+import Rune.IR.Generator.Expression.Cast (genCast)
 import Rune.IR.Generator.Expression.Literals
 import Rune.IR.Generator.Expression.Struct (genAccess, genStructInit)
 import Rune.IR.Generator.Expression.Unary (genUnary)
@@ -39,6 +40,7 @@ genExpression (ExprCall "show" [a]) = genShowCall genExpression a
 genExpression (ExprCall name args) = genCall genExpression name args
 genExpression (ExprAccess t f) = genAccess genExpression t f
 genExpression (ExprStructInit name fields) = genStructInit genExpression name fields
+genExpression (ExprCast e t) = genCast genExpression e t
 
 --
 -- private
