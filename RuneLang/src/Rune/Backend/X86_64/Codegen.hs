@@ -112,9 +112,9 @@ emitParameters params stackMap =
   let (instrs, _, _) = foldl step ([], 0, 0) params
    in instrs
   where
-    getStoreInstr irName xmmReg IRF32 = emit 1 $ "movss " stackAddr stackMap irName ++ ", " ++ xmmReg
-    getStoreInstr irName xmmReg IRF64 = emit 1 $ "movsd " stackAddr stackMap irName ++ ", " ++ xmmReg
-    getStoreInstr _ _ t               = emit 1 $ "; TODO: unsupported float param type: " ++ show t
+    getStoreInstr sizeSpec irName xmmReg IRF32 = emit 1 $ "movss " ++ sizeSpec ++ " " ++ stackAddr stackMap irName ++ ", " ++ xmmReg
+    getStoreInstr sizeSpec irName xmmReg IRF64 = emit 1 $ "movsd " ++ sizeSpec ++ " " ++ stackAddr stackMap irName ++ ", " ++ xmmReg
+    getStoreInstr _ _ _ t                      = emit 1 $ "; TODO: unsupported float param type: " ++ show t
 
     step (acc, intIdx, floatIdx) (irName, t)
       | isFloatType t && floatIdx < length x86_64FloatArgsRegisters =
