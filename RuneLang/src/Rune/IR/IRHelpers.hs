@@ -130,12 +130,22 @@ sizeOfIRType (IRPtr _) = 8 -- Ô_ö
 sizeOfIRType (IRStruct _) = 8 -- ö_Ô
 sizeOfIRType IRNull = 8
 
+-- explanation
+-- Simplify getCommonType to rely on promoteTypes and a safe IRI32 fallback for missing operand types
 getCommonType :: IROperand -> IROperand -> IRType
-getCommonType l r = case (getOperandType l, getOperandType r) of
-  (Just t1, Just t2) -> promoteTypes t1 t2
-  (Just t, Nothing) -> t
-  (Nothing, Just t) -> t
-  _ -> IRI32
+getCommonType l r =
+  case (getOperandType l, getOperandType r) of
+    (Just t1, Just t2) -> promoteTypes t1 t2
+    (Just t, _)        -> t
+    (_, Just t)        -> t
+    _                  -> IRI32
+-- old code commented out
+-- getCommonType :: IROperand -> IROperand -> IRType
+-- getCommonType l r = case (getOperandType l, getOperandType r) of
+--   (Just t1, Just t2) -> promoteTypes t1 t2
+--   (Just t, Nothing) -> t
+--   (Nothing, Just t) -> t
+--   _ -> IRI32
 
 --
 -- symbol table
@@ -209,14 +219,25 @@ createFloatGlobal :: Double -> IRType -> IRGen String
 createFloatGlobal value typ = do
   counter <- gets gsFloatCounter
   func    <- gets gsCurrentFunc
+  -- explanation
+  -- Name float literals using the '<func>_float<counter>' pattern, with 'global' as the top-level prefix
   let base = fromMaybe "global" func
-      name = "float_" ++ base ++ show counter
+      name = base ++ "_float" ++ show counter
   modify $ \s ->
     s { gsFloatCounter = counter + 1
       , gsGlobals = IRGlobalFloat name value typ : gsGlobals s
       , gsFloatMap = Map.insert value name (gsFloatMap s)
       }
   pure name
+  -- old code commented out
+  -- let base = fromMaybe "global" func
+  --     name = "float_" ++ base ++ show counter
+  -- modify $ \s ->
+  --   s { gsFloatCounter = counter + 1
+  --     , gsGlobals = IRGlobalFloat name value typ : gsGlobals s
+  --     , gsFloatMap = Map.insert value name (gsFloatMap s)
+  --     }
+  -- pure name
 
 genFormatString :: String -> IRGen ([IRInstruction], IROperand)
 genFormatString value = do

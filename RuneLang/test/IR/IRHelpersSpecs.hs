@@ -31,6 +31,7 @@ irHelpersTests =
     , testSymbolTableHelpers
     , testNamingHelpers
     , testStringGlobalHelpers
+    , testFloatGlobalHelpers
     , testControlFlowHelpers
     , testOperandHelpers
     , testSelectReturnType
@@ -251,6 +252,52 @@ testStringGlobalHelpers = testGroup "String Global Helpers"
               name @?= "str_main0"
               typ @?= IRPtr IRChar
             _ -> assertFailure "Expected IRGlobal operand"
+
+  , testCase "newStringGlobal uses 'global' prefix when outside a function" $
+      -- explanation
+      -- When no current function is set, global strings are named with 'str_global<counter>'
+      let (name, state) = runState (newStringGlobal "top") emptyState
+      in do
+        name @?= "str_global0"
+        Map.lookup "top" (gsStringMap state) @?= Just "str_global0"
+        case gsGlobals state of
+          (IRGlobalString n v : _) -> do
+            n @?= "str_global0"
+            v @?= "top"
+          _ -> assertFailure "Expected IRGlobalString for top-level string"
+  ]
+
+testFloatGlobalHelpers :: TestTree
+testFloatGlobalHelpers = testGroup "Float Global Helpers"
+  [ testCase "newFloatGlobal creates new global when not interned" $
+      -- explanation
+      -- Float globals are interned and named using '<func>_float<counter>' with 'global' as top-level prefix
+      let (name, state) = runState (newFloatGlobal 3.14 IRF32) emptyState
+      in do
+        name @?= "global_float0"
+        gsFloatCounter state @?= 1
+        Map.lookup 3.14 (gsFloatMap state) @?= Just "global_float0"
+        case gsGlobals state of
+          (IRGlobalFloat n v t : _) -> do
+            n @?= "global_float0"
+            v @?= 3.14
+            t @?= IRF32
+          _ -> assertFailure "Expected IRGlobalFloat"
+
+  , testCase "newFloatGlobal reuses existing label when value interned" $
+      -- explanation
+      -- Repeated calls with the same float literal return the same interned label without adding new globals
+      let initial =
+            emptyState
+              { gsFloatCounter = 1
+              , gsFloatMap = Map.singleton 2.71 "global_float0"
+              , gsGlobals = [IRGlobalFloat "global_float0" 2.71 IRF32]
+              }
+          (name, state) = runState (newFloatGlobal 2.71 IRF32) initial
+      in do
+        name @?= "global_float0"
+        gsFloatCounter state @?= 1
+        gsGlobals state @?= gsGlobals initial
   ]
 
 testControlFlowHelpers :: TestTree
