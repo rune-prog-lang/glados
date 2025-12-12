@@ -133,6 +133,8 @@ exprTypeTests = testGroup "exprType Tests"
   , testCase "ExprCall (unknown function)" $
       let call = ExprCall "unknownFunc" []
       in exprType stack1 call @?= Right TypeAny
+  , testCase "ExprCast Type" $
+      exprType stack1 (ExprCast (ExprLitInt 42) TypeF64) @?= Right TypeF64
   ]
 
 selectSignatureTests :: TestTree
