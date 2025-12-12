@@ -73,13 +73,16 @@ optimizeBlock (inst : rest) = do
   optimizeInstr inst' rest
 
 optimizeInstr :: IRInstruction -> [IRInstruction] -> OptM [IRInstruction]
-optimizeInstr (IRASSIGN target op _) rest =
+optimizeInstr inst@(IRASSIGN target op _) rest =
   modify' (\s -> s { osConsts = M.insert target op (osConsts s) })
-  >> optimizeBlock rest
-optimizeInstr (IRCALL target fun args _) rest =
+  >> emitInstr inst rest
+optimizeInstr inst@(IRLABEL _) rest =
+  modify' (\s -> s { osConsts = M.empty })
+  >> emitInstr inst rest
+optimizeInstr (IRCALL target fun args retType) rest =
   gets osFuncs >>= maybe (emitInstr simpleCall rest) tryInline . M.lookup fun
   where
-    simpleCall = IRCALL target fun args Nothing
+    simpleCall = IRCALL target fun args retType
     tryInline callee
       | isInlineable callee = inlineFunction target fun callee args rest
       | otherwise           = emitInstr simpleCall rest
@@ -180,6 +183,7 @@ renameInstr pre (IRASSIGN t o ty) = IRASSIGN (pre ++ t) (rOp pre o) ty
 
 rOp :: String -> IROperand -> IROperand
 rOp pre (IRTemp t ty) = IRTemp (pre ++ t) ty
+rOp pre (IRParam p ty) = IRTemp (pre ++ p) ty
 rOp _ other = other
 
 replaceRet :: String -> [IRInstruction] -> [IRInstruction]
