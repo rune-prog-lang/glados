@@ -14,7 +14,7 @@ import Control.Monad (zipWithM)
 import Control.Monad.State (gets)
 import qualified Data.HashMap.Strict as HM
 import Rune.AST.Nodes (Expression, Type)
-import Rune.IR.IRHelpers (registerCall, newTemp, astTypeToIRType)
+import Rune.IR.IRHelpers (registerCall, newTemp, astTypeToIRType, isFloatType)
 import Rune.IR.Nodes (GenState(..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
 --
@@ -67,23 +67,22 @@ genArgWithContext :: GenExprCallback -> Expression -> Type -> IRGen ([IRInstruct
 genArgWithContext genExpr expr expectedType = do
   (instrs, op, inferredType) <- genExpr expr
   let targetType = astTypeToIRType expectedType
+  
+  inferIfNeeded instrs op inferredType targetType
+  where
+    needsInference (IRConstInt _) _ _ = True
+    needsInference (IRConstChar _) _ _ = True
+    needsInference (IRConstBool _) _ _ = True
+    needsInference (IRGlobal _ _) infT targT = isFloatType infT && isFloatType targT
+    needsInference _ _ _ = False
 
-  case () of
-    _ | inferredType /= targetType
-      , isLiteral op -> do
+    inferIfNeeded instrs op inferredType targetType
+      | inferredType /= targetType && needsInference op inferredType targetType = do
           temp <- newTemp "arg" targetType
           let assign = IRASSIGN temp op targetType
           pure (instrs <> [assign], IRTemp temp targetType, targetType)
-      | otherwise ->
+      | otherwise =
           pure (instrs, op, inferredType)
-
-
-isLiteral :: IROperand -> Bool
-isLiteral (IRConstInt _) = True
-isLiteral (IRConstFloat _) = True
-isLiteral (IRConstChar _) = True
-isLiteral (IRConstBool _) = True
-isLiteral _ = False
 
 --
 -- private
