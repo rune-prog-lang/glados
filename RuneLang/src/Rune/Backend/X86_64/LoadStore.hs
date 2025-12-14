@@ -1,3 +1,20 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.Backend.X86_64.LoadStore (
+  stackAddr,
+  operandAddr,
+  needsRegisterLoad,
+  getTestReg,
+  storeReg,
+  moveStackToStack,
+  loadReg,
+  loadRegWithExt,
+  varStackAddr,
+  extendVar,
+  loadVarReg,
+) where
+#else
 module Rune.Backend.X86_64.LoadStore (
   stackAddr,
   operandAddr,
@@ -8,6 +25,7 @@ module Rune.Backend.X86_64.LoadStore (
   loadReg,
   loadRegWithExt,
 ) where
+#endif
 
 import Data.Map (Map)
 import qualified Data.Map as Map
