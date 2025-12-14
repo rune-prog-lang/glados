@@ -125,12 +125,10 @@ def test_multiplication() -> null
     result_i64: i64 = 100000 * 200000;
     result_f32: f32 = 1.5 * 2.5;
     result_f64: f64 = 2.5 * 3.5;
-    /*
     result_u8:  u8  = 10 * 20;
     result_u16: u16 = 300 * 400;
     result_u32: u32 = 1000 * 2000;
     result_u64: u64 = 100000 * 200000;
-    */
 
     assert(result_i8  == 200,         "i8 multiplication failed");
     assert(result_i16 == 120000,      "i16 multiplication failed");
@@ -138,15 +136,12 @@ def test_multiplication() -> null
     assert(result_i64 == 20000000000, "i64 multiplication failed");
     assert(result_f32 == 3.75,        "f32 multiplication failed");
     assert(result_f64 == 8.75,        "f64 multiplication failed");
-    /*
     assert(result_u8  == 200,         "u8 multiplication failed");
     assert(result_u16 == 120000,      "u16 multiplication failed");
     assert(result_u32 == 2000000,     "u32 multiplication failed");
     assert(result_u64 == 20000000000, "u64 multiplication failed");
-    */
 }
 
-/*
 def test_division() -> null
 {
     result_i8:  i8  = 20 / 10;
@@ -164,21 +159,18 @@ def test_division() -> null
     assert(result_i16 == 1,      "i16 division failed");
     assert(result_i32 == 2,      "i32 division failed");
     assert(result_i64 == 2,      "i64 division failed");
-    assert(result_f32 == 1.6666667, "f32 division failed");
+    assert(result_f32 == 1.6666666, "f32 division failed");
     assert(result_f64 == 1.4,    "f64 division failed");
     assert(result_u8  == 2,      "u8 division failed");
     assert(result_u16 == 1,      "u16 division failed");
     assert(result_u32 == 2,      "u32 division failed");
     assert(result_u64 == 2,      "u64 division failed");
 }
-*/
 
 def main() -> null
 {
     test_addition();
     test_subtraction();
-    /*
     test_multiplication();
     test_division();
-    */
 }
