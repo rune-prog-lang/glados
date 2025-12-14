@@ -167,10 +167,32 @@ def test_division() -> null
     assert(result_u64 == 2,      "u64 division failed");
 }
 
+def test_modulo() -> null
+{
+    result_i8:  i8  = 20 % 6;
+    result_i16: i16 = 400 % 300;
+    result_i32: i32 = 2000 % 1000;
+    result_i64: i64 = 200000 % 100000;
+    result_u8:  u8  = 20 % 6;
+    result_u16: u16 = 400 % 300;
+    result_u32: u32 = 2000 % 1000;
+    result_u64: u64 = 200000 % 100000;
+
+    assert(result_i8  == 2,      "i8 modulo failed");
+    assert(result_i16 == 100,    "i16 modulo failed");
+    assert(result_i32 == 0,      "i32 modulo failed");
+    assert(result_i64 == 0,      "i64 modulo failed");
+    assert(result_u8  == 2,      "u8 modulo failed");
+    assert(result_u16 == 100,    "u16 modulo failed");
+    assert(result_u32 == 0,      "u32 modulo failed");
+    assert(result_u64 == 0,      "u64 modulo failed");
+}
+
 def main() -> null
 {
     test_addition();
     test_subtraction();
     test_multiplication();
     test_division();
+    test_modulo();
 }
