@@ -135,6 +135,8 @@ isTypeCompatible expected actual
   | sameType expected actual = True
   | actual == TypeI32 && isIntegerType expected = True
   | actual == TypeF32 && isFloatType expected   = True
+  | isIntegerType expected && isIntegerType actual = True
+  | isFloatType expected && isFloatType actual = True
   | otherwise = False
 
 checkMultipleType :: String -> Maybe Type -> Type -> Either String Type
