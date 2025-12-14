@@ -3,7 +3,8 @@
 #if defined(TESTING_EXPORT)
 module Rune.IR.Generator.Expression.Call
   ( genCall,
-    prepareArg
+    prepareArg,
+    genArgWithContext
   )
 where
 #else
