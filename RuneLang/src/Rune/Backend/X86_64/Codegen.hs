@@ -150,6 +150,7 @@ emitInstruction sm _ (IRADDR dest source typ) = emitAddr sm dest source typ
 emitInstruction sm _ (IRADD_OP dest l r t) = emitBinaryOp sm dest "add" l r t
 emitInstruction sm _ (IRSUB_OP dest l r t) = emitBinaryOp sm dest "sub" l r t
 emitInstruction sm _ (IRMUL_OP dest l r t) = emitBinaryOp sm dest "imul" l r t
+emitInstruction sm _ (IRDIV_OP dest l r t) = emitDivOp sm dest l r t
 emitInstruction sm _ (IRAND_OP dest l r t) = emitBinaryOp sm dest "and" l r t
 emitInstruction sm _ (IROR_OP dest l r t) = emitBinaryOp sm dest "or" l r t
 emitInstruction sm _ (IRCMP_EQ dest l r) = emitCompare sm dest Cmp.CmpEQ l r
@@ -334,6 +335,7 @@ emitConditionalJump sm op jumpInstr lbl =
 emitBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> IRType -> [String]
 emitBinaryOp sm dest asmOp leftOp rightOp t
   | isFloatType t = emitFloatBinaryOp sm dest asmOp leftOp rightOp t
+  | asmOp == "imul" && t `elem` [IRI8, IRU8, IRI16, IRU16] = emitSmallMul sm dest leftOp rightOp t
   | otherwise =
       let regL = getRegisterName "rax" t
           regR = getRegisterName "rbx" t
@@ -341,6 +343,23 @@ emitBinaryOp sm dest asmOp leftOp rightOp t
        <> loadReg sm "rbx" rightOp
        <> [emit 1 $ asmOp <> " " <> regL <> ", " <> regR]
        <> [storeReg sm dest "rax" t]
+
+emitSmallMul :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
+emitSmallMul sm dest leftOp rightOp t =
+  case t of
+    IRI8  -> emitExtMul "movsx" "eax" "edx" "al" "dl"
+    IRU8  -> emitExtMul "movzx" "eax" "edx" "al" "dl"
+    IRI16 -> emitExtMul "movsx" "eax" "edx" "ax" "dx"
+    IRU16 -> emitExtMul "movzx" "eax" "edx" "ax" "dx"
+    _     -> []
+  where
+    emitExtMul extInstr regA regB srcA srcB =
+      loadReg sm "rax" leftOp
+        <> [emit 1 $ extInstr <> " " <> regA <> ", " <> srcA]
+        <> loadReg sm "rdx" rightOp
+        <> [emit 1 $ extInstr <> " " <> regB <> ", " <> srcB]
+        <> [emit 1 $ "imul " <> regA <> ", " <> regB]
+        <> [storeReg sm dest "rax" t]
 
 emitFloatBinaryOp
   :: Map String Int
@@ -383,6 +402,70 @@ emitFloatBinaryOp sm dest asmOp leftOp rightOp t =
     store IRF32 = emit 1 $ "movss dword " <> stackAddr sm dest <> ", " <> xmmL
     store IRF64 = emit 1 $ "movsd qword " <> stackAddr sm dest <> ", " <> xmmL
     store other = emit 1 $ "; TODO: unsupported float binary result type: " <> show other
+
+emitDivOp :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
+emitDivOp sm dest leftOp rightOp t
+  | isFloatType t = emitFloatDivOp sm dest leftOp rightOp t
+  | otherwise = emitIntDivOp sm dest leftOp rightOp t
+
+emitFloatDivOp :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
+emitFloatDivOp sm dest leftOp rightOp t =
+  load leftOp xmmL t
+    <> load rightOp xmmR t
+    <> [emit 1 (divInstr <> " " <> xmmL <> ", " <> xmmR)]
+    <> [store t]
+  where
+    (xmmL, xmmR) =
+      case x86_64FloatArgsRegisters of
+        r0 : r1 : _ -> (r0, r1)
+        _           -> ("xmm0", "xmm1")
+    
+    load op reg ty = loadFloatOperand sm reg op ty
+    
+    divInstr = case t of
+      IRF32 -> "divss"
+      IRF64 -> "divsd"
+      _     -> "divss"
+    
+    store IRF32 = emit 1 $ "movss dword " <> stackAddr sm dest <> ", " <> xmmL
+    store IRF64 = emit 1 $ "movsd qword " <> stackAddr sm dest <> ", " <> xmmL
+    store other = emit 1 $ "; TODO: unsupported float div result type: " <> show other
+
+emitIntDivOp :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
+emitIntDivOp sm dest leftOp rightOp t =
+  case t of
+    IRI8  -> emitSmallDiv sm dest leftOp rightOp "movsx" "eax" "ecx" "al" "cl" "cdq" "idiv" t
+    IRU8  -> emitSmallDiv sm dest leftOp rightOp "movzx" "eax" "ecx" "al" "cl" "xor edx, edx" "div" t
+    IRI16 -> emitSmallDiv sm dest leftOp rightOp "movsx" "eax" "ecx" "ax" "cx" "cdq" "idiv" t
+    IRU16 -> emitSmallDiv sm dest leftOp rightOp "movzx" "eax" "ecx" "ax" "cx" "xor edx, edx" "div" t
+    IRI32 -> emit32Div sm dest leftOp rightOp "cdq" "idiv"
+    IRU32 -> emit32Div sm dest leftOp rightOp "xor edx, edx" "div"
+    IRI64 -> emit64Div sm dest leftOp rightOp "cqo" "idiv"
+    IRU64 -> emit64Div sm dest leftOp rightOp "xor rdx, rdx" "div"
+    _     -> [emit 1 $ "; TODO: unsupported integer division type: " <> show t]
+  where
+    emitSmallDiv sm' dest' leftOp' rightOp' extInstr regA regB srcA srcB signExt divInstr typ =
+      loadReg sm' "rax" leftOp'
+        <> [emit 1 $ extInstr <> " " <> regA <> ", " <> srcA]
+        <> loadReg sm' "rcx" rightOp'
+        <> [emit 1 $ extInstr <> " " <> regB <> ", " <> srcB]
+        <> [emit 1 signExt]
+        <> [emit 1 $ divInstr <> " " <> regB]
+        <> [storeReg sm' dest' "rax" typ]
+    
+    emit32Div sm' dest' leftOp' rightOp' signExt divInstr =
+      loadReg sm' "rax" leftOp'
+        <> [emit 1 signExt]
+        <> loadReg sm' "rbx" rightOp'
+        <> [emit 1 $ divInstr <> " ebx"]
+        <> [storeReg sm' dest' "rax" t]
+    
+    emit64Div sm' dest' leftOp' rightOp' signExt divInstr =
+      loadReg sm' "rax" leftOp'
+        <> [emit 1 signExt]
+        <> loadReg sm' "rbx" rightOp'
+        <> [emit 1 $ divInstr <> " rbx"]
+        <> [storeReg sm' dest' "rax" t]
 
 emitRmWarning :: [String]
 emitRmWarning =
