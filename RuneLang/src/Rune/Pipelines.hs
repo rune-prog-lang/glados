@@ -128,7 +128,7 @@ translateRuneInAsm = emitAssembly
 compileAsmToObject :: String -> FilePath -> IO ()
 compileAsmToObject asmContent objFile = do
   tmpDir <- getTemporaryDirectory
-  bracket (openTempFile tmpDir "asm.asm")
+  bracket (openTempFile tmpDir "asm-XXXXXX.asm")
           (\(asmFile, h) -> hClose h >> removeFile asmFile)
           (\(asmFile, h) -> do
               hPutStr h asmContent >> hClose h
