@@ -416,7 +416,7 @@ runCLIActionTests =
           (_, _) <- capture (try (runCLI (CompileAll (testFolder ++ testFile) (Just (testFolder ++ "specified.bin")))) :: IO (Either SomeException ()))
           assertBool "Should attempt compilation" True
         )
-    , testCaseWithSetup "runCLI (CompileToObj file Nothing) uses default .o extension"
+    , testCaseWithSetup "runCLI (CompileToObj file Nothing) uses default output file by replacing input extension with .o"
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
@@ -430,7 +430,7 @@ runCLIActionTests =
           (_, _) <- capture (try (runCLI (CompileToObj (testFolder ++ testFile) (Just (testFolder ++ "custom.o")))) :: IO (Either SomeException ()))
           assertBool "Should attempt object compilation" True
         )
-    , testCaseWithSetup "runCLI (CreateAsm file Nothing) uses default .asm extension"
+    , testCaseWithSetup "runCLI (CreateAsm file Nothing) uses output file with .asm extension replacing input file's extension"
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
