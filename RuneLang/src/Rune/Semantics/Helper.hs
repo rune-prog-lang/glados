@@ -127,7 +127,6 @@ checkMultipleType v file line col (Just t) e_t
   | otherwise = Left $ SemanticError file line col (printf "variable '%s' to have type %s" v (show t)) (printf "type %s being assigned" (show e_t)) ["type check", "global context"]
 
 checkEachParam :: Stack -> String -> Int -> Int -> Int -> [Expression] -> [Type] -> Maybe SemanticError
-checkEachParam _ _ _ _ _ [] [] = Nothing
 checkEachParam s file line col i (_:es) (TypeAny:at) = checkEachParam s file line col (i + 1) es at
 checkEachParam s file line col i (e:es) (t:at) =
   let expected = printf "argument %d to have type %s" i (show t)
@@ -135,6 +134,7 @@ checkEachParam s file line col i (e:es) (t:at) =
   in if exprType s e == t
      then checkEachParam s file line col (i + 1) es at
      else Just $ SemanticError file line col expected got ["parameter check", "function call", "global context"]
+checkEachParam _ _ _ _ _ [] [] = Nothing
 checkEachParam _ file line col i [] at =
   let expected = printf "%d arguments" (length at + i)
       got = printf "%d arguments (too few)" i

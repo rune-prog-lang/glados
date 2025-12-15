@@ -25,16 +25,27 @@ import Rune.Semantics.Helper
   , formatSemanticError
   )
 
-verifVars :: Program -> Either String Program
+verifVars :: Program -> Either String (Program, FuncStack)
 verifVars prog@(Program n defs) = do
   fs        <- findFunc prog
   defs'     <- mapM (verifDefs fs) defs
-  pure $ Program n defs'
+  let fs' = mangleFuncStack fs
+  pure $ (Program n defs', fs')
 
 -- Convert SemanticError to String
 convertError :: Either SemanticError a -> Either String a
 convertError (Left err) = Left (formatSemanticError err)
 convertError (Right x) = Right x
+mangleFuncStack :: FuncStack -> FuncStack
+mangleFuncStack fs = HM.foldlWithKey' expandOverloads fs fs
+  where
+    expandOverloads acc name sigs
+      | length sigs > 1 = foldr (addMangled name) acc sigs
+      | otherwise = acc
+    
+    addMangled name (ret, args) acc =
+        let mName = mangleName name ret args
+        in HM.insert mName [(ret, args)] acc
 
 verifDefs :: FuncStack -> TopLevelDef -> Either String TopLevelDef
 -- r_t : return type
@@ -197,4 +208,3 @@ verifExpr (_, vs) (ExprVar pos var) =
 
 -- maybe other cases i just don't try for now
 verifExpr _ expr = Right expr
-
