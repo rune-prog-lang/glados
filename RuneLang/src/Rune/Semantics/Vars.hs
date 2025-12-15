@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 
 #if defined(TESTING_EXPORT)
@@ -43,9 +44,10 @@ import Rune.Semantics.Helper
 --
 
 data SemState = SemState
-  { stFuncs     :: FuncStack      -- << known signatures
-  , stTemplates :: Templates      -- << generic functions ('any')
-  , stNewDefs   :: [TopLevelDef]  -- << new functions
+  { stFuncs        :: FuncStack               -- << known signatures
+  , stTemplates    :: Templates               -- << generic functions ('any')
+  , stNewDefs      :: [TopLevelDef]           -- << new functions
+  , stInstantiated :: HM.HashMap String Bool  -- << cache of instantiated templates
   }
 
 type SemM a = StateT SemState (Either String) a
@@ -64,11 +66,12 @@ verifVars (Program n defs) = do
   let initialState = SemState 
         { stFuncs = fs
         , stTemplates = templatesMap
-        , stNewDefs = [] 
+        , stNewDefs = []
+        , stInstantiated = HM.empty
         }
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
-  let allDefs = defs' ++ stNewDefs finalState
+  let allDefs = defs' <> stNewDefs finalState
       finalFs = mangleFuncStack (stFuncs finalState)
   
   pure (Program n allDefs, finalFs)
@@ -290,25 +293,39 @@ verifExprWithContext _ _ expr = pure expr
 
 tryInstantiateTemplate :: TopLevelDef -> String -> [Expression] -> [Type] -> Maybe Type -> SemM Expression
 tryInstantiateTemplate def originalName args argTypes contextRetType = do
-    resolvedRetType <- case contextRetType of
-            Just t | t /= TypeAny -> pure t
-            _ -> case argTypes of
-                    (t:_) -> pure t
-                    []    -> lift $ Left $ printf "Generic function '%s' cannot be instantiated: no arguments provided and no return type context." originalName
+  retTy <- resolveReturnType originalName argTypes contextRetType
+  let mangled = mangleName originalName retTy argTypes
 
-    let mangledName = mangleName originalName resolvedRetType argTypes
+  alreadyInstantiated mangled >>= \case
+    True  -> pure $ call mangled
+    False -> do
+      verified <- verifTopLevel (instantiate def argTypes retTy)
+      registerInstantiation mangled verified retTy argTypes
+      pure $ call mangled
+  where
+    call name = ExprCall name args
 
-    funcs <- gets stFuncs
-    if HM.member mangledName funcs
-       then pure $ ExprCall mangledName args
-       else do
-           let newDef = instantiate def argTypes resolvedRetType
-           
-           verifiedDef <- verifTopLevel newDef
+resolveReturnType :: String -> [Type] -> Maybe Type -> SemM Type
+resolveReturnType originalName argTypes mCtx =
+  case mCtx of
+    Just t | t /= TypeAny -> pure t
+    _ -> fromArgs
+  where
+    fromArgs = case argTypes of
+      t:_ -> pure t
+      []  -> lift $ Left $
+        printf
+          "Generic function '%s' cannot be instantiated: no arguments provided and no return type context."
+          originalName
 
-           modify $ \st -> st 
-             { stNewDefs = stNewDefs st ++ [verifiedDef] 
-             , stFuncs = HM.insertWith (++) mangledName [(resolvedRetType, argTypes)] (stFuncs st)
-             }
+alreadyInstantiated :: String -> SemM Bool
+alreadyInstantiated name = HM.member name <$> gets stInstantiated
 
-           pure $ ExprCall mangledName args
+registerInstantiation :: String -> TopLevelDef -> Type -> [Type] -> SemM ()
+registerInstantiation name def retTy argTys =
+  modify $ \st -> st
+    { stNewDefs      = stNewDefs st <> [def]
+    , stFuncs        = HM.insertWith (<>) name [(retTy, argTys)] (stFuncs st)
+    , stInstantiated = HM.insert name True (stInstantiated st)
+    }
+
