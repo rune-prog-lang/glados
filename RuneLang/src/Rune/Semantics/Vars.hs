@@ -202,7 +202,7 @@ verifExpr (_, vs) (ExprVar pos var) =
     then pure (ExprVar pos var)
     else Left $ formatSemanticError $ SemanticError
            file line col
-           (printf "variable '%s' to be defined" var)
+           (printf "Undefined variable '%s'" var)
            "undefined variable"
            ["variable reference", "global context"]
 
