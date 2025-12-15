@@ -46,7 +46,7 @@ import Rune.Semantics.Vars (verifVars)
 import Rune.SanityChecks (performSanityChecks)
 import Rune.Semantics.Type (FuncStack)
 import Text.Megaparsec (errorBundlePretty)
-import System.Process (system)
+import System.Process (rawSystem)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess))
 import System.FilePath (takeExtension, dropExtension)
 import System.IO (hPutStr, hClose, openTempFile)
@@ -133,13 +133,13 @@ compileAsmToObject asmContent objFile = do
           (\(asmFile, h) -> hClose h >> removeFile asmFile)
           (\(asmFile, h) -> do
               hPutStr h asmContent >> hClose h
-              exitCode <- system $ "nasm -f elf64 " ++ asmFile ++ " -o " ++ objFile
+              exitCode <- rawSystem "nasm" ["-f", "elf64", asmFile, "-o", objFile]
               when (exitCode /= ExitSuccess) $
                 logError $ "Assembly to object compilation failed with exit code: " ++ show exitCode)
 
 compileObjectIntoExecutable :: FilePath -> FilePath -> IO ()
 compileObjectIntoExecutable objFile exeFile = do
-  exitCode <- system $ "gcc -no-pie " ++ objFile ++ " -o " ++ exeFile
+  exitCode <- rawSystem "gcc" ["-no-pie", objFile, "-o", exeFile]
   case exitCode of
     ExitSuccess -> return ()
     ExitFailure code -> logError $ "Object to executable compilation failed with exit code: " ++ show code

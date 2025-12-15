@@ -6,6 +6,7 @@ module Core.PipelinesSpecs (pipelinesTests) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertEqual, assertFailure, assertBool)
 import Control.Exception (catch, bracket)
+import Control.Monad (when)
 import System.Exit (ExitCode(..))
 import System.Directory (removeFile, doesFileExist, getTemporaryDirectory)
 import System.IO (hClose, hPutStr, openTempFile)
@@ -14,6 +15,7 @@ import Data.Either (isLeft, isRight)
 import Rune.Pipelines
   ( CompileMode (..),
     compilePipeline,
+    compileAsmToObject,
     translateRuneInAsm,
     interpretPipeline,
     pipeline,
@@ -84,6 +86,11 @@ withTempFile content action = do
              hPutStr h content
              hClose h
              action fp)
+
+removeFileIfExists :: FilePath -> IO ()
+removeFileIfExists fp = do
+  exists <- doesFileExist fp
+  when exists (removeFile fp)
 
 --
 -- private
@@ -159,6 +166,8 @@ pipelinePrivateTests =
     , testCase "runPipelineAction_success" test_runPipelineAction_success
     , testCase "runPipelineAction_failure" test_runPipelineAction_failure
     , testCase "translateRuneInAsm_success" test_translateRuneInAsm_success
+    , testCase "compileAsmToObject_success" test_compileAsmToObject_success
+    , testCase "compileAsmToObject_failure" test_compileAsmToObject_failure
     ]
 
 --
@@ -367,3 +376,30 @@ test_translateRuneInAsm_success = do
                 Left _ -> assertFailure "checkSemantics failed"
             Left _ -> assertFailure "Parser failed"
         Left _ -> assertFailure "Lexer failed"
+
+test_compileAsmToObject_success :: IO ()
+test_compileAsmToObject_success = do
+    let asmContent = "mov rax, 60\nmov rdi, 0\nsyscall\n"
+    tmpDir <- getTemporaryDirectory
+    bracket (openTempFile tmpDir "test.o")
+        (\(objFile, _) -> removeFileIfExists objFile)
+        (\(objFile, h) -> do
+            hClose h
+            removeFileIfExists objFile
+            compileAsmToObject asmContent objFile
+            exists <- doesFileExist objFile
+            assertBool "compileAsmToObject should create .o file" exists)
+
+test_compileAsmToObject_failure :: IO ()
+test_compileAsmToObject_failure = do
+    let invalidAsm = "invalid instruction xyz abc def\n"
+    tmpDir <- getTemporaryDirectory
+    bracket (openTempFile tmpDir "test.o")
+        (\(objFile, _) -> removeFileIfExists objFile)
+        (\(objFile, h) -> do
+            hClose h
+            caught <- catch (compileAsmToObject invalidAsm objFile >> return False)
+                            (\case
+                              ExitFailure 84 -> return True
+                              _ -> return False)
+            assertBool "compileAsmToObject should exit with 84 on invalid ASM" caught)
