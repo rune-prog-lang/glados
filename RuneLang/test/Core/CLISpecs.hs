@@ -155,7 +155,7 @@ cliParseTests =
 runCLIShowUsageTest :: TestTree
 runCLIShowUsageTest = testCase "runCLI ShowUsage prints correct usage message" $ do
     (output, _) <- capture (runCLI ShowUsage)
-    assertEqual "Output should match usage string" usageString output
+    assertEqual "Output should match usage string" usageString (clenOutput output)
 
 runCLIActionTests :: TestTree
 runCLIActionTests =
