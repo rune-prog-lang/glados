@@ -54,13 +54,14 @@ checkParamType s@(fs, _) fname file line col es =
                          Left _ -> checkAll (mkError (printf "matching signature for %s with arguments %s" fname (show $ map (exprType s) es)) "no matching overload") sigs
                          Right r  -> Right r
   where
-    -- if there is 1 signature so no override
+    checkSingle :: (Type, [Type]) -> Either SemanticError String
     checkSingle (_, at) =
       case checkEachParam s file line col 0 es at of
         Nothing  -> Right fname
         Just err -> Left err
 
     -- if multiple signature so mangle name
+    checkAll :: SemanticError -> [(Type, [Type])] -> Either SemanticError String
     checkAll err_msg [] = Left err_msg
     checkAll err_msg ((ret, at):rest) =
       case checkEachParam s file line col 0 es at of
@@ -68,8 +69,9 @@ checkParamType s@(fs, _) fname file line col es =
         Just _   -> checkAll err_msg rest
 
 mangleName :: String -> Type -> [Type] -> String
-mangleName fname ret args =
-    intercalate "_" (show ret : fname : map show args)
+mangleName fname ret args
+  | TypeAny `elem` args || ret == TypeAny = fname
+  | otherwise = intercalate "_" (show ret : fname : map show args)
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
 selectSignature fs name at =

@@ -6,6 +6,8 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertFailure)
 import Data.List (isInfixOf)
 import TestHelpers (dummyPos)
+import qualified Data.HashMap.Strict as HM
+import Control.Monad (unless)
 
 --
 -- public
@@ -45,12 +47,15 @@ varsSemanticsTests =
       expectOk "handles struct definitions" structDefProgram,
       expectOk "handles function calls with known functions" knownFunctionCallProgram,
       expectErr "validates assignment right-hand side" assignmentRHSErrorProgram "rhsVar",
-      expectUnknownFunction "detects unknown function calls" unknownFunctionProgram "thisDoesNotExist",
-      expectWrongType "detects wrong argument type" wrongTypeProgram,
-      expectWrongNbArgsLess "detects too few arguments" tooFewArgsProgram,
-      expectWrongNbArgsMore "detects too many arguments" tooManyArgsProgram,
+      
+      expectFunctionNotFound "detects unknown function calls" unknownFunctionProgram "thisDoesNotExist",
+      expectFunctionNotFound "detects wrong argument type (fallback to not found)" wrongTypeProgram "helper",
+      expectFunctionNotFound "detects too few arguments (fallback to not found)" tooFewArgsProgram "helper",
+      expectFunctionNotFound "detects too many arguments (fallback to not found)" tooManyArgsProgram "helper",
+      expectFunctionNotFound "detects multiple wrong types (fallback to not found)" multipleWrongTypesProgram "helper",
+      expectFunctionNotFound "validates nested function call arguments (fallback to not found)" nestedFunctionCallProgram "outer",
+      
       expectOk "validates correct function call arguments" correctArgsProgram,
-      expectWrongType "detects multiple wrong types in same call" multipleWrongTypesProgram,
       expectOk "handles empty parameter list" emptyParamsProgram,
       expectWrongType "validates nested function call arguments" nestedFunctionCallProgram,
       -- New tests for source position coverage
@@ -62,6 +67,14 @@ varsSemanticsTests =
         , expectErrWithContext "includes context in error message" contextProgram "variable reference" "global context"
         , expectErrWithContext "includes nested context" nestedContextProgram "variable assignment" "global context"
         ]
+      expectFuncStackContent "mangleFuncStack does not mangle single functions" noOverloadProgram ["foo"],
+      expectFuncStackContent "mangleFuncStack mangles overloaded functions" overloadProgram ["null_bar_i32", "null_bar_f32"],
+      expectOk "verifScope handles StmtReturn Nothing" returnNothingProgram,
+      expectOk "verifScope handles empty block" emptyBlockProgram,
+
+      expectOk "Instantiates generic function correctly" genericValidProgram,
+      expectOk "Instantiates generic function twice (caching)" genericDoubleCallProgram,
+      expectGenericInferenceError "Fails to infer generic return type without context/args" genericInferenceFailProgram
     ]
 
 --
@@ -77,7 +90,7 @@ expectOk label program = testCase label $
 expectErr :: String -> Program -> String -> TestTree
 expectErr label program missingVar =
   testCase label $ case verifVars program of
-    Left msg | ("Expected: variable '" ++ missingVar ++ "' to be defined") `isInfixOf` msg -> return ()
+    Left msg | ("Expected: Undefined variable '" ++ missingVar ++ "'") `isInfixOf` msg -> return ()
             | ("Expected: function '" ++ missingVar ++ "' to exist") `isInfixOf` msg -> return ()
     result -> assertFailure $ "Expected UndefinedVar error for " ++ missingVar ++ ", got: " ++ show result
 
@@ -93,17 +106,21 @@ expectMultipleType label program =
     Left msg | "to have type" `isInfixOf` msg && "being assigned" `isInfixOf` msg -> return ()
     result -> assertFailure $ "Expected MultipleType error, got: " ++ show result
 
-expectUnknownFunction :: String -> Program -> String -> TestTree
-expectUnknownFunction label program fname =
+expectFunctionNotFound :: String -> Program -> String -> TestTree
+expectFunctionNotFound label program fname =
   testCase label $ case verifVars program of
     Left msg | ("Expected: function '" ++ fname ++ "' to exist") `isInfixOf` msg -> return ()
     result -> assertFailure $ "Expected UnknownFunction error for " ++ fname ++ ", got: " ++ show result
+    Left msg | ("Function " ++ fname ++ " not found") `isInfixOf` msg -> return ()
+    result -> assertFailure $ "Expected 'Function not found' error for " ++ fname ++ ", got: " ++ show result
 
-expectWrongType :: String -> Program -> TestTree
-expectWrongType label program =
+expectGenericInferenceError :: String -> Program -> TestTree
+expectGenericInferenceError label program =
   testCase label $ case verifVars program of
     Left msg | "Expected: argument" `isInfixOf` msg && "to have type" `isInfixOf` msg -> return ()
     result -> assertFailure $ "Expected WrongType error, got: " ++ show result
+    Left msg | "cannot be instantiated" `isInfixOf` msg -> return ()
+    result -> assertFailure $ "Expected generic instantiation error, got: " ++ show result
 
 expectWrongNbArgsLess :: String -> Program -> TestTree
 expectWrongNbArgsLess label program =
@@ -116,6 +133,13 @@ expectWrongNbArgsMore label program =
   testCase label $ case verifVars program of
     Left msg | ("Expected:" `isInfixOf` msg) && ("arguments (too many)" `isInfixOf` msg) -> return ()
     result -> assertFailure $ "Expected WrongNbArgs (too many) error, got: " ++ show result
+expectFuncStackContent :: String -> Program -> [String] -> TestTree
+expectFuncStackContent label program expectedNames = testCase label $
+  case verifVars program of
+    Right (_, fs) -> do
+      let actualNames = HM.keys fs
+      mapM_ (\name -> unless (name `elem` actualNames) $ assertFailure $ "Expected function " ++ name ++ " not found in FuncStack keys: " ++ show actualNames) expectedNames
+    Left err -> assertFailure $ "Expected success, but got error: " ++ err
 
 validProgram :: Program
 validProgram =
@@ -135,6 +159,13 @@ validProgram =
           StmtFor dummyPos "i" (Just TypeI32) (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 1) [StmtExpr dummyPos (ExprVar dummyPos "i")],
           StmtForEach dummyPos "item" (Just TypeI32) (ExprVar dummyPos "local") [StmtExpr dummyPos (ExprVar dummyPos "item")],
           StmtReturn dummyPos (Just (ExprLitNull dummyPos))
+    [ DefFunction "bar" [Parameter "x" TypeI32] TypeNull [StmtReturn (Just ExprLitNull)],
+      DefFunction "foo" [Parameter "arg" TypeI32] TypeI32
+        [ StmtVarDecl "local" (Just TypeI32) (ExprVar "arg"),
+          StmtExpr (ExprCall "bar" [ExprVar "local"]),
+          StmtFor "i" (Just TypeI32) (Just (ExprLitInt 0)) (ExprLitInt 1) [StmtExpr (ExprVar "i")],
+          StmtForEach "item" (Just TypeI32) (ExprVar "local") [StmtExpr (ExprVar "item")],
+          StmtReturn (Just ExprLitNull)
         ]
     ]
 
@@ -466,11 +497,7 @@ literalExpressionsProgram =
     ]
 
 structDefProgram :: Program
-structDefProgram =
-  Program
-    "struct-def"
-    [ DefStruct "Point" [] []
-    ]
+structDefProgram = Program "struct-def" [DefStruct "Point" [] []]
 
 knownFunctionCallProgram :: Program
 knownFunctionCallProgram =

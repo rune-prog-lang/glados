@@ -9,7 +9,7 @@ import qualified Data.HashMap.Strict as HM
 import TestHelpers (dummyPos)
 import qualified Data.Set as Set
 import Rune.IR.Generator (generateIR, initialState, getDefinedFuncName)
-import Rune.IR.Nodes (IRProgram(..), IRTopLevel(..), IRFunction(..), IRType(..), IRInstruction(..), GenState(..))
+import Rune.IR.Nodes (IRProgram(..), IRTopLevel(..), IRFunction(..), IRType(..), IRInstruction(..), GenState(..), IRGlobalValue(..))
 import Rune.AST.Nodes (Program(..), TopLevelDef(..), Type(..), Statement(..), Expression(..), Field(..), Parameter(..))
 
 --
@@ -206,8 +206,8 @@ testGetDefinedFuncName = testGroup "getDefinedFuncName"
   , testCase "Returns empty list for IRExtern" $
       getDefinedFuncName (IRExtern "ext") @?= []
 
-  , testCase "Returns empty list for IRGlobalString" $
-      getDefinedFuncName (IRGlobalString "str" "val") @?= []
+  , testCase "Returns empty list for IRGlobal" $
+      getDefinedFuncName (IRGlobalDef "str" (IRGlobalStringVal "val")) @?= []
 
   , testCase "Returns empty list for IRStructDef" $
       getDefinedFuncName (IRStructDef "S" []) @?= []

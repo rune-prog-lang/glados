@@ -53,7 +53,7 @@ mangleNameTests = testGroup "mangleName Tests"
   , testCase "Mangles with custom and mixed types" $
       mangleName "print" TypeNull [TypeCustom "Vec", TypeI32] @?= "null_print_Vec_i32"
   , testCase "Mangles with TypeAny" $
-      mangleName "method" TypeAny [TypeI32] @?= "any_method_i32"
+      mangleName "method" TypeAny [TypeI32] @?= "method"
   ]
 
 assignVarTypeTests :: TestTree
