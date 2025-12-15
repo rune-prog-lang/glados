@@ -18,6 +18,8 @@ import Rune.AST.Nodes (Program (..))
 import Rune.IR.Generator.GenTopLevel (genTopLevel)
 import Rune.IR.Nodes (GenState (..), IRFunction (..), IRProgram (..), IRTopLevel (..))
 import Rune.Semantics.Type (FuncStack)
+-- import Rune.AST.Printer (prettyPrint)
+-- import Debug.Trace (trace)
 
 --
 -- public
@@ -25,6 +27,8 @@ import Rune.Semantics.Type (FuncStack)
 
 generateIR :: Program -> FuncStack -> IRProgram
 generateIR (Program name defs) fs =
+  -- if you want to see the AST, uncomment the line below
+  -- trace ("AST: " <> prettyPrint (Program name defs)) $
   let (irDefs, finalState) = runState (mapM genTopLevel defs) (initialState fs)
 
       -- INFO: gather all generated definitions (globals & functions)
