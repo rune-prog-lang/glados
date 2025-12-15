@@ -142,10 +142,14 @@ isSourceFile inFile outFile = case takeExtension inFile == ".ru" of
   False -> CompileObjToExec inFile outFile
 
 determineCompileRule :: [String] -> Either String (CompileRule, [String])
-determineCompileRule args
-  | hasBoth = Left "Cannot use both -c and -S options together."
-  | "-c" `elem` args = Right (ToObj, filter (/= "-c") args)
-  | "-S" `elem` args = Right (ToAsm, filter (/= "-S") args)
-  | otherwise = Right (All, args)
+determineCompileRule args =
+  case foldl processArg (False, False, []) args of
+    (True, True, _) -> Left "Cannot use both -c and -S options together."
+    (True, False, filtered) -> Right (ToObj, reverse filtered)
+    (False, True, filtered) -> Right (ToAsm, reverse filtered)
+    (False, False, filtered) -> Right (All, reverse filtered)
   where
-    hasBoth = "-c" `elem` args && "-S" `elem` args
+    processArg (c, s, acc) arg
+      | arg == "-c" = (True, s, acc)
+      | arg == "-S" = (c, True, acc)
+      | otherwise = (c, s, arg : acc)
