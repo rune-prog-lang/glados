@@ -139,7 +139,7 @@ test_lit_string_hex_escape_esc = testCase "String with hex escape \\x1b (ESC)" $
       expectedValue = [escChar]
       input = "\"\\x1b\""
       expectedTokenValue = "\"" ++ expectedValue ++ "\""
-  in lexTest input [tok (LitString expectedValue) expectedTokenValue 1 1, tok EOF "" 1 6]
+  in lexTest input [tok (LitString expectedValue) expectedTokenValue 1 1, tok EOF "" 1 7]
 
 test_lit_string_unicode_escape_braced :: TestTree
 test_lit_string_unicode_escape_braced = testCase "String with unicode escape \\u{1b} (ESC)" $
@@ -179,7 +179,7 @@ test_lit_string_ansi_blue_unicode = testCase "ANSI blue color with unicode escap
       expectedValue = [escChar] ++ "[34mBlue" ++ [escChar] ++ "[0m"
       input = "\"\\u{1b}[34mBlue\\u{1b}[0m\""
       expectedTokenValue = "\"" ++ expectedValue ++ "\""
-  in lexTest input [tok (LitString expectedValue) expectedTokenValue 1 1, tok EOF "" 1 27]
+  in lexTest input [tok (LitString expectedValue) expectedTokenValue 1 1, tok EOF "" 1 26]
 
 test_lit_char_octal_escape :: TestTree
 test_lit_char_octal_escape = testCase "Char with octal escape \\033" $
@@ -193,4 +193,4 @@ test_lit_char_hex_escape = testCase "Char with hex escape \\x1b" $
   let escChar = '\ESC'
       input = "'\\x1b'"
       expectedTokenValue = "'" ++ [escChar] ++ "'"
-  in lexTest input [tok (LitChar escChar) expectedTokenValue 1 1, tok EOF "" 1 6]
+  in lexTest input [tok (LitChar escChar) expectedTokenValue 1 1, tok EOF "" 1 7]
