@@ -23,6 +23,7 @@ where
 #endif
 
 import Control.Monad.State (modify)
+import Control.Monad.Except (throwError)
 import Data.Map (empty, insert)
 import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..))
 import Rune.IR.Generator.GenStatement (genStatement)
@@ -66,7 +67,7 @@ genFunction (DefFunction name params retType body) = do
 
   clearFunctionState
   pure [IRFunctionDef func]
-genFunction x = error $ "genFunction called on non-function: received " ++ show x
+genFunction x = throwError $ "genFunction called on non-function: received " ++ show x
 
 -- | generate IR for an override function
 -- show(Vec2f) -> show_Vec2f
@@ -76,7 +77,7 @@ genOverride (DefOverride name params retType body) = do
         (Parameter _ (TypeCustom s) : _) -> mangleMethodName name s
         _ -> name
   genFunction (DefFunction mangledName params retType body)
-genOverride _ = error "genOverride called on non-override"
+genOverride _ = throwError "genOverride called on non-override"
 
 -- | generate IR for a struct definition and its methods
 -- struct Vec2f { x: f32, y: f32 }

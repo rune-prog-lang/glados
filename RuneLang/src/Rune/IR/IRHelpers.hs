@@ -54,6 +54,7 @@ where
 #endif
 
 import Control.Monad.State (gets, modify)
+import Control.Monad.Except (throwError)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
@@ -66,12 +67,12 @@ import Rune.Semantics.Helper (selectSignature)
 -- type conversion
 --
 
-selectReturnType :: FuncStack -> String -> [IRType] -> IRType
+selectReturnType :: FuncStack -> String -> [IRType] -> IRGen IRType
 selectReturnType fs funcName actualIRTypes =
   let actualASTTypes = map irTypeToASTType actualIRTypes
    in case selectSignature fs funcName actualASTTypes of
-        Just retASTType -> astTypeToIRType retASTType
-        Nothing -> error $ "Semantic error: No matching signature found for function call: " ++ funcName
+        Just retASTType -> pure $ astTypeToIRType retASTType
+        Nothing -> throwError $ "Semantic error: No matching signature found for function call: " ++ funcName
                             ++ " with arguments: " ++ show actualASTTypes
 
 -- TODO: handle more types
@@ -91,8 +92,8 @@ astTypeToIRType TypeBool = IRBool
 astTypeToIRType TypeNull = IRNull
 astTypeToIRType (TypeCustom name) = IRStruct name
 astTypeToIRType TypeString = IRPtr IRChar
-astTypeToIRType TypeAny = error "Unsupported type conversion from AST to IR, got TypeAny"
-astTypeToIRType (TypeArray _) = error "Unsupported type conversion from AST to IR, got TypeArray"
+astTypeToIRType TypeAny = error "Unsupported type conversion from AST to IR: TypeAny"
+astTypeToIRType (TypeArray t) = error $ "Unsupported type conversion from AST to IR: TypeArray " ++ show t
 
 irTypeToASTType :: IRType -> Type
 irTypeToASTType IRI8 = TypeI8

@@ -13,6 +13,7 @@ module Rune.IR.Generator.Expression.Call (genCall) where
 
 import Control.Monad (zipWithM)
 import Control.Monad.State (gets)
+import Control.Monad.Except (throwError)
 import qualified Data.HashMap.Strict as HM
 import Rune.AST.Nodes (Expression, Type)
 import Rune.IR.IRHelpers (registerCall, newTemp, astTypeToIRType, isFloatType)
@@ -54,7 +55,7 @@ genCall genExpr funcName args = do
   -- NOTE: otherwise should never happen due to semantic analysis
   retType <- case funcSignature of
     Just (rt, _) -> pure $ astTypeToIRType rt
-    Nothing -> error $ "IR error: Function " <> funcName <> " not found in function stack"
+    Nothing -> throwError $ "IR error: Function " <> funcName <> " not found in function stack"
 
   registerCall funcName
   retTemp <- newTemp "t" retType
