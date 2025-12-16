@@ -235,6 +235,12 @@ visitExpression (ExprAccess target field) = do
   newLine
   visitExpression target
   dedent
+visitExpression (ExprIndex target index) = do
+  emit "ExprIndex"
+  indent
+  emitBlock "Target:" (newLine >> visitExpression target)
+  emitBlock "Index:" (newLine >> visitExpression index)
+  dedent
 visitExpression (ExprLitInt i) = emit $ "ExprLitInt " ++ show i
 visitExpression (ExprLitFloat f) = emit $ "ExprLitFloat " ++ show f
 visitExpression (ExprLitString s) = emit $ "ExprLitString " ++ show s
