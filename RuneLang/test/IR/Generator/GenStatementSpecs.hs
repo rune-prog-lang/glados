@@ -8,7 +8,7 @@ import Test.Tasty.HUnit (testCase, (@?=), assertBool)
 import Rune.IR.Generator.GenStatement
 import Rune.IR.Nodes (IRInstruction(..), IRType(..), IROperand(..), IRLabel(..))
 import Rune.AST.Nodes (Statement(..), Expression(..), Type(..))
-import IR.TestUtils (runGen)
+import IR.TestUtils (runGenUnsafe)
 
 --
 -- public
@@ -34,11 +34,11 @@ genStatementTests = testGroup "Rune.IR.Generator.GenStatement"
 testGenStatement :: TestTree
 testGenStatement = testGroup "genStatement"
   [ testCase "StmtReturn Nothing generates IRRET Nothing" $
-      let result = runGen (genStatement (StmtReturn Nothing))
+      let result = runGenUnsafe (genStatement (StmtReturn Nothing))
       in result @?= [IRRET Nothing]
 
   , testCase "StmtReturn with int generates IRRET with value" $
-      let result = runGen (genStatement (StmtReturn (Just (ExprLitInt 42))))
+      let result = runGenUnsafe (genStatement (StmtReturn (Just (ExprLitInt 42))))
       in case result of
         [IRRET (Just _)] -> return ()
         _ -> assertBool "Expected IRRET with value" False
@@ -50,28 +50,28 @@ testGenStatement = testGroup "genStatement"
 testGenBlock :: TestTree
 testGenBlock = testGroup "genBlock"
   [ testCase "Empty block generates empty list" $
-      let result = runGen (genBlock [])
+      let result = runGenUnsafe (genBlock [])
       in result @?= []
 
   , testCase "Single statement block" $
-      let result = runGen (genBlock [StmtReturn Nothing])
+      let result = runGenUnsafe (genBlock [StmtReturn Nothing])
       in result @?= [IRRET Nothing]
 
   , testCase "Multiple statements concatenated" $
-      let result = runGen (genBlock [StmtReturn Nothing, StmtReturn Nothing])
+      let result = runGenUnsafe (genBlock [StmtReturn Nothing, StmtReturn Nothing])
       in length result @?= 2
   ]
 
 testGenVarDecl :: TestTree
 testGenVarDecl = testGroup "genVarDecl"
   [ testCase "Declares variable with explicit type" $
-      let result = runGen (genVarDecl "x" (Just TypeI32) (ExprLitInt 10))
+      let result = runGenUnsafe (genVarDecl "x" (Just TypeI32) (ExprLitInt 10))
       in case result of
         [IRASSIGN "x" (IRConstInt 10) IRI32] -> return ()
         _ -> assertBool "Expected IRASSIGN" False
 
   , testCase "Declares variable with inferred type" $
-      let result = runGen (genVarDecl "y" Nothing (ExprLitInt 5))
+      let result = runGenUnsafe (genVarDecl "y" Nothing (ExprLitInt 5))
       in assertBool "Should generate assignment" $ not $ null result
 
   , testCase "Handles IRTemp operand differently" $
@@ -93,7 +93,7 @@ testGenVarType = testGroup "genVarType"
 testGenAssignment :: TestTree
 testGenAssignment = testGroup "genAssignment"
   [ testCase "Assigns constant to variable" $
-      let result = runGen (genVarDecl "x" Nothing (ExprLitInt 1) >> genAssignment (ExprVar "x") (ExprLitInt 2))
+      let result = runGenUnsafe (genVarDecl "x" Nothing (ExprLitInt 1) >> genAssignment (ExprVar "x") (ExprLitInt 2))
       in assertBool "Should generate assignment" $ not $ null result
 
   , testCase "Handles non-temp lvalue" $
@@ -103,19 +103,19 @@ testGenAssignment = testGroup "genAssignment"
 testGenReturnExpr :: TestTree
 testGenReturnExpr = testGroup "genReturnExpr"
   [ testCase "Returns IRNull as Nothing" $
-      let result = runGen (genReturnExpr ExprLitNull)
+      let result = runGenUnsafe (genReturnExpr ExprLitNull)
       in case last result of
         IRRET Nothing -> return ()
         _ -> assertBool "Expected IRRET Nothing for null" False
 
   , testCase "Returns non-null value" $
-      let result = runGen (genReturnExpr (ExprLitInt 42))
+      let result = runGenUnsafe (genReturnExpr (ExprLitInt 42))
       in case last result of
         IRRET (Just _) -> return ()
         _ -> assertBool "Expected IRRET with value" False
 
   , testCase "Returns boolean value" $
-      let result = runGen (genReturnExpr (ExprLitBool True))
+      let result = runGenUnsafe (genReturnExpr (ExprLitBool True))
       in case last result of
         IRRET (Just _) -> return ()
         _ -> assertBool "Expected IRRET with value" False
@@ -135,7 +135,7 @@ testGenIfControlFlow = testGroup "genStatement if-control-flow"
   [ testCase "Generates IR for if without else" $
       let cond = ExprLitBool True
           body = [StmtReturn Nothing]
-          result = runGen (genStatement (StmtIf cond body Nothing))
+          result = runGenUnsafe (genStatement (StmtIf cond body Nothing))
       in case result of
         (IRJUMP_FALSE _ _ : _ ) -> return ()
         _ -> assertBool "Expected IRJUMP_FALSE followed by then block and label" False
@@ -144,7 +144,7 @@ testGenIfControlFlow = testGroup "genStatement if-control-flow"
       let cond = ExprLitBool True
           thenBody = [StmtExpr (ExprLitInt 1)]
           elseBody = [StmtExpr (ExprLitInt 2)]
-          result = runGen (genStatement (StmtIf cond thenBody (Just elseBody)))
+          result = runGenUnsafe (genStatement (StmtIf cond thenBody (Just elseBody)))
           hasElseLabel   = any isElseLabel result
           hasEndLabel    = any isEndLabel result
           hasJumpToEnd   = any isJumpToEnd result
@@ -157,7 +157,7 @@ testGenIfControlFlow = testGroup "genStatement if-control-flow"
       let cond = ExprLitBool True
           thenBody = [StmtReturn (Just (ExprLitInt 1))]
           elseBody = [StmtExpr (ExprLitInt 2)]
-          result = runGen (genStatement (StmtIf cond thenBody (Just elseBody)))
+          result = runGenUnsafe (genStatement (StmtIf cond thenBody (Just elseBody)))
           hasJumpToEnd = any isJumpToEnd result
       in assertBool "Should not emit jump to end when then-branch ends with IRRET" (not hasJumpToEnd)
   ]
@@ -175,22 +175,22 @@ testGenLoopControlFlow :: TestTree
 testGenLoopControlFlow = testGroup "genStatement loop-control-flow"
   [ testCase "StmtStop inside loop jumps to loop end label" $
       let loopBody = [StmtStop]
-          result = runGen (genStatement (StmtLoop loopBody))
+          result = runGenUnsafe (genStatement (StmtLoop loopBody))
           hasJumpToEnd = any isJumpToLoopEnd result
       in assertBool "Should emit jump to loop end label for StmtStop" hasJumpToEnd
 
   , testCase "StmtNext inside loop jumps to loop header label" $
       let loopBody = [StmtNext]
-          result = runGen (genStatement (StmtLoop loopBody))
+          result = runGenUnsafe (genStatement (StmtLoop loopBody))
           hasJumpToHeader = any isJumpToLoopHeader result
       in assertBool "Should emit jump to loop header label for StmtNext" hasJumpToHeader
 
   , testCase "StmtStop outside loop produces no instructions" $
-      let result = runGen (genStatement StmtStop)
+      let result = runGenUnsafe (genStatement StmtStop)
       in result @?= []
 
   , testCase "StmtNext outside loop produces no instructions" $
-      let result = runGen (genStatement StmtNext)
+      let result = runGenUnsafe (genStatement StmtNext)
       in result @?= []
   ]
   where
