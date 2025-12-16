@@ -71,9 +71,9 @@ parseStructBody = do
 parseStructItemsLoop :: Parser [Either Field TopLevelDef]
 parseStructItemsLoop = do
   isEnd <- check T.RBrace
-  if isEnd
-    then advance >> pure []
-    else do
+  case isEnd of
+    True -> advance >> pure []
+    False -> do
       item <- parseStructItem
       rest <- parseStructItemsLoop
       pure (item : rest)
