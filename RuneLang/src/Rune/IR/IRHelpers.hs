@@ -92,6 +92,7 @@ astTypeToIRType TypeNull = IRNull
 astTypeToIRType (TypeCustom name) = IRStruct name
 astTypeToIRType TypeString = IRPtr IRChar
 astTypeToIRType TypeAny = error "Unsupported type conversion from AST to IR, got TypeAny"
+astTypeToIRType (TypeArray _) = error "Unsupported type conversion from AST to IR, got TypeArray"
 
 irTypeToASTType :: IRType -> Type
 irTypeToASTType IRI8 = TypeI8

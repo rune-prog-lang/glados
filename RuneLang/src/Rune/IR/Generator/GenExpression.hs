@@ -39,6 +39,7 @@ genExpression (ExprCall "show" [a]) = genShowCall genExpression a
 genExpression (ExprCall name args) = genCall genExpression name args
 genExpression (ExprAccess t f) = genAccess genExpression t f
 genExpression (ExprStructInit name fields) = genStructInit genExpression name fields
+genExpression (ExprLitArray _) = error "genExpression: array literals not implemented yet"
 
 --
 -- private
