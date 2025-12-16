@@ -117,6 +117,14 @@ exprType (_, vs) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs
 exprType s@(fs, _) (ExprCall fn args) = do
   argTypes <- sequence $ map (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
+exprType s (ExprIndex target _) = do
+  t <- exprType s target
+  case t of
+    TypeArray inner -> Right inner
+    TypeAny -> Right TypeAny
+    _ -> Left $ "Indexing non-array type: " ++ show t
+-- TODO: improve array type handling
+exprType _ (ExprLitArray _) = Right TypeAny
 
 assignVarType :: VarStack -> String -> Type -> Either String VarStack
 assignVarType vs _ TypeAny = Right vs

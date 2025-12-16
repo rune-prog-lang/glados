@@ -124,6 +124,21 @@ postfixTests = testGroup "Postfix Tests"
 
   , testCase "Postfix Inc" $
       assertParse "x++" [tok (T.Identifier "x"), tok T.OpInc] (ExprUnary PostfixInc (ExprVar "x"))
+
+  , testCase "Array Index" $
+      assertParse "arr[1]"
+        [tok (T.Identifier "arr"), tok T.LBracket, tok (T.LitInt 1), tok T.RBracket]
+        (ExprIndex (ExprVar "arr") (ExprLitInt 1))
+
+  , testCase "Array Index Field Access" $
+      assertParse "arr[1].x"
+        [tok (T.Identifier "arr"), tok T.LBracket, tok (T.LitInt 1), tok T.RBracket, tok T.Dot, tok (T.Identifier "x")]
+        (ExprAccess (ExprIndex (ExprVar "arr") (ExprLitInt 1)) "x")
+
+  , testCase "Array Index Chained" $
+      assertParse "arr[x][y]"
+        [tok (T.Identifier "arr"), tok T.LBracket, tok (T.Identifier "x"), tok T.RBracket, tok T.LBracket, tok (T.Identifier "y"), tok T.RBracket]
+        (ExprIndex (ExprIndex (ExprVar "arr") (ExprVar "x")) (ExprVar "y"))
   ]
 
 structInitTests :: TestTree

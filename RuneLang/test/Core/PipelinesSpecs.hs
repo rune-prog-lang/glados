@@ -24,7 +24,6 @@ import Rune.Pipelines
     runPipeline,
     runPipelineAction,
     optimizeIR,
-    genIR,
     checkSemantics,
     safeRead,
     parseLexer,
@@ -32,6 +31,7 @@ import Rune.Pipelines
   )
 import Rune.AST.Nodes (Program(..))
 import Rune.IR.Nodes (IRProgram (..))
+import Rune.IR.Generator (generateIR)
 
 --
 -- public
@@ -156,7 +156,7 @@ pipelinePrivateTests =
     , testCase "parseAST_failure" test_parseAST_failure
     , testCase "checkSemantics_success" test_checkSemantics_success
     , testCase "checkSemantics_failure" test_checkSemantics_failure
-    , testCase "genIR_success" test_genIR_success
+    , testCase "generateIR_success" test_generateIR_success
     , testCase "optimizeIR_success" test_optimizeIR_success
     , testCase "verifAndGenIR_success" test_verifAndGenIR_success
     , testCase "verifAndGenIR_failure" test_verifAndGenIR_failure
@@ -290,17 +290,17 @@ test_checkSemantics_failure = do
       Left _ -> assertFailure "Parser failed (prerequisite for checkSemantics_failure)"
     Left _ -> assertFailure "Lexer failed (prerequisite for checkSemantics_failure)"
 
-test_genIR_success :: IO ()
-test_genIR_success = do
+test_generateIR_success :: IO ()
+test_generateIR_success = do
   case parseLexer (validFile, validRuneCode) of
     Right (fp, tokens) -> case parseAST (fp, tokens) of
       Right ast -> case checkSemantics ast of
-        Right (checkedAST, fs) -> case genIR checkedAST fs of
+        Right (checkedAST, fs) -> case generateIR checkedAST fs of
           Right _ -> return ()
-          Left err -> assertFailure $ "genIR failed: " ++ err
-        Left _ -> assertFailure "checkSemantics failed (prerequisite for genIR_success)"
-      Left _ -> assertFailure "Parser failed (prerequisite for genIR_success)"
-    Left _ -> assertFailure "Lexer failed (prerequisite for genIR_success)"
+          Left err -> assertFailure $ "generateIR failed: " ++ err
+        Left _ -> assertFailure "checkSemantics failed (prerequisite for generateIR_success)"
+      Left _ -> assertFailure "Parser failed (prerequisite for generateIR_success)"
+    Left _ -> assertFailure "Lexer failed (prerequisite for generateIR_success)"
 
 test_optimizeIR_success :: IO ()
 test_optimizeIR_success = do
@@ -371,11 +371,11 @@ test_translateRuneInAsm_success = do
     case parseLexer (validFile, validRuneCode) of
       Right (fp, tokens) -> case parseAST (fp, tokens) of
         Right ast -> case checkSemantics ast of
-          Right (checkedAST, fs) -> case genIR checkedAST fs of
+          Right (checkedAST, fs) -> case generateIR checkedAST fs of
             Right irProg -> do
               let asmContent = translateRuneInAsm irProg
               assertBool "ASM content should not be empty" (not (null asmContent))
-            Left err -> assertFailure $ "genIR failed: " ++ err
+            Left err -> assertFailure $ "generateIR failed: " ++ err
           Left _ -> assertFailure "checkSemantics failed"
         Left _ -> assertFailure "Parser failed"
       Left _ -> assertFailure "Lexer failed"

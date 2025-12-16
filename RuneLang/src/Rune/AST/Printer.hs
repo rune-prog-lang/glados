@@ -235,6 +235,12 @@ visitExpression (ExprAccess target field) = do
   newLine
   visitExpression target
   dedent
+visitExpression (ExprIndex target index) = do
+  emit "ExprIndex"
+  indent
+  emitBlock "Target:" (newLine >> visitExpression target)
+  emitBlock "Index:" (newLine >> visitExpression index)
+  dedent
 visitExpression (ExprLitInt i) = emit $ "ExprLitInt " ++ show i
 visitExpression (ExprLitFloat f) = emit $ "ExprLitFloat " ++ show f
 visitExpression (ExprLitString s) = emit $ "ExprLitString " ++ show s
@@ -242,6 +248,9 @@ visitExpression (ExprLitChar c) = emit $ "ExprLitChar " ++ show c
 visitExpression (ExprLitBool b) = emit $ "ExprLitBool " ++ show b
 visitExpression ExprLitNull = emit "ExprLitNull"
 visitExpression (ExprVar v) = emit $ "ExprVar " ++ v
+visitExpression (ExprLitArray elems) = do
+  emit "ExprArrayLiteral"
+  emitBlock "Elements:" (mapM_ (\e -> newLine >> visitExpression e) elems)
 
 --
 -- private helpers
@@ -293,6 +302,7 @@ showType TypeString = "string"
 showType TypeAny = "any"
 showType TypeNull = "null"
 showType (TypeCustom s) = s
+showType (TypeArray t) = "[" <> showType t <> "]"
 
 showBinaryOp :: BinaryOp -> String
 showBinaryOp Add = "+"

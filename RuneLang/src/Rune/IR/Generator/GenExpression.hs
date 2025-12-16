@@ -11,6 +11,7 @@ module Rune.IR.Generator.GenExpression (genExpression) where
 #endif
 
 import Control.Monad.State (gets)
+import Control.Monad.Except (throwError)
 import qualified Data.Map.Strict as Map
 import Rune.AST.Nodes (Expression (..))
 import Rune.IR.Generator.Expression.Binary (genBinary)
@@ -39,6 +40,8 @@ genExpression (ExprCall "show" [a]) = genShowCall genExpression a
 genExpression (ExprCall name args) = genCall genExpression name args
 genExpression (ExprAccess t f) = genAccess genExpression t f
 genExpression (ExprStructInit name fields) = genStructInit genExpression name fields
+genExpression (ExprLitArray _) = throwError "genExpression: array literals not implemented yet"
+genExpression (ExprIndex _ _) = throwError "genExpression: array indexing not implemented yet"
 
 --
 -- private
@@ -49,4 +52,4 @@ genVar name = do
   symTable <- gets gsSymTable
   case Map.lookup name symTable of
     Just (op, typ) -> return ([], op, typ)
-    Nothing -> error $ "genVar: variable not found in symbol table: " ++ name
+    Nothing -> throwError $ "genVar: variable not found in symbol table: " ++ name

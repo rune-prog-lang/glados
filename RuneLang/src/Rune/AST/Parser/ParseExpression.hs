@@ -77,6 +77,7 @@ parsePostfix = chainPostfix parsePrimary op
       choice
         [ parseCallPostfix,
           parseFieldAccessPostfix,
+          parseIndexPostfix,
           parseErrorPropPostfix,
           parseIncPostfix,
           parseDecPostfix
@@ -93,6 +94,11 @@ parseFieldAccessPostfix :: Parser (Expression -> Expression)
 parseFieldAccessPostfix = do
   f <- expect T.Dot *> parseIdentifier
   pure $ \e -> ExprAccess e f
+
+parseIndexPostfix :: Parser (Expression -> Expression)
+parseIndexPostfix = do
+  index <- between (expect T.LBracket) (expect T.RBracket) (withContext "array index" parseExpression)
+  pure $ \e -> ExprIndex e index
 
 parseErrorPropPostfix :: Parser (Expression -> Expression)
 parseErrorPropPostfix = do
@@ -126,6 +132,7 @@ parsePrimary =
       parseLitString,
       parseChar,
       parseLitBool,
+      parseLitArray,
       ExprLitNull <$ (expect T.LitNull <|> expect T.TypeNull),
       parseStructInitOrVar,
       between (expect T.LParen) (expect T.RParen) (withContext "parenthesized expression" parseExpression)
@@ -161,6 +168,13 @@ parseLitBool =
   tokenMap $ \case
     T.LitBool b -> Just (ExprLitBool b)
     _ -> Nothing
+
+parseLitArray :: Parser Expression
+parseLitArray = do
+  exprs <- between
+    (expect T.LBracket) (expect T.RBracket)
+    (sepEndBy (withContext "array element" parseExpression) (expect T.Comma))
+  pure $ ExprLitArray exprs
 
 --
 -- struct

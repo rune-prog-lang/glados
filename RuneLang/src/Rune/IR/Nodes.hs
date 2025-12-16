@@ -15,6 +15,7 @@ module Rune.IR.Nodes
 where
 
 import Control.Monad.State (State)
+import Control.Monad.Except (ExceptT)
 import Data.Map (Map)
 import Data.Set (Set)
 import Rune.Semantics.Type (FuncStack)
@@ -40,7 +41,7 @@ data GenState = GenState
   }
   deriving (Show, Eq)
 
-type IRGen = State GenState
+type IRGen = ExceptT String (State GenState)
 
 --
 -- public
