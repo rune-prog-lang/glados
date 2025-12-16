@@ -23,6 +23,7 @@ import Rune.Semantics.Type
   , FuncStack
   , Stack
   )
+import Rune.Semantics.OpType (isIntegerType, isFloatType, iHTBinary)
 
 -- | Semantic error with location information
 data SemanticError = SemanticError
@@ -99,7 +100,12 @@ exprType _ (ExprLitBool _ _) = TypeBool
 exprType _ (ExprStructInit _ st _) = TypeCustom st
 exprType _ (ExprLitNull _) = TypeNull
 exprType _ (ExprAccess _ _ _) = TypeAny -- don't know how to use struct
-exprType s (ExprBinary _ _ expr _) = exprType s expr -- assume both expr are of the same type
+exprType s (ExprBinary _ op l r) = 
+  let leftType = exprType s l
+      rightType = exprType s r
+  in case iHTBinary op leftType rightType of
+       Right t -> t
+       Left _ -> leftType  -- fallback to left type if error
 exprType s (ExprUnary _ _ expr) = exprType s expr -- assume the op don't change the type
 exprType (_, vs) (ExprVar _ name) = fromMaybe TypeAny (HM.lookup name vs)
 exprType s@(fs, _) (ExprCall _ fn args) =
@@ -126,6 +132,10 @@ checkMultipleType _ _ _ _ (Just t) TypeAny    = Right t
 checkMultipleType _ _ _ _ _ TypeNull          = Right TypeNull
 checkMultipleType v file line col (Just t) e_t
   | t == e_t  = Right t
+  -- Allow implicit conversion between integer types
+  | isIntegerType t && isIntegerType e_t = Right t
+  -- Allow implicit conversion between float types
+  | isFloatType t && isFloatType e_t = Right t
   | otherwise = Left $ SemanticError file line col (printf "variable '%s' to have type %s" v (show t)) (printf "type %s being assigned" (show e_t)) ["type check", "global context"]
 
 checkEachParam :: Stack -> String -> Int -> Int -> Int -> [Expression] -> [Type] -> Maybe SemanticError

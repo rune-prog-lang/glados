@@ -40,6 +40,7 @@ import Rune.Semantics.Helper
   , SemanticError(..)
   , formatSemanticError
   )
+import Rune.Semantics.OpType (iHTBinary)
 
 --
 -- state monad
@@ -257,9 +258,19 @@ verifExprWithContext hint vs (ExprUnary pos op val) = do
   pure $ ExprUnary pos op val'
 
 verifExprWithContext hint vs (ExprBinary pos op l r) = do
-  l'      <- verifExprWithContext hint vs l
-  r'      <- verifExprWithContext hint vs r
-  pure $ ExprBinary pos op l' r'
+  l' <- verifExprWithContext hint vs l
+  r' <- verifExprWithContext hint vs r
+  
+  -- Verify type compatibility for binary operations
+  fs <- gets stFuncs
+  let s = (fs, vs)
+      SourcePos file line col = pos
+      leftType = exprType s l'
+      rightType = exprType s r'
+  
+  case iHTBinary op leftType rightType of
+    Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation", "global context"]
+    Right _ -> pure $ ExprBinary pos op l' r'
 
 verifExprWithContext hint vs (ExprCall pos name args) = do
   fs <- gets stFuncs
