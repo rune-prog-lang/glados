@@ -19,9 +19,9 @@ import qualified Rune.Lexer.Tokens as T
 parseTopLevels :: Parser [TopLevelDef]
 parseTopLevels = do
   isEof <- check T.EOF
-  if isEof
-    then pure []
-    else do
+  case isEof of
+    True -> pure []
+    False -> do
       def <- parseTopLevelDef
       defs <- parseTopLevels
       pure (def : defs)
