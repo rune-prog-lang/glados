@@ -1,4 +1,3 @@
-/*
 override def show(arr: any[]) -> null
 {
     for item in arr {
@@ -6,14 +5,6 @@ override def show(arr: any[]) -> null
         show(' ');
     }
     show('\n');
-}
-
-def array_i32() -> null
-{
-    arr: i32[] = [1, 2, 3, 4, 5];
-
-    arr[1] = 10;
-    show(arr);
 }
 
 def array_string() -> null
@@ -31,23 +22,19 @@ def array_char() -> null
     show(arr);
 }
 
-def main() -> null
-{
-    array_i32();
-    array_string();
-    array_char();
-}
-*/
-
-def array_i32() -> null
+def array_i32() -> i32[]
 {
     arr: i32[] = [1, 2, 3, 4, 5];
 
     arr[1] = 10;
-    show(arr);
+    arr
 }
 
 def main() -> null
 {
-    array_i32();
+    arr = array_i32();
+    show(arr);
+
+    array_string();
+    array_char();
 }
