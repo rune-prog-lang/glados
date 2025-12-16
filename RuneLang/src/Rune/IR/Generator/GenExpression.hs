@@ -41,6 +41,7 @@ genExpression (ExprCall name args) = genCall genExpression name args
 genExpression (ExprAccess t f) = genAccess genExpression t f
 genExpression (ExprStructInit name fields) = genStructInit genExpression name fields
 genExpression (ExprLitArray _) = throwError "genExpression: array literals not implemented yet"
+genExpression (ExprIndex _ _) = throwError "genExpression: array indexing not implemented yet"
 
 --
 -- private
