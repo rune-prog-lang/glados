@@ -110,10 +110,9 @@ parseExprStmt :: Parser Statement
 parseExprStmt = do
   expr <- parseExpression
   isSemicolon <- match T.Semicolon
-  case isSemicolon of
-    True -> pure (StmtExpr expr)
-    False -> do 
-      isEnd <- check T.RBrace
-      case isEnd of
-        True -> pure (StmtReturn (Just expr))
-        False -> failParse "Expected ';' after expression or block-ending '}' for implicit return"
+  isEnd <- check T.RBrace
+  case (isSemicolon, isEnd) of
+    (True,  _)    -> pure (StmtExpr expr)
+    (False, True) -> pure (StmtReturn (Just expr))
+    (False, False) ->
+      failParse "Expected ';' after expression or block-ending '}' for implicit return"
