@@ -117,6 +117,10 @@ statementTests = testGroup "Integration Stmt Tests (via parseBlock)"
       assertBlockParse "1;"
         [tok T.LBrace, tok (T.LitInt 1), tok T.Semicolon, tok T.RBrace]
         [StmtExpr (ExprLitInt 1)]
+  , testCase "Array Index Assignment" $
+      assertBlockParse "arr[0] = 1;"
+        [tok T.LBrace, tok (T.Identifier "arr"), tok T.LBracket, tok (T.LitInt 0), tok T.RBracket, tok T.OpAssign, tok (T.LitInt 1), tok T.Semicolon, tok T.RBrace]
+        [StmtAssignment (ExprIndex (ExprVar "arr") (ExprLitInt 0)) (ExprLitInt 1)]
   ]
 
 parseBlockLoopTests :: TestTree
