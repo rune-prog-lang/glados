@@ -117,7 +117,8 @@ exprType (_, vs) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs
 exprType s@(fs, _) (ExprCall fn args) = do
   argTypes <- sequence $ map (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
-exprType _ (ExprLitArray _) = Left "\n\tExprType: unable to determine expression type for array literals"
+-- TODO: improve array type handling
+exprType _ (ExprLitArray _) = Right TypeAny
 
 assignVarType :: VarStack -> String -> Type -> Either String VarStack
 assignVarType vs _ TypeAny = Right vs
