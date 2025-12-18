@@ -189,13 +189,31 @@ selectSignature fs name at =
     Just sigs ->
       case filter (match at) sigs of
         [(rt, _)] -> Just rt
+        matches@(_:_) -> Just . fst $ mostSpecific matches
         _         -> Nothing
   where 
     match :: [Type] -> (Type, [Type]) -> Bool
     match act (_, expec) =
       length act == length expec &&
       and (zipWith compat expec act)
+
     compat TypeAny _ = True
+    compat (TypeArray TypeAny) (TypeArray _) = True
     compat a b = a == b
-
-
+    
+    mostSpecific :: [(Type, [Type])] -> (Type, [Type])
+    mostSpecific = foldr1 moreSpecific
+    
+    moreSpecific :: (Type, [Type]) -> (Type, [Type]) -> (Type, [Type])
+    moreSpecific s1@(_, params1) s2@(_, params2)
+      | specificity params1 > specificity params2 = s1
+      | otherwise = s2
+    
+    specificity :: [Type] -> Int
+    specificity = sum . map typeSpecificity
+    
+    typeSpecificity :: Type -> Int
+    typeSpecificity TypeAny = 0
+    typeSpecificity (TypeArray TypeAny) = 1
+    typeSpecificity (TypeArray t) = 2 + typeSpecificity t
+    typeSpecificity _ = 3
