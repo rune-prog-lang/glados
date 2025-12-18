@@ -118,6 +118,10 @@ exprTypeTests = testGroup "exprType Tests"
       exprType stack1 (ExprIndex arr (ExprLitInt 0)) @?= Right TypeI32
       let charArr = ExprLitArray [ExprLitChar 'R', ExprLitChar 'u']
       exprType stack1 (ExprIndex charArr (ExprLitInt 1)) @?= Right TypeChar
+  , testCase "ExprLitArray incompatible elements - Error" $
+      case exprType stack1 (ExprLitArray [ExprLitInt 1, ExprLitBool True]) of
+          Left err -> "IncompatibleArrayElements:" `isInfixOf` err @? "Expected IncompatibleArrayElements error"
+          Right _ -> assertFailure "Expected error"
   , testCase "ExprStructInit Type" $
       exprType stack1 (ExprStructInit "Vec2f" []) @?= Right (TypeCustom "Vec2f")
   , testCase "ExprAccess Type" $
