@@ -109,20 +109,25 @@ exprType _ (ExprLitBool  _)       = Right TypeBool
 exprType _ (ExprStructInit st _)  = Right $ TypeCustom st
 exprType _ ExprLitNull            = Right TypeNull
 exprType _ (ExprAccess _ _)       = Right TypeAny -- don't know how to use struct
+
 exprType s (ExprBinary op a b)    = do 
   a' <- exprType s a
   b' <- exprType s b
   iHTBinary op a' b'
+
 exprType s (ExprUnary _ expr)     = exprType s expr -- assume the op don't change the type
 exprType (_, vs) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
+
 exprType s@(fs, _) (ExprCall fn args) = do
   argTypes <- sequence $ map (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
+
 exprType s (ExprIndex target _) = exprType s target >>= extractArrayType
   where
     extractArrayType (TypeArray inner) = Right inner
     extractArrayType TypeAny = Right TypeAny
     extractArrayType t = Left $ printf "\n\tIndexingNonArray: cannot index type %s, expected array" (show t)
+
 exprType _ (ExprLitArray []) = Right $ TypeArray TypeAny
 exprType s (ExprLitArray (e:es)) = do
   firstType <- exprType s e
@@ -132,6 +137,7 @@ exprType s (ExprLitArray (e:es)) = do
     checkArray t ts
       | all (isTypeCompatible t) ts = Right $ TypeArray t
       | otherwise = Left $ printf "\n\tIncompatibleArrayElements: array elements have incompatible types, first is %s" (show t)
+
 
 assignVarType :: VarStack -> String -> Type -> Either String VarStack
 assignVarType vs _ TypeAny = Right vs
@@ -145,6 +151,7 @@ assignVarType vs v t =
     Just t' | sameType t t' -> updated
             | otherwise     -> Left $ printf msg v (show t') (show t)
 
+
 isTypeCompatible :: Type -> Type -> Bool
 isTypeCompatible expected actual
   | sameType expected actual = True
@@ -153,6 +160,7 @@ isTypeCompatible expected actual
   | isIntegerType expected && isIntegerType actual = True
   | isFloatType expected && isFloatType actual = True
   | otherwise = False
+
 
 checkMultipleType :: String -> Maybe Type -> Type -> Either String Type
 checkMultipleType _ Nothing e_t         = Right e_t
@@ -164,6 +172,7 @@ checkMultipleType v (Just t) e_t
   | otherwise =
       let msg = "\n\tMultipleType: %s is already %s and %s is trying to be assigned"
       in Left $ printf msg v (show t) (show e_t)
+
 
 checkEachParam :: Stack -> Int -> [Expression] -> [Type] -> Maybe String
 checkEachParam s i (_:es) (TypeAny:at) = checkEachParam s (i + 1) es at
@@ -177,9 +186,11 @@ checkEachParam s i (e:es) (t:at) =
       | otherwise ->
           Just (printf wrong_type i (show t) (show t')) <> next
 
+
 checkEachParam _ _ [] [] = Nothing
 checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too few)") (length at + i) (i)
 checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too many)") (i) (length es + i)
+
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
 selectSignature fs name at =
