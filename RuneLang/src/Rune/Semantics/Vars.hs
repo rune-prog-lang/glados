@@ -309,10 +309,14 @@ verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 verifMethod sName (DefFunction methodName params retType body) = do
+  fs <- gets stFuncs
   let params' = fixSelfType sName params
       paramTypes = map paramType params'
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
       mangledName = mangleName (sName ++ "_" ++ methodName) retType paramTypes
+
+  when (HM.member mangledName fs) $
+    lift $ Left $ printf "Method '%s' in struct '%s' is already defined" methodName sName
 
   body' <- verifScope vs body
 
