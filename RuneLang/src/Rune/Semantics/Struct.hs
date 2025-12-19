@@ -1,9 +1,7 @@
-module Rune.Semantics.Struct (
-    checkFields,
-    findStruct
-) where
+module Rune.Semantics.Struct (findStruct, checkFields) where
 
 import Text.Printf (printf)
+import Control.Monad (foldM, when)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Type (StructStack)
@@ -15,11 +13,17 @@ import qualified Data.List as List
 --- public
 ---
 
-findStruct :: String -> StructStack -> Either String TopLevelDef
-findStruct sName structs =
-  case HM.lookup sName structs of
-    Just structDef -> Right structDef
-    Nothing        -> Left $ printf "Unknown struct '%s'" sName
+findStruct :: Program -> Either String StructStack
+findStruct (Program _ defs) = do
+  let structs = [d | d@DefStruct {} <- defs]
+  foldM addStruct HM.empty structs
+  where
+    addStruct acc (DefStruct name fields methods) = do
+      when (HM.member name acc) $
+        Left $ printf "\n\tHasDuplicates: Struct '%s' is already defined" name
+      checkedFields <- checkFields name acc fields
+      Right $ HM.insert name (DefStruct name checkedFields methods) acc
+    addStruct acc _ = Right acc
 
 checkFields :: String -> StructStack -> [Field] -> Either String [Field]
 checkFields sName structs fields = do

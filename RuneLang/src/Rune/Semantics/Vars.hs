@@ -22,7 +22,8 @@ import qualified Data.List as List
 import Text.Printf (printf)
 
 import Rune.AST.Nodes
-import Rune.Semantics.Func (findFunc, findStruct)
+import Rune.Semantics.Func (findFunc)
+import Rune.Semantics.Struct (findStruct)
 import Rune.Semantics.Generic (instantiate)
 
 import Rune.Semantics.Type

@@ -1,14 +1,13 @@
-module Rune.Semantics.Func (findFunc, findStruct) where
+module Rune.Semantics.Func (findFunc) where
 
-import Control.Monad (foldM, when)
+import Control.Monad (foldM)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
 
 import Text.Printf (printf)
 
 import Rune.AST.Nodes
-import Rune.Semantics.Type (FuncStack, StructStack)
-import Rune.Semantics.Struct (checkFields)
+import Rune.Semantics.Type (FuncStack)
 import Rune.Semantics.Helper (fixSelfType)
 
 --
@@ -24,18 +23,6 @@ findFunc (Program _ defs) = do
       msg = "\n\tHasDuplicates: %s has duplicate signatures (%s)"
   fs <- foldM findDefs builtins defs
   maybe (Right fs) Left (findDuplicateMap fs msg)
-
-findStruct :: Program -> Either String StructStack
-findStruct (Program _ defs) = do
-  let structs = [d | d@DefStruct {} <- defs]
-  foldM addStruct HM.empty structs
-  where
-    addStruct acc (DefStruct name fields methods) = do
-      when (HM.member name acc) $
-        Left $ printf "\n\tHasDuplicates: Struct '%s' is already defined" name
-      checkedFields <- checkFields name acc fields
-      Right $ HM.insert name (DefStruct name checkedFields methods) acc
-    addStruct acc _ = Right acc
 
 --
 -- private
