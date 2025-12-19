@@ -75,18 +75,18 @@ verifVars (Program n defs) = do
   ss <- findStruct (Program n defs)
 
   let initialState = SemState 
-        { stFuncs = fs
+        { stFuncs = trace (show fs) fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
-        , stStructs = trace (show fs) ss
+        , stStructs = ss
         }
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
-      finalFuncStack = mangleFuncStack (stFuncs finalState)
+      finalFs = mangleFuncStack (stFuncs finalState)
 
-  pure (Program n allDefs, finalFuncStack)
+  pure (Program n allDefs, finalFs)
 
 --
 -- private
@@ -327,14 +327,17 @@ verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 verifMethod sName (DefFunction methodName params retType body) = do
+  fs <- gets stFuncs
   let params' = fixSelfType sName params
       paramTypes = map paramType params'
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
       baseName = sName ++ "_" ++ methodName
-      mangledName = mangleName baseName retType paramTypes
+      name' = case HM.lookup baseName fs of
+          Just sigs | length sigs > 1 -> mangleName baseName retType paramTypes
+          _ -> baseName
 
   body' <- verifScope vs body
-  pure $ DefFunction mangledName params' retType body'
+  pure $ DefFunction name' params' retType body'
 verifMethod _ def = pure def
 
 --
