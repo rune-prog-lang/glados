@@ -16,10 +16,20 @@ import Rune.IR.Nodes
   )
 
 --
+-- types
+--
+
+type ArrayGen = IRGen ([IRInstruction], IROperand, IRType)
+type ArrayGenFunc = Expression -> ArrayGen
+
+--
 -- public
 --
 
-genLitArray :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> [Expression] -> IRGen ([IRInstruction], IROperand, IRType)
+-- | generate an array literal
+-- arr0: *[char x 4] = ALLOC_ARRAY char ['a', 'b', 'c', 'd']
+-- arr1: *[i32 x 5] = ALLOC_ARRAY i32 [1, 2, 3, 4, 5]
+genLitArray :: (ArrayGenFunc) -> [Expression] -> ArrayGen
 genLitArray _ [] = throwError "genLitArray: empty array not supported"
 genLitArray genExpr exprs = do
   (instrs, ops, types) <- unzip3 <$> mapM genExpr exprs
@@ -37,7 +47,9 @@ genLitArray genExpr exprs = do
   registerVar tempName result ptrType
   return (allInstrs <> [allocInstr], result, ptrType)
 
-genIndex :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> Expression -> Expression -> IRGen ([IRInstruction], IROperand, IRType)
+-- | generate array indexing
+-- elem1: char = GET_ELEM arr0[0]
+genIndex :: (ArrayGenFunc) -> Expression -> ArrayGenFunc
 genIndex genExpr target idx = do
   (targetInstrs, targetOp, targetType) <- genExpr target
   (idxInstrs, idxOp, _) <- genExpr idx
@@ -52,6 +64,8 @@ genIndex genExpr target idx = do
   
   return (targetInstrs <> idxInstrs <> [getInstr], result, elemType)
 
+-- | generate array index assignment
+-- SET_ELEM arr0[1] = 'z'
 genIndexAssign :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> Expression -> Expression -> Expression -> IRGen [IRInstruction]
 genIndexAssign genExpr target idx value = do
   (targetInstrs, targetOp, _) <- genExpr target
