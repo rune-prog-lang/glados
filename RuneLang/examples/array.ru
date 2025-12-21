@@ -1,8 +1,13 @@
 def show_array(arr: any[]) -> null
 {
+    space = true;
+
     for item in arr {
+        if not space {
+            show(' ');
+        }
         show(item);
-        show(' ');
+        space = false;
     }
     show('\n');
 }
