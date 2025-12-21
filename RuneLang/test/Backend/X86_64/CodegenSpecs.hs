@@ -20,6 +20,8 @@ codegenTests = testGroup "Rune.Backend.X86_64.Codegen"
     collectStaticArraysTests,
     emitExternsTests,
     emitRoDataSectionTests,
+    emitDataSectionTests,
+    emitTextSectionTests,
     emitRmWarningTests,
     emitFunctionTests,
     emitFunctionPrologueTests,
@@ -381,15 +383,47 @@ emitExternsTests = testGroup "emitExterns"
 
 emitRoDataSectionTests :: TestTree
 emitRoDataSectionTests = testGroup "emitRoDataSection"
-  [
-    testCase "string global" $
-      let result = emitRoDataSection [("str1", IRGlobalStringVal "hello")]
-      in assertBool "should contain string definition" $
-           any (=="str1 db \"hello\", 0") result
-  , testCase "float global f32" $
-      let result = emitRoDataSection [("f1", IRGlobalFloatVal 3.14 IRF32)]
-      in assertBool "should contain float dd" $
-           any (=="f1 dd  3.14") result
+  [ testCase "empty globals" $
+      assertBool "should be empty" $ null (emitRoDataSection [])
+  , testCase "all global types" $
+      let gs = [ ("s1", IRGlobalStringVal "hi")
+               , ("f1", IRGlobalFloatVal 1.1 IRF32)
+               , ("f2", IRGlobalFloatVal 2.2 IRF64)
+               , ("f3", IRGlobalFloatVal 3.3 IRI32)
+               ]
+          result = emitRoDataSection gs
+      in assertBool "should format section and all types" $
+           take 1 result == ["section .rodata"] &&
+           any (== "s1 db \"hi\", 0") result &&
+           any (== "f1 dd  1.1") result &&
+           any (== "f2 dq  2.2") result &&
+           any (== "f3 dd  3.3") result
+  ]
+
+emitDataSectionTests :: TestTree
+emitDataSectionTests = testGroup "emitDataSection"
+  [ testCase "no static arrays" $
+      let fs = [IRFunction "f" [] Nothing []]
+      in assertBool "should be empty" $ null (emitDataSection fs)
+  , testCase "with static array" $
+      let fs = [IRFunction "m" [] Nothing [IRALLOC_ARRAY "a" IRI32 [IRConstInt 1, IRConstInt 2]]]
+          result = emitDataSection fs
+      in assertBool "should format section and array definition" $
+           take 1 result == ["section .data"] &&
+           any (== "m_a_lit: dd 1, 2, 0") result
+  ]
+
+emitTextSectionTests :: TestTree
+emitTextSectionTests = testGroup "emitTextSection"
+  [ testCase "empty functions" $
+      assertBool "should be empty" $ null (emitTextSection [])
+  , testCase "with functions" $
+      let fs = [IRFunction "f1" [] Nothing [], IRFunction "f2" [] Nothing []]
+          result = emitTextSection fs
+      in assertBool "should format section and functions" $
+           take 1 result == ["section .text"] &&
+           any (== "f1:") result &&
+           any (== "f2:") result
   ]
 
 emitRmWarningTests :: TestTree
