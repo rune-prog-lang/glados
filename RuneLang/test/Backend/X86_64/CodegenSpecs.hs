@@ -41,12 +41,36 @@ codegenTests = testGroup "Rune.Backend.X86_64.Codegen"
     emitConditionalJumpTests,
     saveCallResultTests,
     setupCallArgsTests,
-    emitInstructionTests
+    emitInstructionTests,
+    emitAssemblyTests
   ]
 
 --
 -- private
 --
+
+emitAssemblyTests :: TestTree
+emitAssemblyTests = testGroup "emitAssembly"
+  [ testCase "generate complete assembly from IRProgram" $
+      let program = IRProgram "complete_program"
+            [ IRExtern "malloc"
+            , IRGlobalDef "glob_msg" (IRGlobalStringVal "hello")
+            , IRFunctionDef (IRFunction "main_fn" [] Nothing 
+                [ IRALLOC_ARRAY "static_arr" IRI32 [IRConstInt 42]
+                , IRRET Nothing
+                ])
+            ]
+          resultLines = lines (emitAssembly program)
+      in assertBool "should contain all assembly sections and labels" $
+           any (== "extern malloc") resultLines &&
+           any (== "section .rodata") resultLines &&
+           any (== "glob_msg db \"hello\", 0") resultLines &&
+           any (== "section .data") resultLines &&
+           any (== "main_fn_static_arr_lit: dd 42, 0") resultLines &&
+           any (== "section .text") resultLines &&
+           any (== "main_fn:") resultLines &&
+           any (== "section .note.GNU-stack noalloc noexec nowrite") resultLines
+  ]
 
 setupCallArgsTests :: TestTree
 setupCallArgsTests = testGroup "setupCallArgs"
