@@ -208,8 +208,9 @@ verifScope vs (StmtForEach v t iter body : stmts) = do
 
   elem_t <- case e_t of
     TypeArray inner -> pure inner
+    TypeString -> pure TypeChar
     TypeAny -> pure TypeAny
-    _ -> lift $ Left $ printf "\n\tIteratingNonArray: cannot iterate type %s, expected array" (show e_t)
+    _ -> pure TypeAny
 
   vs'     <- lift $ assignVarType vs v elem_t
   t'      <- lift $ checkMultipleType v t elem_t
