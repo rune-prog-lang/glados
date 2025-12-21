@@ -419,22 +419,82 @@ emitFunctionEpilogueTests = testGroup "emitFunctionEpilogue"
 emitAssignTests :: TestTree
 emitAssignTests = testGroup "emitAssign"
   [
-    testCase "assign integer literal" $
-      let sm = Map.fromList [("x", -8)]
-          result = emitAssign sm "x" (IRConstInt 42) IRI32
-      in assertBool "should mov literal to stack" $
-           any (=="    mov dword [rbp-8], 42") result
-  , testCase "assign large integer (requires rax)" $
-      let sm = Map.fromList [("x", -8)]
-          result = emitAssign sm "x" (IRConstInt 5000000000) IRI64
-      in assertBool "should use rax for large literal" $
-           any (=="    mov rax, 5000000000") result &&
-           any (=="    mov qword [rbp-8], rax") result
-  , testCase "assign boolean" $
-      let sm = Map.fromList [("b", -1)]
-          result = emitAssign sm "b" (IRConstBool True) IRBool
-      in assertBool "should mov 1 for true" $
-           any (=="    mov byte [rbp-1], 1") result
+    testCase "IRConstInt small" $
+      let sm = Map.fromList [("dest", -4)]
+          result = emitAssign sm "dest" (IRConstInt 42) IRI32
+      in assertBool "should mov direct to stack" $
+           any (== "    mov dword [rbp-4], 42") result
+  , testCase "IRConstInt large (needs rax)" $
+      let sm = Map.fromList [("dest", -8)]
+          result = emitAssign sm "dest" (IRConstInt 5000000000) IRI64
+      in assertBool "should load rax then store" $
+           any (== "    mov rax, 5000000000") result &&
+           any (== "    mov qword [rbp-8], rax") result
+  , testCase "IRGlobal IRF32 to IRF32" $
+      let sm = Map.fromList [("dest", -4)]
+          result = emitAssign sm "dest" (IRGlobal "f32_glob" IRF32) IRF32
+      in assertBool "should use movss" $
+           any (== "    movss xmm0, dword [rel f32_glob]") result &&
+           any (== "    movss dword [rbp-4], xmm0") result
+  , testCase "IRGlobal IRF32 to IRF64" $
+      let sm = Map.fromList [("dest", -8)]
+          result = emitAssign sm "dest" (IRGlobal "f32_glob" IRF32) IRF64
+      in assertBool "should use cvtss2sd" $
+           any (== "    movss xmm0, dword [rel f32_glob]") result &&
+           any (== "    cvtss2sd xmm0, xmm0") result &&
+           any (== "    movsd qword [rbp-8], xmm0") result
+  , testCase "IRGlobal IRF64 to IRF64" $
+      let sm = Map.fromList [("dest", -8)]
+          result = emitAssign sm "dest" (IRGlobal "f64_glob" IRF64) IRF64
+      in assertBool "should use movsd" $
+           any (== "    movsd xmm0, qword [rel f64_glob]") result &&
+           any (== "    movsd qword [rbp-8], xmm0") result
+  , testCase "IRGlobal IRF64 to IRF32" $
+      let sm = Map.fromList [("dest", -4)]
+          result = emitAssign sm "dest" (IRGlobal "f64_glob" IRF64) IRF32
+      in assertBool "should use cvtsd2ss" $
+           any (== "    movsd xmm0, qword [rel f64_glob]") result &&
+           any (== "    cvtsd2ss xmm0, xmm0") result &&
+           any (== "    movss dword [rbp-4], xmm0") result
+  , testCase "IRConstChar" $
+      let sm = Map.fromList [("dest", -1)]
+          result = emitAssign sm "dest" (IRConstChar 'A') IRChar
+      in assertBool "should mov byte 65" $
+           any (== "    mov byte [rbp-1], 65") result
+  , testCase "IRConstBool" $
+      let sm = Map.fromList [("dest", -1)]
+          result = emitAssign sm "dest" (IRConstBool True) IRBool
+      in assertBool "should mov byte 1" $
+           any (== "    mov byte [rbp-1], 1") result
+  , testCase "IRConstNull" $
+      let sm = Map.fromList [("dest", -8)]
+          result = emitAssign sm "dest" IRConstNull (IRPtr IRI32)
+      in assertBool "should mov qword 0" $
+           any (== "    mov qword [rbp-8], 0") result
+  , testCase "IRGlobal generic" $
+      let sm = Map.fromList [("dest", -8)]
+          result = emitAssign sm "dest" (IRGlobal "my_glob" IRI64) IRI64
+      in assertBool "should load label address into rax" $
+           any (== "    mov rax, my_glob") result &&
+           any (== "    mov qword [rbp-8], rax") result
+  , testCase "IRTemp (stack to stack)" $
+      let sm = Map.fromList [("dest", -8), ("tmp", -16)]
+          result = emitAssign sm "dest" (IRTemp "tmp" IRI64) IRI64
+      in assertBool "should move via rax" $
+           any (== "    mov rax, qword [rbp-16]") result &&
+           any (== "    mov qword [rbp-8], rax") result
+  , testCase "IRParam (stack to stack)" $
+      let sm = Map.fromList [("dest", -4), ("p1", -8)]
+          result = emitAssign sm "dest" (IRParam "p1" IRI32) IRI32
+      in assertBool "should move via eax" $
+           any (== "    mov eax, dword [rbp-8]") result &&
+           any (== "    mov dword [rbp-4], eax") result
+  , testCase "Unsupported operand" $
+      let sm = Map.fromList [("dest", -8)]
+          result = emitAssign sm "dest" (IRConstFloat 1.0) IRI64
+      in assertBool "should emit warning and zero out" $
+           any (== "    ; WARNING: Unsupported IRASSIGN operand: IRConstFloat 1.0") result &&
+           any (== "    mov qword [rbp-8], 0") result
   ]
 
 emitRetTests :: TestTree
