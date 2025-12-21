@@ -21,6 +21,7 @@ codegenTests = testGroup "Rune.Backend.X86_64.Codegen"
     emitExternsTests,
     emitRoDataSectionTests,
     emitRmWarningTests,
+    emitFunctionTests,
     emitFunctionPrologueTests,
     emitFunctionEpilogueTests,
     emitParametersTests,
@@ -147,6 +148,14 @@ emitParametersTests = testGroup "emitParameters"
            any (== "    mov dword [rbp-4], edi") result &&
            any (== "    movss dword [rbp-8], xmm0") result &&
            any (== "    mov qword [rbp-16], rsi") result
+  , testCase "mix i64 and f64" $
+      let params = [("x", IRI64), ("y", IRF64), ("z", IRI32)]
+          sm = Map.fromList [("x", -8), ("y", -16), ("z", -20)]
+          result = emitParameters params sm
+      in assertBool "should map to correct registers" $
+           any (== "    mov qword [rbp-8], rdi") result &&
+           any (== "    movsd qword [rbp-16], xmm0") result &&
+           any (== "    mov dword [rbp-20], esi") result
   ]
 
 
@@ -390,6 +399,32 @@ emitRmWarningTests = testGroup "emitRmWarning"
       let result = emitRmWarning
       in assertBool "should have non-exec stack note" $
            any (=="section .note.GNU-stack noalloc noexec nowrite") result
+  ]
+
+emitFunctionTests :: TestTree
+emitFunctionTests = testGroup "emitFunction"
+  [
+    testCase "full function emission" $
+      let body = [IRRET (Just (IRTemp "arg1" IRI32))]
+          params = [("arg1", IRI32)]
+          fn = IRFunction "test_func" params Nothing body
+          result = emitFunction fn
+      in assertBool "should contain all function components" $
+           any (== "global test_func") result &&
+           any (== "test_func:") result &&
+           any (== "    push rbp") result &&
+           any (== "    mov dword [rbp-4], edi") result &&
+           any (== "    mov eax, dword [rbp-4]") result &&
+           any (== ".L.function_end_test_func:") result &&
+           any (== "    ret") result
+  , testCase "empty function body" $
+      let fn = IRFunction "empty" [] Nothing []
+          result = emitFunction fn
+      in assertBool "should still emit prologue and epilogue" $
+           any (== "empty:") result &&
+           any (== "    push rbp") result &&
+           any (== ".L.function_end_empty:") result &&
+           any (== "    ret") result
   ]
 
 emitFunctionPrologueTests :: TestTree
