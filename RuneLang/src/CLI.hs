@@ -82,16 +82,16 @@ runCLI (CompileObjToExec inFile maybeOutFile) =
   in compilePipeline inFile outFile ToExecutable
 
 parseCommand :: String -> [String] -> Either String Action
-parseCommand "help" _ = pure ShowUsage
-parseCommand "--help" _ = pure ShowUsage
-parseCommand "-h" _ = pure ShowUsage
-parseCommand "run" rest = parseRun rest
-parseCommand "--run" rest = parseRun rest
-parseCommand "-r" rest = parseRun rest
-parseCommand "build" rest = parseBuild rest
-parseCommand "--build" rest = parseBuild rest
-parseCommand "-b" rest = parseBuild rest
-parseCommand cmd _ = Left $ "Invalid command: " ++ cmd ++ ". Use 'rune help'."
+parseCommand "help"     _    = pure ShowUsage
+parseCommand "--help"   _    = pure ShowUsage
+parseCommand "-h"       _    = pure ShowUsage
+parseCommand "run"      rest = parseRun rest
+parseCommand "--run"    rest = parseRun rest
+parseCommand "-r"       rest = parseRun rest
+parseCommand "build"    rest = parseBuild rest
+parseCommand "--build"  rest = parseBuild rest
+parseCommand "-b"       rest = parseBuild rest
+parseCommand cmd        _    = Left $ "Invalid command: " ++ cmd ++ ". Use 'rune help'."
 
 parseRun :: [String] -> Either String Action
 parseRun [file] = Right (Interpret file)
