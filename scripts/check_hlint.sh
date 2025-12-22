@@ -7,12 +7,14 @@ NC='\033[0m'
 SUCCESS=0
 ERROR=84
 
+TARGET_DIR="$PWD/RuneLang/src/"
+
 if ! command -v hlint &> /dev/null; then
     echo -e "${RED}Error: hlint is not installed.${NC}"
     exit $ERROR
 fi
 
-hlint RuneLang
+hlint $TARGET_DIR
 RET=$?
 
 if [ $RET -ne 0 ]; then
