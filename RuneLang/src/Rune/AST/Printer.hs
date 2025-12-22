@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE CPP #-}
 
 #if defined(TESTING_EXPORT)
