@@ -88,7 +88,7 @@ verifVars (Program n defs) = do
 
 isGeneric :: TopLevelDef -> Bool
 isGeneric (DefFunction _ params ret _) = hasAny ret || any (hasAny . paramType) params
-isGeneric (DefOverride _ _ _ _) = False
+isGeneric (DefOverride {}) = False
 isGeneric _ = False
 
 
