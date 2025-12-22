@@ -19,12 +19,11 @@ import qualified Rune.Lexer.Tokens as T
 parseTopLevels :: Parser [TopLevelDef]
 parseTopLevels = do
   isEof <- check T.EOF
-  case isEof of
-    True -> pure []
-    False -> do
-      def <- parseTopLevelDef
-      defs <- parseTopLevels
-      pure (def : defs)
+  if isEof then pure []
+  else do
+    def  <- parseTopLevelDef
+    defs <- parseTopLevels
+    pure (def : defs)
 
 --
 -- private parsers
@@ -65,18 +64,17 @@ parseStruct = do
 
 parseStructBody :: Parser ([Field], [TopLevelDef])
 parseStructBody = do
-  items <- parseStructItemsLoop
-  pure $ partitionEithers items
+  partitionEithers <$> parseStructItemsLoop
 
 parseStructItemsLoop :: Parser [Either Field TopLevelDef]
 parseStructItemsLoop = do
   isEnd <- check T.RBrace
-  case isEnd of
-    True -> advance >> pure []
-    False -> do
-      item <- parseStructItem
-      rest <- parseStructItemsLoop
-      pure (item : rest)
+  if isEnd then
+    advance >> pure []
+  else do
+    item <- parseStructItem
+    rest <- parseStructItemsLoop
+    pure (item : rest)
 
 parseStructItem :: Parser (Either Field TopLevelDef)
 parseStructItem = do
