@@ -34,6 +34,9 @@ import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRTy
 import Lib (isPrintable)
 import Data.Char (ord)
 
+import Debug.Trace (trace)
+import Text.Printf (printf)
+
 --
 -- public
 --
@@ -53,7 +56,12 @@ calculateStackMap func =
       (totalUsedSize, offsetsMap) = foldl' (accumulateOffset varsMap) (0, Map.empty) varsList
       totalSize = alignUp totalUsedSize 16
       rbpOffsetsMap = Map.map (makeRbpOffset totalUsedSize) offsetsMap
-   in (rbpOffsetsMap, totalSize)
+   in trace (
+        printf "varsMap: %s\ntotalUsedSized: %d\ntotalSize: %d\nrbpOffsetsMap: %s\n"
+        (show varsMap) totalUsedSize totalSize (show rbpOffsetsMap)
+      ) (
+        (rbpOffsetsMap, totalSize)
+      )
 
 escapeString :: String -> String
 escapeString = intercalate "," . encodeCharacter
