@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -cpp #-}
+{-# LANGUAGE CPP #-}
 
 #if defined(TESTING_EXPORT)
 module Rune.Backend.X86_64.Codegen
@@ -234,7 +234,7 @@ emitAssign sm dest (IRGlobal name IRF32) IRF32 =
 emitAssign sm dest (IRGlobal name IRF32) IRF64 =
   case x86_64FloatArgsRegisters of
     []      -> [ emit 1 $ "movss xmm0, dword [rel " <> name <> "]"
-               , emit 1 $ "cvtss2sd xmm0, xmm0"
+               , emit 1   "cvtss2sd xmm0, xmm0"
                , emit 1 $ "movsd qword " <> stackAddr sm dest <> ", xmm0"
                ]
     (reg:_) -> [ emit 1 $ "movss " <> reg <> ", dword [rel " <> name <> "]"
@@ -252,7 +252,7 @@ emitAssign sm dest (IRGlobal name IRF64) IRF64 =
 emitAssign sm dest (IRGlobal name IRF64) IRF32 =
   case x86_64FloatArgsRegisters of
     []      -> [ emit 1 $ "movsd xmm0, qword [rel " <> name <> "]"
-               , emit 1 $ "cvtsd2ss xmm0, xmm0"
+               , emit 1   "cvtsd2ss xmm0, xmm0"
                , emit 1 $ "movss dword " <> stackAddr sm dest <> ", xmm0"
                ]
     (reg:_) -> [ emit 1 $ "movsd " <> reg <> ", qword [rel " <> name <> "]"
@@ -345,7 +345,7 @@ emitRet sm endLbl (Just op) = emitRetHelper $ getOperandType op
     getReg = loadReg sm "rax" op <> [emit 1 $ "jmp " <> endLbl]
 
     getFloatReg t (xmmRet:_) = loadFloatOperand sm xmmRet op t <> [emit 1 $ "jmp " <> endLbl]
-    getFloatReg t []         = [ emit 1 $ "; WARNING: no float return register available"
+    getFloatReg t []         = [ emit 1   "; WARNING: no float return register available"
                                ] <> loadFloatOperand sm "xmm0" op t <> [emit 1 $ "jmp " <> endLbl]
 
     emitRetHelper (Just IRNull)
