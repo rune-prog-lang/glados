@@ -72,7 +72,7 @@ verifVars (Program n defs) = do
   fs <- findFunc (Program n concreteDefs)
   ss <- findStruct (Program n defs)
 
-  let initialState = SemState 
+  let initialState = SemState
         { stFuncs = fs
         , stTemplates = templatesMap
         , stNewDefs = []

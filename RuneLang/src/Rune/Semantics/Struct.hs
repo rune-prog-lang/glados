@@ -45,9 +45,7 @@ validateFieldType sName structs field = do
     TypeNull -> Left $
       printf "Field '%s' in struct '%s' cannot have type 'null'" (fieldName field) sName
     TypeCustom customType ->
-      if HM.member customType structs
-        then Right field
-        else Left $
-          printf "Field '%s' in struct '%s' references unknown type '%s'"
-            (fieldName field) sName customType
+      case customType == sName || HM.member customType structs of
+        True -> Right field
+        False -> Left $ printf "Field '%s' in struct '%s' references unknown type '%s'" (fieldName field) sName customType
     _ -> Right field
