@@ -230,8 +230,7 @@ parseLitArray = do
 parseStructInitOrVar :: Parser Expression
 parseStructInitOrVar = try parseStructInit <|> do
   pos <- getCurrentPos
-  name <- parseIdentifier
-  pure $ ExprVar pos name
+  ExprVar pos <$> parseIdentifier
 
 parseStructInit :: Parser Expression
 parseStructInit = do
