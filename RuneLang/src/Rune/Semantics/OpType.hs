@@ -48,9 +48,7 @@ inferHigherType a b = unrank (notAny a b) (max (rank a) (rank b))
 
 adjustType :: BinaryOp -> Type -> Type -> Either String Type
 adjustType Mul a b = unrank (notAny a b) 4
-adjustType Add a b = do
-  higherType <- inferHigherType a b
-  unrank (notAny a b) $ min 4 (rank higherType + 1)
+adjustType Add a b = inferHigherType a b
 adjustType _   a b = inferHigherType a b
 
 iHTBinary :: BinaryOp -> Type -> Type -> Either String Type
@@ -93,6 +91,10 @@ sameStruct :: Type -> Type -> Bool
 sameStruct (TypeCustom a) (TypeCustom b) = a == b
 sameStruct _ _ = False
 
+sameArray :: Type -> Type -> Bool
+sameArray (TypeArray a) (TypeArray b) = sameType a b
+sameArray _ _ = False
+
 sameType :: Type -> Type -> Bool
 sameType a b | isInt    a && isInt    b = True
              | isUInt   a && isUInt   b = True
@@ -102,6 +104,7 @@ sameType a b | isInt    a && isInt    b = True
              | isBool   a && isBool   b = True
              | isNull   a && isNull   b = True
              | sameStruct a b           = True
+             | sameArray a b            = True
              | otherwise                = False
 
 isIntegerType :: Type -> Bool

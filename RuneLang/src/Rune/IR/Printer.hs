@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -cpp #-}
 
 #if defined(TESTING_EXPORT)
-module Rune.IR.Printer 
+module Rune.IR.Printer
   ( prettyPrintIR
   , printProgram
   , printTopLevel
@@ -11,7 +11,7 @@ module Rune.IR.Printer
   , printType
   ) where
 #else
-module Rune.IR.Printer 
+module Rune.IR.Printer
   ( prettyPrintIR
   ) where
 #endif
@@ -132,6 +132,12 @@ printInstruction (IRGET_FIELD dest base structName field typ) =
   dest ++ ": " ++ printType typ ++ " = GET_FIELD " ++ printOperand base ++ ", \"" ++ structName ++ "\", \"" ++ field ++ "\""
 printInstruction (IRSET_FIELD base structName field val) =
   "SET_FIELD " ++ printOperand base ++ ", \"" ++ structName ++ "\", \"" ++ field ++ "\", " ++ printOperand val
+printInstruction (IRALLOC_ARRAY dest typ elems) =
+  dest ++ ": " ++ printType (IRPtr (IRArray typ (length elems))) ++ " = ALLOC_ARRAY " ++ printType typ ++ " [" ++ intercalate ", " (map printOperand elems) ++ "]"
+printInstruction (IRGET_ELEM dest arr idx typ) =
+  dest ++ ": " ++ printType typ ++ " = GET_ELEM " ++ printOperand arr ++ "[" ++ printOperand idx ++ "]"
+printInstruction (IRSET_ELEM arr idx val) =
+  "SET_ELEM " ++ printOperand arr ++ "[" ++ printOperand idx ++ "] = " ++ printOperand val
 
 printOperand :: IROperand -> String
 printOperand (IRConstInt n) = show n
@@ -160,3 +166,4 @@ printType (IRPtr t) = "*" ++ printType t
 printType (IRStruct s) = s
 printType IRNull = "null"
 printType IRBool = "bool"
+printType (IRArray t len) = "[" ++ printType t ++ " x " ++ show len ++ "]"

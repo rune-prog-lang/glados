@@ -32,6 +32,7 @@ import Rune.Backend.Types (Extern, Function, Global)
 import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
 import Lib (isPrintable)
+import Data.Char (ord)
 
 --
 -- public
@@ -81,6 +82,16 @@ collectVars acc (IRALLOC n t) = Map.insert n t acc
 collectVars acc (IRLOAD n _ t) = Map.insert n t acc
 collectVars acc (IRDEREF n _ t) = Map.insert n t acc
 collectVars acc (IRGET_FIELD n _ _ _ t) = Map.insert n t acc
+collectVars acc (IRGET_ELEM n _ _ t) = Map.insert n t acc
+
+-- | collect vars for array stack allocation
+-- -> length elements + 1 (for the null terminator)
+-- -> array are ptr of their data
+collectVars acc (IRALLOC_ARRAY n t elems) =
+  let arrType = IRArray t (length elems + 1)
+      ptrType = IRPtr arrType
+   in Map.insert (n <> "_data") arrType (Map.insert n ptrType acc)
+
 collectVars acc (IRADD_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IRSUB_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IRMUL_OP n _ _ t) = Map.insert n t acc
@@ -102,7 +113,7 @@ collectVars acc (IRDEC _) = acc
 collectVars acc _ = acc
 
 accumulateOffset :: Map.Map String IRType -> (Int, Map.Map String Int) -> (String, IRType) -> (Int, Map.Map String Int)
-accumulateOffset _ (currentOffset, accMap) (name, irType) = 
+accumulateOffset _ (currentOffset, accMap) (name, irType) =
   let size = sizeOfIRType irType
       align = min 8 (if size == 0 then 1 else size)
       alignedOffset = alignUp currentOffset align
@@ -111,14 +122,15 @@ accumulateOffset _ (currentOffset, accMap) (name, irType) =
 
 encodeCharacter :: String -> [String]
 encodeCharacter "" = []
-encodeCharacter s@(c : cs)
+encodeCharacter (c : cs)
   | c == '\n' = "10" : encodeCharacter cs
   | c == '\r' = "13" : encodeCharacter cs
   | c == '\t' = "9" : encodeCharacter cs
   | c == '\0' = "0" : encodeCharacter cs
-  | otherwise = 
-      let (printables, rest) = span isPrintable s
+  | isPrintable c =
+      let (printables, rest) = span isPrintable (c : cs)
        in ("\"" ++ printables ++ "\"") : encodeCharacter rest
+  | otherwise = show (ord c) : encodeCharacter cs
 
 -- | convert offset from function stack frame to RBP-relative offset
 makeRbpOffset :: Int -> Int -> Int
