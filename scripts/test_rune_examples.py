@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import subprocess
+import os
 from pathlib import Path
 
 OUT_BIN = "./out.bin"
@@ -127,9 +128,13 @@ def main():
 
     if failed:
         print(f"\n{RED}{failed} test(s) failed{RESET}")
+        if Path(OUT_BIN).exists():
+            os.remove(OUT_BIN)
         exit(ERROR)
     else:
         print(f"\n{GREEN}All tests passed{RESET}")
+        if Path(OUT_BIN).exists():
+            os.remove(OUT_BIN)
 
 
 if __name__ == "__main__":
