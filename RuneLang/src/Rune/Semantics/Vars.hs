@@ -334,14 +334,17 @@ verifExprWithContext hint vs (ExprCall pos name args) = do
   case argTypesResult of
     Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "valid argument types" err ["function call"]
     Right argTypes -> do
-      let match = checkParamType s name file line col args'
-      case match of
-        Right foundName -> pure $ ExprCall pos foundName args'
-        Left err -> do
-            templates <- gets stTemplates
-            case HM.lookup name templates of
-                Nothing -> lift $ Left $ formatSemanticError err
-                Just templateDef -> tryInstantiateTemplate templateDef name args' argTypes hint
+      case name of
+        ExprVar _ fnName -> do
+          let match = checkParamType s fnName file line col args'
+          case match of
+            Right foundName -> pure $ ExprCall pos (ExprVar pos foundName) args'
+            Left err -> do
+                templates <- gets stTemplates
+                case HM.lookup fnName templates of
+                    Nothing -> lift $ Left $ formatSemanticError err
+                    Just templateDef -> tryInstantiateTemplate templateDef fnName args' argTypes hint
+        _ -> pure $ ExprCall pos name args'
 
 verifExprWithContext hint vs (ExprStructInit pos name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
@@ -379,11 +382,11 @@ tryInstantiateTemplate def originalName args argTypes contextRetType = do
               []    -> SourcePos "<generated>" 0 0
 
   alreadyInstantiated mangled >>= \case
-    True  -> pure $ ExprCall pos mangled args
+    True  -> pure $ ExprCall pos (ExprVar pos mangled) args
     False -> do
       verified <- verifTopLevel (instantiate def argTypes retTy)
       registerInstantiation mangled verified retTy argTypes
-      pure $ ExprCall pos mangled args
+      pure $ ExprCall pos (ExprVar pos mangled) args
 
 
 resolveReturnType :: String -> [Type] -> Maybe Type -> SemM Type
