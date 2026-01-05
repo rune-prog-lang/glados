@@ -133,7 +133,7 @@ emitTextSection fs = "section .text" : concatMap emitFunction fs
 --     pop rbp
 --     ret
 emitFunction :: Function -> [String]
-emitFunction fn@(IRFunction name params _ body) =
+emitFunction fn@(IRFunction name params _ body _) =
   let (stackMap, frameSize) = calculateStackMap fn
       endLabel = ".L.function_end_" <> name
       prologue = emitFunctionPrologue fn frameSize
@@ -143,13 +143,14 @@ emitFunction fn@(IRFunction name params _ body) =
    in prologue <> paramSetup <> bodyInstrs <> epilogue
 
 emitFunctionPrologue :: Function -> Int -> [String]
-emitFunctionPrologue (IRFunction name _ _ _) frameSize =
-  [ "global " <> name
-  , name <> ":"
-  , emit 1 "push rbp"
-  , emit 1 "mov rbp, rsp"
-  , emit 1 $ "sub rsp, " <> show frameSize
-  ]
+emitFunctionPrologue (IRFunction name _ _ _ isExport) frameSize =
+  let shouldExport = isExport || name == "main"
+  in (if shouldExport then ["global " <> name] else [])
+    <> [ name <> ":"
+       , emit 1 "push rbp"
+       , emit 1 "mov rbp, rsp"
+       , emit 1 $ "sub rsp, " <> show frameSize
+       ]
 
 emitFunctionEpilogue :: String -> [String]
 emitFunctionEpilogue endLabel =
@@ -470,7 +471,7 @@ emitRmWarning =
 collectStaticArrays :: [Function] -> [(String, IRType, [IROperand])]
 collectStaticArrays = concatMap collectFn
   where
-    collectFn (IRFunction fnName _ _ body) = concatMap (collectInstr fnName) body
+    collectFn (IRFunction fnName _ _ body _) = concatMap (collectInstr fnName) body
 
     collectInstr fnName (IRALLOC_ARRAY dest elemType values)
       | all isStaticOperand values = [(fnName <> "_" <> dest <> "_lit", elemType, values)]
