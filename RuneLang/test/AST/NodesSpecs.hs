@@ -117,7 +117,8 @@ testTopLevelDefAccessors =
                 { funcName = "main",
                   funcParams = [],
                   funcReturnType = TypeNull,
-                  funcBody = dummyBlock
+                  funcBody = dummyBlock,
+                  funcIsExport = False
                 }
          in do
               funcName def @?= "main"
@@ -141,7 +142,8 @@ testTopLevelDefAccessors =
                 { overrideName = "toString",
                   overrideParams = [],
                   overrideReturnType = TypeString,
-                  overrideBody = dummyBlock
+                  overrideBody = dummyBlock,
+                  overrideIsExport = False
                 }
          in do
               overrideName def @?= "toString"

@@ -49,12 +49,12 @@ functionTests = testGroup "Function Tests"
   [ testCase "Function (no params)" $
       assertParse "def main() -> i32 { return 0; }"
         [tok T.KwDef, tok (T.Identifier "main"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeI32, tok T.LBrace, tok T.KwReturn, tok (T.LitInt 0), tok T.Semicolon, tok T.RBrace]
-        [DefFunction "main" [] TypeI32 [StmtReturn (SourcePos "test" 1 1) (Just (ExprLitInt (SourcePos "test" 1 1) 0))]]
+        [DefFunction "main" [] TypeI32 [StmtReturn (SourcePos "test" 1 1) (Just (ExprLitInt (SourcePos "test" 1 1) 0))] False]
 
   , testCase "Function (params)" $
       assertParse "def add(x: i32, y: i32) -> i32 {}"
         [tok T.KwDef, tok (T.Identifier "add"), tok T.LParen, tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32, tok T.Comma, tok (T.Identifier "y"), tok T.Colon, tok T.TypeI32, tok T.RParen, tok T.OpArrow, tok T.TypeI32, tok T.LBrace, tok T.RBrace]
-        [DefFunction "add" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 []]
+        [DefFunction "add" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 [] False]
   ]
 
 structTests :: TestTree
@@ -67,7 +67,7 @@ structTests = testGroup "Struct Tests"
   , testCase "Struct with fields and methods" $
       assertParse "struct Point { x: i32; y: i32; def show() -> null {} }"
         [tok T.KwStruct, tok (T.Identifier "Point"), tok T.LBrace, tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32, tok T.Semicolon, tok (T.Identifier "y"), tok T.Colon, tok T.TypeI32, tok T.Semicolon, tok T.KwDef, tok (T.Identifier "show"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace, tok T.RBrace]
-        [DefStruct "Point" [Field "x" TypeI32, Field "y" TypeI32] [DefFunction "show" [] TypeNull []]]
+        [DefStruct "Point" [Field "x" TypeI32, Field "y" TypeI32] [DefFunction "show" [] TypeNull [] False]]
   ]
 
 overrideTests :: TestTree
@@ -75,5 +75,5 @@ overrideTests = testGroup "Override Tests"
   [ testCase "Override" $
       assertParse "override def main() -> i32 {}"
         [tok T.KwOverride, tok T.KwDef, tok (T.Identifier "main"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeI32, tok T.LBrace, tok T.RBrace]
-        [DefOverride "main" [] TypeI32 []]
+        [DefOverride "main" [] TypeI32 [] False]
   ]
