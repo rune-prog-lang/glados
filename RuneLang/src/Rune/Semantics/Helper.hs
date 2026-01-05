@@ -88,6 +88,7 @@ exprType _ (ExprLitBool _ _)        = Right TypeBool
 exprType _ (ExprStructInit _ st _)  = Right $ TypeCustom st
 exprType _ (ExprLitNull _)          = Right TypeNull
 exprType _ (ExprAccess {})       = Right TypeAny -- don't know how to use struct
+exprType _ (ExprCast _ _ t)         = Right t
 
 exprType s (ExprBinary _ op a b)    = do 
   a' <- exprType s a
