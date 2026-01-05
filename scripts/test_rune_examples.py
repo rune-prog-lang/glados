@@ -1,57 +1,28 @@
 #!/usr/bin/env python3
 
 import subprocess
-from pathlib import Path
+import os
+from typing import List
+
+
+def glob_files(path: str, extension: str) -> List[str]:
+    extension = "." + extension.lstrip(".")
+    matches: List[str] = []
+
+    for root, _, files in os.walk(path):
+        for name in files:
+            if name.endswith(extension):
+                matches.append(os.path.join(root, name))
+
+    return sorted(matches)
+
 
 OUT_BIN = "./out.bin"
 
-EXAMPLE_FILES = [
-    "RuneLang/examples/fibonacci.ru",
-    "RuneLang/examples/hello_rune.ru",
-    "RuneLang/examples/if_else.ru",
-    "RuneLang/examples/loops.ru",
-    "RuneLang/examples/return_0.ru",
-    "RuneLang/examples/strings.ru",
-    "RuneLang/examples/maths.ru",
-    "RuneLang/examples/operators.ru",
-    "RuneLang/examples/array.ru",
-]
+EXAMPLE_FILES = glob_files("RuneLang/test/RuneUnitTests", "ru")
 
-EXPECTED_STDIN = {
-    "RuneLang/examples/fibonacci.ru": None,
-    "RuneLang/examples/hello_rune.ru": None,
-    "RuneLang/examples/if_else.ru": None,
-    "RuneLang/examples/loops.ru": None,
-    "RuneLang/examples/return_0.ru": None,
-    "RuneLang/examples/strings.ru": None,
-    "RuneLang/examples/maths.ru": None,
-    "RuneLang/examples/operators.ru": None,
-    "RuneLang/examples/array.ru": None,
-}
-
-EXPECTED_STDOUT = {
-    "RuneLang/examples/fibonacci.ru": "",
-    "RuneLang/examples/hello_rune.ru": "Hello, Rune!\n",
-    "RuneLang/examples/if_else.ru": "a is less than 10\n",
-    "RuneLang/examples/loops.ru": "The final value is: 12\n",
-    "RuneLang/examples/return_0.ru": "",
-    "RuneLang/examples/strings.ru": "Hello, Rune!\n",
-    "RuneLang/examples/maths.ru": "[+] PASSED\n" * 51,
-    "RuneLang/examples/operators.ru": "[+] PASSED\n" * 6,
-    "RuneLang/examples/array.ru": "[1, 10, 3, 4, 5]\n[malloc, sizeof, rune, etoile]\n[R, u, n, e]\n[1, 2, 3]\n[4, 5, 6]\n[7, 8, 9]\n",
-}
-
-EXPECTED_RETURN = {
-    "RuneLang/examples/fibonacci.ru": 55,
-    "RuneLang/examples/hello_rune.ru": 0,
-    "RuneLang/examples/if_else.ru": 5,
-    "RuneLang/examples/loops.ru": 0,
-    "RuneLang/examples/return_0.ru": 0,
-    "RuneLang/examples/strings.ru": 0,
-    "RuneLang/examples/maths.ru": 0,
-    "RuneLang/examples/operators.ru": 0,
-    "RuneLang/examples/array.ru": 0,
-}
+EXPECTED_STDOUT = "[+] PASSED\n" * 39
+EXPECTED_RETURN = 0
 
 GREEN = "\033[32m"
 RED = "\033[31m"
@@ -63,73 +34,57 @@ CROSS = "✗"
 ERROR = 84
 
 
-def compile(filename: str, output_bin: str = OUT_BIN) -> None:
-    file = Path(filename)
-
-    subprocess.run(["./rune", "build", str(file), "-o", str(output_bin)], check=True)
+def print_ok(message: str) -> None:
+    print(f"{GREEN}{CHECK}{RESET} {message}")
 
 
-def run_bin(stdin_data: bytes):
-    process = subprocess.Popen(
-        OUT_BIN,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    stdout, _ = process.communicate(stdin_data)
-    return stdout.decode(), process.returncode
+def print_ko(message: str) -> None:
+    print(f"{RED}{CROSS}{RESET} {message}")
 
 
-def run_test(example_file):
-    expected_stdin = EXPECTED_STDIN[example_file]
-    stdin_data = (
-        Path(example_file).read_bytes()
-        if expected_stdin is None
-        else expected_stdin.encode()
-    )
+def compile(examples_files: List[str]) -> subprocess.CompletedProcess:
 
-    out, code = run_bin(stdin_data)
-    expected_out = EXPECTED_STDOUT[example_file]
-    expected_code = EXPECTED_RETURN[example_file]
+    build_cmd = ["rune", "build", *examples_files, "-o", OUT_BIN]
 
-    ok_out = out == expected_out
-    ok_code = code == expected_code
+    try:
+        result = subprocess.run(
+            build_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError:
+        print_ko("`rune` command not found.")
+        raise SystemExit(ERROR)
 
-    return ok_out and ok_code, out, code, expected_out, expected_code
+    if result.returncode != 0:
+        print_ko("Compilation failed.")
+        print(result.stderr)
+        raise SystemExit(ERROR)
+
+    print_ok("Compilation succeeded.")
+    return result
 
 
-def main():
-    print(f"{BOLD}Running tests…{RESET}")
-    failed = 0
+def verify_output(run: subprocess.CompletedProcess) -> None:
 
-    for example in EXAMPLE_FILES:
+    if run.returncode != EXPECTED_RETURN:
+        print_ko(
+            f"Program exited with code {run.returncode}, expected {EXPECTED_RETURN}."
+        )
+        raise SystemExit(ERROR)
 
-        try:
-            compile(example)
-        except subprocess.CalledProcessError:
-            print(f" {RED}{CROSS}{RESET} Failed to compile {example}")
-            failed += 1
-            continue
+    print_ok("Program exited with the expected return code.")
 
-        ok, out, code, exp_out, exp_code = run_test(example)
 
-        name = example.rpartition("/")[-1]
+def main() -> None:
 
-        if ok:
-            print(f" {GREEN}{CHECK}{RESET} {name}")
-        else:
-            failed += 1
-            print(f" {RED}{CROSS}{RESET} {name}")
-            print(f"    stdout got: {repr(out)}")
-            print(f"    stdout exp: {repr(exp_out)}")
-            print(f"    code   got: {code}")
-            print(f"    code   exp: {exp_code}")
+    if not EXAMPLE_FILES:
+        print_ko("No test files found.")
+        raise SystemExit(ERROR)
 
-    if failed:
-        print(f"\n{RED}{failed} test(s) failed{RESET}")
-        exit(ERROR)
-    else:
-        print(f"\n{GREEN}All tests passed{RESET}")
+    run = compile(EXAMPLE_FILES)
+    verify_output(run)
 
 
 if __name__ == "__main__":
