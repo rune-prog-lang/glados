@@ -60,7 +60,7 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Generates program with external function call" $
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
-                [ StmtReturn dummyPos (Just (ExprCall dummyPos "external_func" [])) ]
+                [ StmtReturn dummyPos (Just (ExprCall dummyPos (ExprVar dummyPos "external_func") [])) ]
             ]
           fs = HM.singleton "external_func" [(TypeNull, [])]
           result = generateIR prog fs
@@ -97,7 +97,7 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Externs appear before other definitions" $
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
-                [ StmtReturn dummyPos (Just (ExprCall dummyPos "ext1" [])) ]
+                [ StmtReturn dummyPos (Just (ExprCall dummyPos (ExprVar dummyPos "ext1") [])) ]
             ]
           fs = HM.singleton "ext1" [(TypeNull, [])]
           result = generateIR prog fs
@@ -140,7 +140,7 @@ testGenerateIR = testGroup "generateIR"
       let prog = Program "test"
             [ DefFunction "callee" [] TypeNull []
             , DefFunction "caller" [] TypeNull 
-                [ StmtExpr dummyPos (ExprCall dummyPos "callee" []) ]
+                [ StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "callee") []) ]
             ]
           fs = HM.singleton "callee" [(TypeNull, [])]
           result = generateIR prog fs
@@ -153,8 +153,8 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Difference between called and defined functions" $
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
-                [ StmtExpr dummyPos (ExprCall dummyPos "ext1" [])
-                , StmtExpr dummyPos (ExprCall dummyPos "ext2" [])
+                [ StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "ext1") [])
+                , StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "ext2") [])
                 ]
             ]
           fs = HM.fromList [("ext1", [(TypeNull, [])]), ("ext2", [(TypeNull, [])])]
