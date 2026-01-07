@@ -4,7 +4,11 @@ somewhere
     def test_maths() -> null;
 }
 
-def main() -> i32
+/**
+* public
+*/
+
+export def main() -> i32
 {
     test_operators();
     test_maths();
