@@ -132,6 +132,12 @@ data IRInstruction
   | IRJUMP_TRUE IROperand IRLabel
   | IRJUMP_FALSE IROperand IRLabel
   | IRJUMP_EQ0 IROperand IRLabel
+  | IRJUMP_LT IROperand IROperand IRLabel
+  | IRJUMP_LTE IROperand IROperand IRLabel
+  | IRJUMP_GT IROperand IROperand IRLabel
+  | IRJUMP_GTE IROperand IROperand IRLabel
+  | IRJUMP_EQ IROperand IROperand IRLabel
+  | IRJUMP_NEQ IROperand IROperand IRLabel
   | -- function
     IRCALL String String [IROperand] (Maybe IRType)
   | IRRET (Maybe IROperand)
