@@ -56,9 +56,7 @@ checkParamType s@(fs, _, _) fname file line col es =
     Nothing         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
     Just []         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
     Just [sig]      -> checkSingle sig
-    Just (sig:sigs) -> case checkSingle sig of
-                         Left _ -> checkAll (mkError (printf "matching signature for %s" fname) "no matching overload") sigs
-                         Right r  -> Right r
+    Just sigs       -> checkAll (mkError (printf "matching signature for %s with arguments %s" fname (show $ map (exprType s) es)) "no matching overload") sigs
   where
     checkSingle :: (Type, [Type]) -> Either SemanticError String
     checkSingle (_, at) =
@@ -107,12 +105,6 @@ exprType (_, vs, _) (ExprVar _ name)   = Right $ fromMaybe TypeAny (HM.lookup na
 exprType s@(fs, _, _) (ExprCall _ (ExprVar _ fn) args) = do
   argTypes <- mapM (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
-
--- exprType s@(fs, _, _) (ExprCall _ (ExprVar _ name) args) =
---   let argTypes = map (exprType s) args
---   in case selectSignature fs name argTypes of
---     Just ret -> ret
---     Nothing  -> TypeAny
 
 exprType _ (ExprCall _ _ _) = Right TypeAny
 
@@ -169,7 +161,7 @@ checkMultipleType v file line col (Just t) e_t
 checkEachParam :: Stack -> String -> Int -> Int -> Int -> [Expression] -> [Type] -> Maybe SemanticError
 checkEachParam s file line col i (e:es) (t:at) =
   case exprType s e of
-    Left err -> Just $ SemanticError file line col ("valid expression type") err ["parameter check", "function call"]
+    Left err -> Just $ SemanticError file line col "valid expression type" err ["parameter check", "function call"]
     Right t' ->
       if isTypeCompatible t t'
       then checkEachParam s file line col (i + 1) es at
