@@ -94,6 +94,14 @@ def verify_output(run: subprocess.CompletedProcess) -> None:
     print_ok("Program exited with the expected return code.")
 
 
+def delete_binary() -> None:
+    try:
+        os.remove(OUT_BIN)
+        print_ok("Temporary binary deleted.")
+    except OSError:
+        print_ko("Failed to delete temporary binary.")
+
+
 def main() -> None:
     if not EXAMPLE_FILES:
         print_ko("No test files found.")
@@ -102,6 +110,7 @@ def main() -> None:
     compile(EXAMPLE_FILES)
     run = run_binary()
     verify_output(run)
+    delete_binary()
 
 
 if __name__ == "__main__":
