@@ -1,4 +1,4 @@
-module Rune.Semantics.Struct (findStruct, checkFields) where
+module Rune.Semantics.Struct (findStruct) where
 
 import Text.Printf (printf)
 import Control.Monad (foldM, when)
@@ -22,8 +22,21 @@ findStruct (Program _ defs) = do
       when (HM.member name acc) $
         Left $ printf "HasDuplicates: Struct '%s' is already defined" name
       checkedFields <- checkFields name acc fields
-      Right $ HM.insert name (DefStruct name checkedFields methods) acc
+      checkedMethods <- checkMethods name methods
+      Right $ HM.insert name (DefStruct name checkedFields checkedMethods) acc
     addStruct acc _ = Right acc
+
+---
+--- private
+---
+
+checkMethods :: String -> [TopLevelDef] -> Either String [TopLevelDef]
+checkMethods sName methods = do
+  let defFuncNames = [n | DefFunction n _ _ _ _ <- methods]
+      funcDuplicates = defFuncNames List.\\ List.nub defFuncNames
+  case funcDuplicates of
+    (dup:_) -> Left $ printf "Duplicate method '%s' in struct '%s' (use override for additional signatures)" dup sName
+    [] -> Right methods
 
 checkFields :: String -> StructStack -> [Field] -> Either String [Field]
 checkFields sName structs fields = do
@@ -32,10 +45,6 @@ checkFields sName structs fields = do
   case duplicates of
     (dup:_) -> Left $ printf "Duplicate field '%s' in struct '%s'" dup sName
     [] -> mapM (validateFieldType sName structs) fields
-
----
---- private
----
 
 validateFieldType :: String -> StructStack -> Field -> Either String Field
 validateFieldType sName structs field = do

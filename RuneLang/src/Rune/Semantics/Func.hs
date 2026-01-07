@@ -61,16 +61,17 @@ findDefs s (DefOverride name params rType _ _) =
         let (generic, specific) = List.partition (\(_, args) -> TypeAny `elem` args) list
         in Right $ HM.insert name (specific ++ [newSign] ++ generic) s
       Nothing   -> Left $ printf msg name
-findDefs s (DefStruct name _ methods) =
-    foldM addMethod s methods
-  where
-    addMethod acc (DefFunction methodName params rType _ _) =
-      let baseName = name ++ "_" ++ methodName
-          params' = fixSelfType name params
-          paramTypes = map paramType params'
-          newSign = (rType, paramTypes)
-      in Right $ HM.insertWith (++) baseName [newSign] acc
-    addMethod acc _ = Right acc
+
+-- | find struct method definitions
+-- iterate over all methods
+-- for each method, mangle the name with the struct name
+-- then insert or append the signature under the mangled name
+findDefs s (DefStruct name _ methods) = do
+    let defFuncNames = [methodName | DefFunction methodName _ _ _ _ <- methods]
+        funcDuplicates = defFuncNames List.\\ List.nub defFuncNames
+    case funcDuplicates of
+      (dup:_) -> Left $ printf "Duplicate method '%s' in struct '%s' (use override for additional signatures)" dup name
+      [] -> foldM (addStructMethod name) s methods
 
 -- | find function signatures defined somewhere else
 -- iterate over all signatures
@@ -98,3 +99,20 @@ findDuplicateMap fs msg = foldr check Nothing (HM.toList fs)
     check (name, sigs) Nothing
       | hasDuplicate sigs = Just $ printf msg name (show sigs)
       | otherwise = Nothing
+
+addStructMethod :: String -> FuncStack -> TopLevelDef -> Either String FuncStack
+addStructMethod sName acc (DefFunction methodName params rType _ _) =
+  let baseName = sName ++ "_" ++ methodName
+      params' = fixSelfType sName params
+      paramTypes = map paramType params'
+      newSign = (rType, paramTypes)
+  in Right $ HM.insertWith (++) baseName [newSign] acc
+
+addStructMethod sName acc (DefOverride methodName params rType _ _) =
+  let baseName = sName ++ "_" ++ methodName
+      params' = fixSelfType sName params
+      paramTypes = map paramType params'
+      newSign = (rType, paramTypes)
+  in Right $ HM.insertWith (++) baseName [newSign] acc
+
+addStructMethod _ acc _ = Right acc

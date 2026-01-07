@@ -412,6 +412,18 @@ verifMethod sName (DefFunction methodName params retType body isExport) = do
 
   body' <- verifScope vs body
   pure $ DefFunction name' params' retType body' isExport
+verifMethod sName (DefOverride methodName params retType body isExport) = do
+  fs <- gets stFuncs
+  let params' = fixSelfType sName params
+      paramTypes = map paramType params'
+      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
+      baseName = sName ++ "_" ++ methodName
+      name' = case HM.lookup baseName fs of
+          Just sigs | length sigs > 1 -> mangleName baseName retType paramTypes
+          _ -> baseName
+
+  body' <- verifScope vs body
+  pure $ DefOverride name' params' retType body' isExport
 verifMethod _ def = pure def
 
 --
