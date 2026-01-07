@@ -52,7 +52,7 @@ import Rune.Backend.Types (Extern, Function, Global)
 import Rune.Backend.X86_64.Compare (emitCompare, loadFloatOperand, isFloatType)
 import qualified Rune.Backend.X86_64.Compare as Cmp
 import Rune.Backend.X86_64.LoadStore (getTestReg, loadReg, loadRegWithExt, moveStackToStack, needsRegisterLoad, operandAddr, stackAddr, storeReg)
-import Rune.Backend.X86_64.Operations (emitBinaryOp, emitDivOp, emitModOp)
+import Rune.Backend.X86_64.Operations (emitBinaryOp, emitDivOp, emitModOp, emitShiftOp)
 import Rune.Backend.X86_64.Registers (getMovType, getSizeSpecifier, getRegisterName, x86_64ArgsRegisters, x86_64FloatArgsRegisters)
 import Rune.IR.Nodes
   ( IRFunction (IRFunction),
@@ -204,6 +204,8 @@ emitInstruction sm _ _ (IRJUMP_GT o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1
 emitInstruction sm _ _ (IRJUMP_GTE o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jge" lbl
 emitInstruction sm _ _ (IRJUMP_EQ o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "je" lbl
 emitInstruction sm _ _ (IRJUMP_NEQ o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jne" lbl
+emitInstruction sm _ _ (IRJUMP_TEST_NZ o1 o2 (IRLabel lbl)) = emitTestJump sm o1 o2 "jnz" lbl
+emitInstruction sm _ _ (IRJUMP_TEST_Z o1 o2 (IRLabel lbl)) = emitTestJump sm o1 o2 "jz" lbl
 emitInstruction sm _ _ (IRCALL dest funcName args mbType) = emitCall sm dest funcName args mbType
 emitInstruction sm endLbl _ (IRRET mbOp) = emitRet sm endLbl mbOp
 emitInstruction sm _ _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
@@ -218,6 +220,9 @@ emitInstruction sm _ _ (IRSUB_OP dest l r t) = emitBinaryOp sm dest "sub" l r t
 emitInstruction sm _ _ (IRMUL_OP dest l r t) = emitBinaryOp sm dest "imul" l r t
 emitInstruction sm _ _ (IRDIV_OP dest l r t) = emitDivOp sm dest l r t
 emitInstruction sm _ _ (IRMOD_OP dest l r t) = emitModOp sm dest l r t
+emitInstruction sm _ _ (IRSHR_OP dest l r t) = emitShiftOp sm dest "sar" l r t
+emitInstruction sm _ _ (IRSHL_OP dest l r t) = emitShiftOp sm dest "sal" l r t
+emitInstruction sm _ _ (IRBAND_OP dest l r t) = emitBinaryOp sm dest "and" l r t
 emitInstruction sm _ _ (IRAND_OP dest l r t) = emitBinaryOp sm dest "and" l r t
 emitInstruction sm _ _ (IROR_OP dest l r t) = emitBinaryOp sm dest "or" l r t
 emitInstruction sm _ _ (IRCMP_EQ dest l r) = emitCompare sm dest Cmp.CmpEQ l r
@@ -485,12 +490,14 @@ emitIntCmpJump sm op1 op2 jumpInstr lbl =
   let typ1 = maybe IRI64 id $ getOperandType op1
       typ2 = maybe IRI64 id $ getOperandType op2
       regSize = getSizeSpecifier typ1
+      reg1 = getRegisterName "rax" typ1
   in loadRegWithExt sm ("rax", op1)
      <> case op2 of
+          IRConstInt 0 -> [emit 1 $ "test " <> reg1 <> ", " <> reg1]
           IRConstInt n | n >= -2147483648 && n <= 2147483647 && regSize /= "byte" ->
-            [emit 1 $ "cmp " <> getRegisterName "rax" typ1 <> ", " <> show n]
+            [emit 1 $ "cmp " <> reg1 <> ", " <> show n]
           _ -> loadRegWithExt sm ("rbx", op2)
-               <> [emit 1 $ "cmp " <> getRegisterName "rax" typ1 <> ", " <> getRegisterName "rbx" typ2]
+               <> [emit 1 $ "cmp " <> reg1 <> ", " <> getRegisterName "rbx" typ2]
      <> [emit 1 $ jumpInstr <> " " <> lbl]
 
 emitFloatCmpJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
@@ -501,6 +508,20 @@ emitFloatCmpJump sm op1 op2 jumpInstr lbl =
      <> (case typ of
            IRF32 -> [emit 1 "ucomiss xmm0, xmm1"]
            _     -> [emit 1 "ucomisd xmm0, xmm1"])
+     <> [emit 1 $ jumpInstr <> " " <> lbl]
+
+-- | Emit test instruction followed by conditional jump
+-- test op1, op2 sets ZF based on op1 AND op2
+emitTestJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
+emitTestJump sm op1 op2 jumpInstr lbl =
+  let typ1 = maybe IRI64 id $ getOperandType op1
+      reg1 = getRegisterName "rax" typ1
+  in loadRegWithExt sm ("rax", op1)
+     <> case op2 of
+          IRConstInt n | n >= -2147483648 && n <= 2147483647 ->
+            [emit 1 $ "test " <> reg1 <> ", " <> show n]
+          _ -> loadRegWithExt sm ("rbx", op2)
+               <> [emit 1 $ "test " <> reg1 <> ", " <> getRegisterName "rbx" typ1]
      <> [emit 1 $ jumpInstr <> " " <> lbl]
 
 emitRmWarning :: [String]
