@@ -21,7 +21,7 @@ OUT_BIN = "./out.bin"
 
 EXAMPLE_FILES = glob_files("RuneLang/test/RuneUnitTests", "ru")
 
-EXPECTED_STDOUT = "[+] PASSED\n" * 82
+EXPECTED_STDOUT = "[+] PASSED\n" * 91
 EXPECTED_RETURN = 0
 
 GREEN = "\033[32m"
