@@ -33,8 +33,8 @@ structSemanticsTests =
         case findFunc structMethodOverrideProgram of
           Right stack ->
             HM.lookup "Matrix_multiply" stack @?=
-              Just [ (TypeCustom "Matrix", [TypeCustom "Matrix", TypeCustom "Matrix"])
-                   , (TypeCustom "Matrix", [TypeCustom "Matrix", TypeF32])
+              Just [ (TypeCustom "Matrix", [TypeCustom "Matrix", TypeF32])
+                   , (TypeCustom "Matrix", [TypeCustom "Matrix", TypeCustom "Matrix"])
                    ]
           Left err -> assertFailure $ "Expected success but got error: " <> err,
       testCase "struct methods do not interfere with global functions" $
