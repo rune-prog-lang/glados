@@ -17,8 +17,8 @@ export def length(s: string) -> u64
     loop {
 
         word: u64 = s[i] : u64;
-        
-        if ((word - lomagic) & (~word) & himagic) != 0 {y 
+
+        if ((word - lomagic) & (~word) & himagic) != 0 {
 
             if s[i] == '\0' {
                 return i;
@@ -48,19 +48,4 @@ export def length(s: string) -> u64
 
         i += 8;
     }
-}
-
-/**
-* @brief returns the length of an array
-* @param s the array
-* @return the length of the array
-*/
-export override def length(s: []any) -> u64
-{
-    i: u64 = 0;
-
-    for _ in s {
-        ++i;
-    }
-    i
 }
