@@ -3,12 +3,16 @@
 #if defined(TESTING_EXPORT)
 module Rune.Backend.X86_64.Codegen
   ( emitAssembly,
+    emitAssemblyLib,
     emitExterns,
     emitRoDataSection,
     emitDataSection,
     emitTextSection,
+    emitTextSectionLib,
     emitFunction,
+    emitFunctionLib,
     emitFunctionPrologue,
+    emitFunctionPrologueLib,
     emitFunctionEpilogue,
     emitParameters,
     emitInstruction,
@@ -40,6 +44,7 @@ where
 #else
 module Rune.Backend.X86_64.Codegen
   ( emitAssembly,
+    emitAssemblyLib,
   )
 where
 #endif
@@ -78,6 +83,17 @@ emitAssembly (IRProgram _ topLevels) =
           <> emitRoDataSection globals
           <> emitDataSection functions
           <> emitTextSection functions
+          <> emitRmWarning
+
+-- | Emit assembly for library code (PIC-compatible, uses PLT for external calls)
+emitAssemblyLib :: IRProgram -> String
+emitAssemblyLib (IRProgram _ topLevels) =
+  let (externs, globals, functions) = collectTopLevels topLevels
+   in unlines $
+        emitExterns externs
+          <> emitRoDataSection globals
+          <> emitDataSection functions
+          <> emitTextSectionLib functions externs
           <> emitRmWarning
 
 --
@@ -122,6 +138,11 @@ emitTextSection :: [Function] -> [String]
 emitTextSection [] = []
 emitTextSection fs = "section .text" : concatMap emitFunction fs
 
+-- | Emit text section for library (all exported functions are global, uses PLT)
+emitTextSectionLib :: [Function] -> [Extern] -> [String]
+emitTextSectionLib [] _ = []
+emitTextSectionLib fs externs = "section .text" : concatMap (emitFunctionLib externs) fs
+
 --
 -- function emission
 --
@@ -147,10 +168,31 @@ emitFunction fn@(IRFunction name params _ body _) =
       epilogue = emitFunctionEpilogue endLabel
    in prologue <> paramSetup <> bodyInstrs <> epilogue
 
+-- | Emit function for library (exports marked with 'export' become global, uses PLT for externs)
+emitFunctionLib :: [Extern] -> Function -> [String]
+emitFunctionLib externs fn@(IRFunction name params _ body _) =
+  let (stackMap, frameSize) = calculateStackMap fn
+      endLabel = ".L.function_end_" <> name
+      prologue = emitFunctionPrologueLib fn frameSize
+      paramSetup = emitParameters params stackMap
+      bodyInstrs = concatMap (emitInstructionLib externs stackMap endLabel name) body
+      epilogue = emitFunctionEpilogue endLabel
+   in prologue <> paramSetup <> bodyInstrs <> epilogue
+
 emitFunctionPrologue :: Function -> Int -> [String]
 emitFunctionPrologue (IRFunction name _ _ _ isExport) frameSize =
   let shouldExport = isExport || name == "main"
-  in ["global " <> name | shouldExport]
+  in ["global " <> name <> ":function" | shouldExport]
+    <> [ name <> ":"
+       , emit 1 "push rbp"
+       , emit 1 "mov rbp, rsp"
+       , emit 1 $ "sub rsp, " <> show frameSize
+       ]
+
+-- | Library prologue: only export if marked with 'export' keyword
+emitFunctionPrologueLib :: Function -> Int -> [String]
+emitFunctionPrologueLib (IRFunction name _ _ _ isExport) frameSize =
+  ["global " <> name <> ":function" | isExport]
     <> [ name <> ":"
        , emit 1 "push rbp"
        , emit 1 "mov rbp, rsp"
@@ -237,6 +279,11 @@ emitInstruction sm _ _ (IRCMP_GT dest l r) = emitCompare sm dest Cmp.CmpGT l r
 emitInstruction sm _ _ (IRCMP_GTE dest l r) = emitCompare sm dest Cmp.CmpGTE l r
 emitInstruction _ _ _ instr = [emit 1 $ "; TODO: " <> show instr]
 
+-- | emit instruction for library mode (uses PLT for external calls)
+emitInstructionLib :: [Extern] -> Map String Int -> String -> String -> IRInstruction -> [String]
+emitInstructionLib externs sm _ _ (IRCALL dest funcName args mbType) = emitCallLib externs sm dest funcName args mbType
+emitInstructionLib _ sm endLbl fn instr = emitInstruction sm endLbl fn instr
+
 -- | emit dest = op
 emitAssign :: Map String Int -> String -> IROperand -> IRType -> [String]
 emitAssign sm dest (IRConstInt n) t
@@ -302,6 +349,38 @@ emitCall sm dest funcName args mbType =
           args
       printfFixup = printfFixupHelp firstFloatType x86_64FloatArgsRegisters
       callInstr   = [emit 1 $ "call " <> funcName]
+      retSave     = saveCallResult sm dest mbType
+   in argSetup <> printfFixup <> callInstr <> retSave
+  where
+    printfFixupHelp (Just IRF32) (floatReg:_)
+      | funcName == "printf" || funcName == "fprintf" =
+        [ emit 1 $ "cvtss2sd " <> floatReg <> ", " <> floatReg
+        , emit 1   "mov eax, 1"
+        ]
+    printfFixupHelp (Just IRF64) (_:_) 
+      | funcName == "printf" || funcName == "fprintf" =
+        [ emit 1 "mov eax, 1" ]
+    printfFixupHelp Nothing _
+      | funcName == "printf" || funcName == "fprintf" = [emit 1 "xor eax, eax"]
+    printfFixupHelp _ _
+      | funcName == "printf" || funcName == "fprintf" = []
+    printfFixupHelp _ _ = []
+
+-- | emit call for library mode (uses PLT for external calls)
+emitCallLib :: [Extern] -> Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
+emitCallLib externs sm dest funcName args mbType =
+  let argSetup    = setupCallArgs sm args
+      firstFloatType =
+        foldr
+          (\op acc -> case (acc, getOperandType op) of
+                        (Nothing, Just t) | isFloatType t -> Just t
+                        _                                 -> acc)
+          Nothing
+          args
+      printfFixup = printfFixupHelp firstFloatType x86_64FloatArgsRegisters
+      usePlt      = funcName `elem` externs
+      callTarget  = if usePlt then funcName <> " wrt ..plt" else funcName
+      callInstr   = [emit 1 $ "call " <> callTarget]
       retSave     = saveCallResult sm dest mbType
    in argSetup <> printfFixup <> callInstr <> retSave
   where
