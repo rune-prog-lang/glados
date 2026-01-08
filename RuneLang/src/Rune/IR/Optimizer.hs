@@ -356,6 +356,10 @@ simplifyInstr (IRLOAD t addr ty) = IRLOAD t <$> simplifyOp addr <*> pure ty
 simplifyInstr (IRDEREF t addr ty) = IRDEREF t <$> simplifyOp addr <*> pure ty
 simplifyInstr (IRGET_FIELD t s f f2 ty) = IRGET_FIELD t <$> simplifyOp s <*> pure f <*> pure f2 <*> pure ty
 simplifyInstr (IRSET_FIELD s f f2 v) = IRSET_FIELD <$> simplifyOp s <*> pure f <*> pure f2 <*> simplifyOp v
+simplifyInstr (IRALLOC_ARRAY t ty elems) = IRALLOC_ARRAY t ty <$> mapM simplifyOp elems
+simplifyInstr (IRGET_ELEM t arr idx ty) = IRGET_ELEM t <$> simplifyOp arr <*> simplifyOp idx <*> pure ty
+simplifyInstr (IRSET_ELEM arr idx val) = IRSET_ELEM <$> simplifyOp arr <*> simplifyOp idx <*> simplifyOp val
+
 simplifyInstr (IRADD_OP t o1 o2 ty) = do
   o1' <- simplifyOp o1
   o2' <- simplifyOp o2
