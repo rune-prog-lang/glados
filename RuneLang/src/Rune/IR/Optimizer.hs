@@ -55,20 +55,16 @@ type OptM = State OptState
 --
 
 runIROptimizer :: IRProgram -> IRProgram
-runIROptimizer prog = applyPasses (3 :: Int) prog
+runIROptimizer (IRProgram name tops) = IRProgram name $ filter isAlive optimized
+
   where
-    applyPasses 0 p = p
-    applyPasses n p = applyPasses (n-1) (optimizePass p)
+    optimized = optimizeTopLevel (funcMap tops) <$> tops
+    optFuncs  = funcMap optimized
+    roots     = if M.member "main" optFuncs then S.singleton "main" else M.keysSet optFuncs
+    reachable = getReachable optFuncs roots
     
-    optimizePass (IRProgram name tops) = IRProgram name $ filter isAlive optimized
-      where
-        optimized = optimizeTopLevel (funcMap tops) <$> tops
-        optFuncs  = funcMap optimized
-        roots     = if M.member "main" optFuncs then S.singleton "main" else M.keysSet optFuncs
-        reachable = getReachable optFuncs roots
-        
-        isAlive (IRFunctionDef f) = S.member (irFuncName f) reachable
-        isAlive _                 = True
+    isAlive (IRFunctionDef f) = S.member (irFuncName f) reachable
+    isAlive _                 = True
 
     funcMap = foldMap $ \case
       IRFunctionDef f -> M.singleton (irFuncName f) f
@@ -340,12 +336,12 @@ isControlFlow (IRJUMP _) = True
 isControlFlow (IRJUMP_TRUE _ _) = True
 isControlFlow (IRJUMP_FALSE _ _) = True
 isControlFlow (IRJUMP_EQ0 _ _) = True
-isControlFlow (IRJUMP_LT _ _ _) = True
-isControlFlow (IRJUMP_LTE _ _ _) = True
-isControlFlow (IRJUMP_GT _ _ _) = True
-isControlFlow (IRJUMP_GTE _ _ _) = True
-isControlFlow (IRJUMP_EQ _ _ _) = True
-isControlFlow (IRJUMP_NEQ _ _ _) = True
+isControlFlow (IRJUMP_LT {}) = True
+isControlFlow (IRJUMP_LTE {}) = True
+isControlFlow (IRJUMP_GT {}) = True
+isControlFlow (IRJUMP_GTE {}) = True
+isControlFlow (IRJUMP_EQ {}) = True
+isControlFlow (IRJUMP_NEQ {}) = True
 isControlFlow _ = False
 
 simplifyInstr :: IRInstruction -> OptM IRInstruction
