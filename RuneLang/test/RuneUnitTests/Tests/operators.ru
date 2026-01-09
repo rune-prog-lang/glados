@@ -30,19 +30,19 @@ export def test_operators() -> null
 
 def operators(a: any, b: any) -> null
 {
-    assert(a > b, "Failure: a > b");
-    assert(!(a < b), "Failure: a < b should be false");
-    assert(not(a == b), "Failure: a == b should be false");
+    assert(a > b, "Operators: a > b");
+    assert(!(a < b), "Operators: a < b");
+    assert(not(a == b), "Operators: a == b");
 }
 
 def logical(a: bool, b: bool) -> null
 {
-    assert(a && a, "Failure: true && true");
-    assert(!(a and b), "Failure: true && false should be false");
-    assert(not(b && b), "Failure: false && false should be false");
+    assert(a && a, "Operators: true && true");
+    assert(!(a and b), "Operators: true && false");
+    assert(not(b && b), "Operators: false && false");
 
-    assert(a or a, "Failure: true || true");
-    assert(a || b, "Failure: true || false");
-    assert(not(b || b), "Failure: false || false should be false");
+    assert(a or a, "Operators: true || true");
+    assert(a || b, "Operators: true || false");
+    assert(not(b || b), "Operators: false || false");
 }
 

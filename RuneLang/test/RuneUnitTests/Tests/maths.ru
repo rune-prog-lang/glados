@@ -25,9 +25,9 @@ export def test_maths() -> null
 
 def maths(a: any, b: any, results: any[]) -> null
 {
-    assert(a + b == results[0], "Addition failed");
-    assert(a - b == results[1], "Subtraction failed");
-    assert(a * b == results[2], "Multiplication failed");
-    assert(a / b == results[3], "Division failed");
-    assert(a % b == results[4], "Modulus failed");
+    assert(a + b == results[0], "Maths: addition");
+    assert(a - b == results[1], "Maths: subtraction");
+    assert(a * b == results[2], "Maths: multiplication");
+    assert(a / b == results[3], "Maths: division");
+    assert(a % b == results[4], "Maths: modulus");
 }
