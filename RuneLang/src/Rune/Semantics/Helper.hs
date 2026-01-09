@@ -48,7 +48,7 @@ formatSemanticError (SemanticError file line col expected got ctx) =
 
 
 checkParamType :: Stack -> String -> String -> Int -> Int -> [Expression] -> Either SemanticError String
-checkParamType s@(fs, _) fname file line col es =
+checkParamType s@(fs, _, _) fname file line col es =
   let mkError expected got = SemanticError file line col expected got ["function call", "global context"]
   in case HM.lookup fname fs of
     Nothing         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
@@ -96,9 +96,9 @@ exprType s (ExprBinary _ op a b)    = do
   iHTBinary op a' b'
 
 exprType s (ExprUnary _ _ expr)     = exprType s expr -- assume the op don't change the type
-exprType (_, vs) (ExprVar _ name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
+exprType (_, vs, _) (ExprVar _ name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
 
-exprType s@(fs, _) (ExprCall _ (ExprVar _ fn) args) = do
+exprType s@(fs, _, _) (ExprCall _ (ExprVar _ fn) args) = do
   argTypes <- mapM (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
 

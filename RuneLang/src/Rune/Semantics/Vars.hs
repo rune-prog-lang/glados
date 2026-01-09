@@ -25,13 +25,15 @@ import qualified Data.List as List
 
 import Rune.AST.Nodes
 import Rune.Semantics.Func (findFunc)
+import Rune.Semantics.Struct (findStruct)
 import Rune.Semantics.Generic (instantiate)
 
 import Rune.Semantics.Type
   ( FuncStack
   , VarStack
+  , StructStack
   , Templates
-  , Stack
+  -- , Stack
   )
 
 import Rune.Semantics.Helper
@@ -55,6 +57,7 @@ data SemState = SemState
   , stTemplates    :: Templates               -- << generic functions ('any')
   , stNewDefs      :: [TopLevelDef]           -- << new functions
   , stInstantiated :: HM.HashMap String Bool  -- << cache of instantiated templates
+  , stStructs      :: StructStack             -- << known structs
   }
 
 type SemM a = StateT SemState (Either String) a
@@ -69,18 +72,20 @@ verifVars (Program n defs) = do
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
 
   fs <- findFunc (Program n concreteDefs)
+  ss <- findStruct (Program n concreteDefs)
 
   let initialState = SemState 
         { stFuncs = fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
+        , stStructs = ss
         }
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
       finalFuncStack = stFuncs finalState
-  
+
   pure (Program n allDefs, finalFuncStack)
 
 --
@@ -149,7 +154,8 @@ verifTopLevel def = pure def -- Structs & Somewhere
 verifScope :: VarStack -> Block -> SemM Block
 verifScope vs (StmtVarDecl pos v t e : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
       SourcePos file line col = pos
 
   e'      <- verifExprWithContext t vs e
@@ -193,7 +199,8 @@ verifScope vs (StmtIf pos cond a Nothing : stmts) = do
 
 verifScope vs (StmtFor pos v t (Just start) end body : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
       SourcePos file line col = pos
   
   start'  <- verifExpr vs start
@@ -221,9 +228,10 @@ verifScope vs (StmtFor pos v t Nothing end body : stmts) = do
 
 verifScope vs (StmtForEach pos v t iter body : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
       SourcePos file line col = pos
-  
+
   iter'   <- verifExpr vs iter
   e_t     <- lift $ either 
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid iterable" msg ["for-each iterable"]) 
@@ -249,7 +257,8 @@ verifScope vs (StmtLoop pos body : stmts) = do
 
 verifScope vs (StmtAssignment pos (ExprVar pv lv) rv : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
       SourcePos file line col = pos
 
   rv'     <- verifExpr vs rv
@@ -263,7 +272,8 @@ verifScope vs (StmtAssignment pos (ExprVar pv lv) rv : stmts) = do
 
 verifScope vs (StmtAssignment pos lhs rv : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
       SourcePos file line col = pos
 
   lhs'    <- verifExpr vs lhs
@@ -311,7 +321,8 @@ verifExprWithContext hint vs (ExprBinary pos op l r) = do
   r' <- verifExprWithContext hint vs r
   
   fs <- gets stFuncs
-  let s = (fs, vs)
+  ss <- gets stStructs
+  let s   = (fs, vs, ss)
       SourcePos file line col = pos
   
   leftType  <- lift $ either 
@@ -325,13 +336,16 @@ verifExprWithContext hint vs (ExprBinary pos op l r) = do
     Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation"]
     Right _  -> pure $ ExprBinary pos op l' r'
 
-verifExprWithContext hint vs (ExprCall cPos (ExprVar _ fname) args) = do
+verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
   fs <- gets stFuncs
-  let s = (fs, vs)
+  ss <- gets stStructs
+  let s = (fs, vs, ss)
 
   args' <- mapM (verifExpr vs) args
-  argTypesResult <- mapM (lift . exprType s) args'
-  callOrInstantiate cPos hint s fname args' argTypesResult
+  argTypes <- lift $ mapM (exprType s) args'
+
+  callExpr <- resolveCall cPos vPos name args' argTypes hint
+  pure $ ExprCall cPos callExpr args'
 
 verifExprWithContext _ _ (ExprCall _ _ _) =
   lift $ Left "Invalid function call target"
@@ -408,16 +422,17 @@ registerInstantiation name def retTy argTys =
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
 
-callOrInstantiate :: SourcePos -> Maybe Type -> Stack -> String -> [Expression] -> [Type] -> SemM Expression
-callOrInstantiate pos hint s name args argTypes = do
-  let SourcePos file line col = pos
-
-  case checkParamType s name file line col args of
-    Right _ -> pure $ ExprCall pos (ExprVar pos name) args
+resolveCall :: SourcePos -> SourcePos -> String -> [Expression] -> [Type] -> Maybe Type -> SemM Expression
+resolveCall cPos vPos name args argTypes hint = do
+  fs <- gets stFuncs
+  let file = posFile cPos
+      line = posLine cPos
+      col = posCol cPos
+      match = checkParamType (fs, HM.empty, HM.empty) name file line col args
+  case match of
+    Right foundName -> pure $ ExprVar vPos foundName
     Left err -> do
       templates <- gets stTemplates
       case HM.lookup name templates of
-        Just templateDef -> do
-          targetExpr <- tryInstantiateTemplate templateDef name args argTypes hint
-          pure $ ExprCall pos targetExpr args
         Nothing -> lift $ Left $ formatSemanticError err
+        Just templateDef -> tryInstantiateTemplate templateDef name args argTypes hint
