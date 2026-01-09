@@ -1,14 +1,15 @@
 module Rune.Semantics.Func (findFunc) where
 
 import Control.Monad (foldM)
-import Data.List (intercalate)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
+import qualified Data.List as List
 
 import Text.Printf (printf)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Type (FuncStack)
+import Rune.Semantics.Helper (fixSelfType)
 
 --
 -- public
@@ -80,13 +81,35 @@ findDefs s (DefSomewhere sigs) = foldM addSig s sigs
                 Nothing -> Right $ HM.insert name [newSign] fs
                 Just _  -> Right fs
 
--- | otherwise...
-findDefs s _ = Right s
+-- | find struct method definitions
+-- check for duplicate method names in the struct
+-- transform method names to include struct name as prefix
+-- then process methods as normal function definitions
+findDefs s (DefStruct name _ methods) =
+    let defFuncNames = [methodName | DefFunction methodName _ _ _ _ <- methods]
+        funcDuplicates = defFuncNames List.\\ List.nub defFuncNames
+        msg = "DuplicateMethodInStruct: Duplicate method '%s' in struct '%s' (use override for additional signatures)"
+    in case funcDuplicates of
+      (dup:_) -> Left $ printf msg dup name
+      [] -> foldM findDefs s (transformStructMethods name methods)
+
+transformStructMethods :: String -> [TopLevelDef] -> [TopLevelDef]
+transformStructMethods sName = map transform
+  where
+    transform (DefFunction methodName params rType body isExport) =
+      let baseName = sName ++ "_" ++ methodName
+          params' = fixSelfType sName params
+      in DefFunction baseName params' rType body isExport
+    transform (DefOverride methodName params rType body isExport) =
+      let baseName = sName ++ "_" ++ methodName
+          params' = fixSelfType sName params
+      in DefOverride baseName params' rType body isExport
+    transform other = other
 
 mangleFuncName :: String -> Type -> [Type] -> String
 mangleFuncName fname ret args
   | TypeAny `elem` args || ret == TypeAny = fname
-  | otherwise = intercalate "_" (show ret : fname : map show args)
+  | otherwise = List.intercalate "_" (show ret : fname : map show args)
 
 hasDuplicate :: (Ord a) => [a] -> Bool
 hasDuplicate xs = Set.size (Set.fromList xs) /= length xs

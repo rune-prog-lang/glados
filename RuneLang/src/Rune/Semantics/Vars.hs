@@ -77,8 +77,8 @@ verifVars (Program n defs) = do
   fs <- findFunc (Program n concreteDefs)
   ss <- findStruct (Program n concreteDefs)
 
-  let initialState = SemState 
-        { stFuncs = fs
+  let initialState = SemState
+        { stFuncs = trace (show fs)fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
@@ -354,6 +354,25 @@ verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
   callExpr <- resolveCall cPos vPos s hint name args' argTypes
   pure $ ExprCall cPos callExpr args'
 
+verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) method) args) = do
+  fs <- gets stFuncs
+  ss <- gets stStructs
+  let s = (fs, vs, ss)
+
+  -- Determine target type
+  targetType <- lift $ exprType s (ExprVar vPos target)
+  let baseName = show targetType ++ "_" ++ method
+
+  -- Prepare all arguments: target + explicit args
+  args' <- mapM (verifExpr vs) args
+  argTypes <- lift $ mapM (exprType s) args'
+  let allArgs = ExprVar vPos target : args'
+      allArgTypes = targetType : argTypes
+
+  -- Use resolveCall to handle the method call like a regular function
+  callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
+  pure $ ExprCall cPos callExpr allArgs
+
 verifExprWithContext _ _ (ExprCall _ _ _) =
   lift $ Left "Invalid function call target"
 
@@ -386,12 +405,17 @@ verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 verifMethod sName (DefFunction methodName params retType body isExport) = do
+  case params of
+    [] -> lift $ Left "Method must have at least one parameter (self)"
+    (p:_) | paramName p /= "self" ->
+      lift $ Left $ printf "First parameter of method '%s' must be 'self', got '%s'" methodName (paramName p)
+    _ -> pure ()
   let params' = fixSelfType sName params
       baseName = sName ++ "_" ++ methodName
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
-
   body' <- verifScope vs body
   pure $ DefFunction baseName params' retType body' isExport
+
 verifMethod _ def = pure def
 
 --
