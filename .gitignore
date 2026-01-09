@@ -36,3 +36,4 @@ lisp
 *.asm
 *.bin
 *.cabal
+*.so
