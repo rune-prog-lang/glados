@@ -200,13 +200,13 @@ exprTypeTests = testGroup "exprType Tests"
   , testCase "ExprUnary Type (assumes type does not change)" $ 
       exprType stack1 (ExprUnary dummyPos Negate (ExprVar dummyPos "x")) @?= Right TypeI32
   , testCase "ExprCall (exists and matches single signature)" $ 
-      let call = ExprCall dummyPos "foo" [ExprVar dummyPos "x", ExprVar dummyPos "f"]
+      let call = ExprCall dummyPos (ExprVar dummyPos "foo") [ExprVar dummyPos "x", ExprVar dummyPos "f"]
       in exprType stack1 call @?= Right TypeI32
   , testCase "ExprCall (no matching signature)" $ 
-      let call = ExprCall dummyPos "foo" [ExprVar dummyPos "f", ExprVar dummyPos "f"]
+      let call = ExprCall dummyPos (ExprVar dummyPos "foo") [ExprVar dummyPos "f", ExprVar dummyPos "f"]
       in exprType stack1 call @?= Right TypeAny
-  , testCase "ExprCall (unknown function)" $ 
-      let call = ExprCall dummyPos "unknownFunc" []
+  , testCase "ExprCall (unknown function)" $
+      let call = ExprCall dummyPos (ExprVar dummyPos "unknownFunc") []
       in exprType stack1 call @?= Right TypeAny
   ]
 

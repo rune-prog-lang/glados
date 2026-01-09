@@ -116,28 +116,28 @@ complexStructInitProgram = Program "sinit"
 genericInstArgProgram :: Program
 genericInstArgProgram = Program "gen" 
   [ DefFunction "id" [Parameter "x" TypeAny] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False,
-    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos "id" [ExprLitInt dummyPos 42])] False
+    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "id") [ExprLitInt dummyPos 42])] False
   ]
 
 genericInstContextProgram :: Program
 genericInstContextProgram = Program "genctx" 
   [ DefFunction "get" [] TypeAny [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))] False,
-    DefFunction "m" [] TypeNull [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprCall dummyPos "get" [])] False
+    DefFunction "m" [] TypeNull [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprCall dummyPos (ExprVar dummyPos "get") [])] False
   ]
 
 genericCacheProgram :: Program
 genericCacheProgram = Program "cache" 
   [ DefFunction "id" [Parameter "x" TypeAny] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False,
     DefFunction "m" [] TypeNull 
-    [ StmtExpr dummyPos (ExprCall dummyPos "id" [ExprLitInt dummyPos 1]),
-      StmtExpr dummyPos (ExprCall dummyPos "id" [ExprLitInt dummyPos 2]) ]
+    [ StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "id") [ExprLitInt dummyPos 1]),
+      StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "id") [ExprLitInt dummyPos 2]) ]
     False
   ]
 
 genericFailProgram :: Program
 genericFailProgram = Program "genfail" 
   [ DefFunction "fail" [] TypeAny [StmtReturn dummyPos (Just (ExprLitNull dummyPos))] False,
-    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos "fail" [])] False
+    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "fail") [])] False
   ]
 
 binaryInvalidProgram :: Program
