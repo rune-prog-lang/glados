@@ -9,6 +9,7 @@ module Rune.Semantics.Helper
   , isTypeCompatible
   , SemanticError(..)
   , formatSemanticError
+  , getFieldType
   , fixSelfType
   ) where
 
@@ -27,8 +28,6 @@ import Rune.Semantics.Type
   , Stack
   )
 import Rune.Semantics.OpType (isIntegerType, isFloatType, iHTBinary, sameType)
-
--- import Debug.Trace (trace)
 
 -- | Semantic error with location information
 data SemanticError = SemanticError

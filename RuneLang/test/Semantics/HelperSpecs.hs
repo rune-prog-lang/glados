@@ -60,6 +60,8 @@ helperSemanticsTests =
     , semanticErrorAccessorsTests
     , typeCompatibleTests
     , specificityTests
+    , getFieldTypeTests
+    , fixSelfTypeTests
     ]
 
 --
@@ -399,3 +401,55 @@ errorFormattingTests = testGroup "Error Formatting Tests"
       if needle `isInfixOf` haystack
         then return ()
         else assertFailure $ msg ++ ": expected to find '" ++ needle ++ "' in '" ++ haystack ++ "'"
+
+getFieldTypeTests :: TestTree
+getFieldTypeTests = testGroup "getFieldType Tests"
+  [ testCase "Returns field type from valid struct" $ 
+      getFieldType dummyPos structStack1 (TypeCustom "Point") "x" @?= Right TypeI32
+  , testCase "Returns correct field type for different struct" $ 
+      getFieldType dummyPos structStack1 (TypeCustom "Vec2f") "y" @?= Right TypeF32
+  , testCase "Returns error for undefined struct" $ 
+      case getFieldType dummyPos structStack1 (TypeCustom "NonExistent") "x" of
+        Left err -> seGot err @?= "undefined struct"
+        Right _ -> assertFailure "Expected error for undefined struct"
+  , testCase "Returns error for undefined field in valid struct" $ 
+      case getFieldType dummyPos structStack1 (TypeCustom "Point") "z" of
+        Left err -> "undefined field" `isInfixOf` seGot err @? "Expected undefined field error"
+        Right _ -> assertFailure "Expected error for undefined field"
+  , testCase "Returns error for field access on non-struct type (TypeI32)" $ 
+      case getFieldType dummyPos structStack1 TypeI32 "x" of
+        Left err -> "cannot access field" `isInfixOf` seGot err @? "Expected cannot access field error"
+        Right _ -> assertFailure "Expected error for non-struct type"
+  , testCase "Returns error for field access on TypeAny" $ 
+      case getFieldType dummyPos structStack1 TypeAny "field" of
+        Left err -> "cannot access field" `isInfixOf` seGot err @? "Expected cannot access field error"
+        Right _ -> assertFailure "Expected error for TypeAny"
+  , testCase "Returns error for field access on TypeArray" $ 
+      case getFieldType dummyPos structStack1 (TypeArray TypeI32) "x" of
+        Left err -> "cannot access field" `isInfixOf` seGot err @? "Expected cannot access field error"
+        Right _ -> assertFailure "Expected error for array type"
+  , testCase "Returns error for field access on TypeString" $ 
+      case getFieldType dummyPos structStack1 TypeString "field" of
+        Left err -> "cannot access field" `isInfixOf` seGot err @? "Expected cannot access field error"
+        Right _ -> assertFailure "Expected error for string type"
+  , testCase "Returns error for field access on TypeNull" $ 
+      case getFieldType dummyPos structStack1 TypeNull "field" of
+        Left err -> "cannot access field" `isInfixOf` seGot err @? "Expected cannot access field error"
+        Right _ -> assertFailure "Expected error for null type"
+  ]
+
+fixSelfTypeTests :: TestTree
+fixSelfTypeTests = testGroup "fixSelfType Tests"
+  [ testCase "Replaces 'self' with concrete type in parameters" $ 
+      let params = [Parameter "self" TypeAny, Parameter "other" TypeI32]
+          fixedParams = fixSelfType "MyStruct" params
+      in fixedParams @?= [Parameter "self" (TypeCustom "MyStruct"), Parameter "other" TypeI32]
+  , testCase "No 'self' parameter remains unchanged" $ 
+      let noSelfParams = [Parameter "other" TypeI32, Parameter "value" TypeF32]
+          fixedParams = fixSelfType "MyStruct" noSelfParams
+      in fixedParams @?= noSelfParams
+  , testCase "Multiple parameters with 'self' first" $
+      let params = [Parameter "self" TypeAny, Parameter "x" TypeI32, Parameter "y" TypeF32]
+          fixedParams = fixSelfType "Vec2f" params
+      in fixedParams @?= [Parameter "self" (TypeCustom "Vec2f"), Parameter "x" TypeI32, Parameter "y" TypeF32]
+  ]

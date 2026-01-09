@@ -44,7 +44,6 @@ module Rune.IR.IRHelpers
     pushLoopContext,
     popLoopContext,
     getCurrentLoop,
-    ,
     getOperandType,
     getCommonType,
     selectReturnType

@@ -1,4 +1,18 @@
+{-# LANGUAGE CPP #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.Semantics.Struct
+  ( findStruct
+  , mkError
+  , getStructPos
+  , checkFields
+  , checkMethods
+  , validateFieldType
+  )
+where
+#else
 module Rune.Semantics.Struct (findStruct) where
+#endif
 
 import Text.Printf (printf)
 import Control.Monad (foldM, when)
