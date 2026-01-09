@@ -98,9 +98,11 @@ exprType s (ExprBinary _ op a b)    = do
 exprType s (ExprUnary _ _ expr)     = exprType s expr -- assume the op don't change the type
 exprType (_, vs) (ExprVar _ name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
 
-exprType s@(fs, _) (ExprCall _ fn args) = do
+exprType s@(fs, _) (ExprCall _ (ExprVar _ fn) args) = do
   argTypes <- mapM (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
+
+exprType _ (ExprCall _ _ _) = Right TypeAny -- can't determine function name, must be changed at later stage
 
 exprType s (ExprIndex _ target _) = exprType s target >>= extractArrayType
   where

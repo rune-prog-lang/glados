@@ -31,6 +31,7 @@ import Rune.Semantics.Type
   ( FuncStack
   , VarStack
   , Templates
+  , Stack
   )
 
 import Rune.Semantics.Helper
@@ -324,25 +325,16 @@ verifExprWithContext hint vs (ExprBinary pos op l r) = do
     Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation"]
     Right _  -> pure $ ExprBinary pos op l' r'
 
-verifExprWithContext hint vs (ExprCall pos name args) = do
+verifExprWithContext hint vs (ExprCall cPos (ExprVar _ fname) args) = do
   fs <- gets stFuncs
-  let s   = (fs, vs)
-      SourcePos file line col = pos
+  let s = (fs, vs)
 
   args' <- mapM (verifExpr vs) args
-  
-  let argTypesResult = mapM (exprType s) args'
-  case argTypesResult of
-    Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "valid argument types" err ["function call"]
-    Right argTypes -> do
-      let match = checkParamType s name file line col args'
-      case match of
-        Right foundName -> pure $ ExprCall pos foundName args'
-        Left err -> do
-            templates <- gets stTemplates
-            case HM.lookup name templates of
-                Nothing -> lift $ Left $ formatSemanticError err
-                Just templateDef -> tryInstantiateTemplate templateDef name args' argTypes hint
+  argTypesResult <- mapM (lift . exprType s) args'
+  callOrInstantiate cPos hint s fname args' argTypesResult
+
+verifExprWithContext _ _ (ExprCall _ _ _) =
+  lift $ Left "Invalid function call target"
 
 verifExprWithContext hint vs (ExprStructInit pos name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
@@ -384,12 +376,11 @@ tryInstantiateTemplate def originalName args argTypes contextRetType = do
               []    -> SourcePos "<generated>" 0 0
 
   alreadyInstantiated mangled >>= \case
-    True  -> pure $ ExprCall pos mangled args
+    True  -> pure $ ExprVar pos mangled
     False -> do
       verified <- verifTopLevel (instantiate def argTypes retTy)
       registerInstantiation mangled verified retTy argTypes
-      pure $ ExprCall pos mangled args
-
+      pure $ ExprVar pos mangled
 
 resolveReturnType :: String -> [Type] -> Maybe Type -> SemM Type
 resolveReturnType originalName argTypes mCtx =
@@ -416,3 +407,17 @@ registerInstantiation name def retTy argTys =
     , stFuncs        = HM.insertWith (<>) name [(retTy, argTys)] (stFuncs st)
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
+
+callOrInstantiate :: SourcePos -> Maybe Type -> Stack -> String -> [Expression] -> [Type] -> SemM Expression
+callOrInstantiate pos hint s name args argTypes = do
+  let SourcePos file line col = pos
+
+  case checkParamType s name file line col args of
+    Right _ -> pure $ ExprCall pos (ExprVar pos name) args
+    Left err -> do
+      templates <- gets stTemplates
+      case HM.lookup name templates of
+        Just templateDef -> do
+          targetExpr <- tryInstantiateTemplate templateDef name args argTypes hint
+          pure $ ExprCall pos targetExpr args
+        Nothing -> lift $ Left $ formatSemanticError err

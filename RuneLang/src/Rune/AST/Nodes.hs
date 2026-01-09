@@ -289,7 +289,7 @@ data Expression
     -- foo(arg1, arg2, ...)
     ExprCall
       { exprPos :: SourcePos,
-        callName :: String,
+        callName :: Expression,
         callArgs :: [Expression]
       }
   | -- | struct initialization
