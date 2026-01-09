@@ -6,9 +6,9 @@ somewhere { def assert(condition: bool, message: string) -> null; }
 
 export def test_loops() -> null
 {
-    assert(loops() == 87, "Failure in loops()");
-    assert(for_to() == 695, "Failure in for_to()");
-    assert(for_in() == 15, "Failure in for_in()");
+    assert(loops() == 87, "Loops: loop {}");
+    assert(for_to() == 695, "Loops: for ... to ...");
+    assert(for_in() == 15, "Loops: for ... in ...");
 }
 
 /**
