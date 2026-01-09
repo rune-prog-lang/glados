@@ -12,7 +12,6 @@ module Rune.Backend.X86_64.Codegen
     emitFunction,
     emitFunctionLib,
     emitFunctionPrologue,
-    emitFunctionPrologueLib,
     emitFunctionEpilogue,
     emitParameters,
     emitInstruction,
@@ -173,7 +172,7 @@ emitFunctionLib :: [Extern] -> Function -> [String]
 emitFunctionLib externs fn@(IRFunction name params _ body _) =
   let (stackMap, frameSize) = calculateStackMap fn
       endLabel = ".L.function_end_" <> name
-      prologue = emitFunctionPrologueLib fn frameSize
+      prologue = emitFunctionPrologue fn frameSize
       paramSetup = emitParameters params stackMap
       bodyInstrs = concatMap (emitInstructionLib externs stackMap endLabel name) body
       epilogue = emitFunctionEpilogue endLabel
@@ -186,18 +185,8 @@ emitFunctionPrologue (IRFunction name _ _ _ isExport) frameSize =
     <> [ name <> ":"
        , emit 1 "push rbp"
        , emit 1 "mov rbp, rsp"
-       , emit 1 $ "sub rsp, " <> show frameSize
        ]
-
--- | Library prologue: only export if marked with 'export' keyword
-emitFunctionPrologueLib :: Function -> Int -> [String]
-emitFunctionPrologueLib (IRFunction name _ _ _ isExport) frameSize =
-  ["global " <> name <> ":function" | isExport]
-    <> [ name <> ":"
-       , emit 1 "push rbp"
-       , emit 1 "mov rbp, rsp"
-       , emit 1 $ "sub rsp, " <> show frameSize
-       ]
+    <> [emit 1 ("sub rsp, " <> show frameSize) | frameSize > 0]
 
 emitFunctionEpilogue :: String -> [String]
 emitFunctionEpilogue endLabel =
