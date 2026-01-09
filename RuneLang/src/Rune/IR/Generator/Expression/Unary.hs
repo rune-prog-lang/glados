@@ -22,7 +22,7 @@ where
 #endif
 
 import Rune.AST.Nodes (Expression, UnaryOp (..))
-import Rune.IR.IRHelpers (newTemp)
+import Rune.IR.IRHelpers (newTemp, nextLabelIndex, makeLabel)
 import Rune.IR.Nodes
   ( IRGen,
     IRInstruction (..),
@@ -96,4 +96,14 @@ genUnaryPostfixDec instrs operand typ = do
   return (instrs ++ [IRASSIGN t operand typ, IRDEC operand], IRTemp t typ, typ)
 
 genUnaryPropagate :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
-genUnaryPropagate instrs operand typ = return (instrs, operand, typ)
+genUnaryPropagate instrs operand typ = do
+  idx <- nextLabelIndex
+  let okLabel = makeLabel "propagate_ok" idx
+  
+  let propagation = 
+        [ IRJUMP_TRUE operand okLabel
+        , IRRET Nothing
+        , IRLABEL okLabel
+        ]
+
+  return (instrs ++ propagation, operand, typ)
