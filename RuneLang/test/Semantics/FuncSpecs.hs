@@ -23,8 +23,8 @@ funcSemanticsTests =
       testCase "later definitions override earlier entries" $
         let stack = either error id (findFunc shadowProgram)
          in HM.lookup "dup" stack @?= Just [(TypeI32, [TypeI32]), (TypeBool, [TypeBool])],
-      testCase "struct method signatures are ignored" $
-        findFunc structMethodProgram @?= (Right $ HM.fromList [("show",[(TypeNull,[TypeAny])]),("error",[(TypeNull,[TypeAny])])]),
+      testCase "struct methods are also collected" $
+        findFunc structMethodProgram @?= (Right $ HM.fromList [("show",[(TypeNull,[TypeAny])]),("error",[(TypeNull,[TypeAny])]),("Vec_len",[(TypeI32,[TypeCustom "Vec"])])]),
       testCase "rejects duplicate function definition" $
         case findFunc duplicateFunctionProgram of
           Left err -> "FuncAlreadyExist:" `isInfixOf` err @? "Expected FuncAlreadyExist error for foo"

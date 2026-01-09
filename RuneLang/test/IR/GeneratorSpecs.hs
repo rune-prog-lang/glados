@@ -10,7 +10,7 @@ import TestHelpers (dummyPos)
 import qualified Data.Set as Set
 import Rune.IR.Generator (generateIR, initialState, getDefinedFuncName)
 import Rune.IR.Nodes (IRProgram(..), IRTopLevel(..), IRFunction(..), IRType(..), IRInstruction(..), GenState(..), IRGlobalValue(..))
-import Rune.AST.Nodes (Program(..), TopLevelDef(..), Type(..), Statement(..), Expression(..), Field(..), Parameter(..))
+import Rune.AST.Nodes (Program(..), TopLevelDef(..), Type(..), Statement(..), Expression(..), Field(..))
 
 --
 -- public
@@ -169,38 +169,6 @@ testGenerateIR = testGroup "generateIR"
         Right irProg -> do
           let externs = filter isExtern (irProgramDefs irProg)
           length externs @?= 2
-
-  , testCase "Override function generates mangled name" $
-      let prog = Program "test"
-            [ DefOverride "show" [Parameter "self" (TypeCustom "Point")] TypeNull [] False
-            ]
-          fs = HM.empty
-          result = generateIR prog fs
-      in case result of
-        Left err -> fail $ "Unexpected error: " ++ err
-        Right irProg ->
-          case filter isFunctionDef (irProgramDefs irProg) of
-            [IRFunctionDef func] -> irFuncName func @?= "show_Point"
-            _ -> fail "Expected mangled function"
-
-  , testCase "Struct with methods" $
-      let prog = Program "test"
-            [ DefStruct "Vec2" 
-                [Field "x" TypeF32, Field "y" TypeF32]
-                [DefFunction "magnitude" [Parameter "self" (TypeCustom "Vec2")] TypeF32 [] False]
-            ]
-          fs = HM.empty
-          result = generateIR prog fs
-      in case result of
-        Left err -> fail $ "Unexpected error: " ++ err
-        Right irProg -> do
-          let structDefs = filter isStructDef (irProgramDefs irProg)
-          let funcDefs = filter isFunctionDef (irProgramDefs irProg)
-          length structDefs @?= 1
-          length funcDefs @?= 1
-          case funcDefs of
-            [IRFunctionDef func] -> irFuncName func @?= "Vec2_magnitude"
-            _ -> fail "Expected mangled method"
   ]
 
 testInitialState :: TestTree

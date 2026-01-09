@@ -33,7 +33,7 @@ varsSemanticsTests =
 
       expectErr "detects invalid binary operation (Left branch)" binaryInvalidProgram "binary operation type mismatch",
       expectOk "accepts invalid iterable in foreach (implementation defaults to Any)" forEachInvalidProgram,
-      expectOk "accepts incompatible assignment type (implementation returns Any for field access)" assignmentIncompatibleProgram,
+      expectErr "detects incompatible struct field assignment" assignmentIncompatibleProgram "expression of type i32",
       expectErr "detects undefined variable in binary op" binaryUndefinedProgram "Undefined variable",
 
       testCase "mangleFuncStack covers all branches" testMangleFuncStack

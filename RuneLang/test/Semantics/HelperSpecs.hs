@@ -7,7 +7,7 @@ import Data.List (isInfixOf)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Helper
-import Rune.Semantics.Type (FuncStack, Stack)
+import Rune.Semantics.Type (FuncStack, StructStack, Stack)
 import TestHelpers (dummyPos)
 
 --
@@ -24,16 +24,30 @@ funcStack1 = HM.fromList
   , ("deep_overload", [(TypeString, [TypeString]), (TypeBool, [TypeBool]), (TypeI32, [TypeI32])])
   ]
 
+structStack1 :: StructStack
+structStack1 = HM.fromList
+  [ ("Point", DefStruct "Point" 
+      [ Field "x" TypeI32
+      , Field "y" TypeI32
+      ]
+      [])
+  , ("Vec2f", DefStruct "Vec2f"
+      [ Field "x" TypeF32
+      , Field "y" TypeF32
+      ]
+      [])
+  ]
+
 stack1 :: Stack
-stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32)])
+stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32), ("p", TypeCustom "Point")], structStack1)
 
 --
 -- public
 --
 
 helperSemanticsTests :: TestTree
-helperSemanticsTests = 
-  testGroup 
+helperSemanticsTests =
+  testGroup
     "Rune.Semantics.Helper"
     [ mangleNameTests
     , assignVarTypeTests
@@ -176,7 +190,7 @@ exprTypeTests = testGroup "exprType Tests"
       exprType stack1 (ExprIndex dummyPos charArr (ExprLitInt dummyPos 1)) @?= Right TypeChar
   , testCase "ExprIndex on TypeAny" $ 
       let vs = HM.singleton "a" TypeAny
-      in exprType (funcStack1, vs) (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0)) @?= Right TypeAny
+      in exprType (funcStack1, vs, HM.empty) (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0)) @?= Right TypeAny
   , testCase "ExprLitArray incompatible elements - Error" $ 
       (case exprType stack1 (ExprLitArray dummyPos [ExprLitInt dummyPos 1, ExprLitBool dummyPos True]) of 
           Left err -> "IncompatibleArrayElements:" `isInfixOf` err @? "Expected IncompatibleArrayElements error"
@@ -188,7 +202,7 @@ exprTypeTests = testGroup "exprType Tests"
   , testCase "ExprStructInit Type" $ 
       exprType stack1 (ExprStructInit dummyPos "Vec2f" []) @?= Right (TypeCustom "Vec2f")
   , testCase "ExprAccess Type" $ 
-      exprType stack1 (ExprAccess dummyPos (ExprVar dummyPos "p") "x") @?= Right TypeAny
+      exprType stack1 (ExprAccess dummyPos (ExprVar dummyPos "p") "x") @?= Right TypeI32
   , testCase "ExprVar (exists)" $ 
       exprType stack1 (ExprVar dummyPos "x") @?= Right TypeI32
   , testCase "ExprVar (not exists)" $ 

@@ -27,7 +27,6 @@ genTopLevelTests = testGroup "Rune.IR.Generator.GenTopLevel"
   , testGenStruct
   , testGenStructMethod
   , testGenParam
-  , testFixSelfParam
   , testResetFunctionState
   , testClearFunctionState
   , testEnsureReturn
@@ -48,10 +47,10 @@ testGenTopLevel = testGroup "genTopLevel"
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Routes DefOverride to genOverride" $
-      let def = DefOverride "show" [Parameter "self" (TypeCustom "Point")] TypeNull [] False
+      let def = DefOverride "Point_show" [Parameter "self" (TypeCustom "Point")] TypeNull [] False
           result = runGenUnsafe (genTopLevel def)
       in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "show_Point"
+        [IRFunctionDef func] -> irFuncName func @?= "Point_show"
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Routes DefStruct to genStruct" $
@@ -95,14 +94,7 @@ testGenFunction = testGroup "genFunction"
 
 testGenOverride :: TestTree
 testGenOverride = testGroup "genOverride"
-  [ testCase "Mangles name with TypeCustom first param" $
-      let def = DefOverride "show" [Parameter "self" (TypeCustom "Vec2")] TypeNull [] False
-          result = runGenUnsafe (genTopLevel def)
-      in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "show_Vec2"
-        _ -> assertBool "Expected IRFunctionDef" False
-
-  , testCase "Does not mangle without TypeCustom" $
+  [ testCase "genOverride with params" $
       let def = DefOverride "print" [Parameter "x" TypeI32] TypeNull [] False
           result = runGenUnsafe (genTopLevel def)
       in case result of
@@ -130,7 +122,7 @@ testGenStruct = testGroup "genStruct"
 
   , testCase "Generates struct with methods" $
       let def = DefStruct "Vec2" [Field "x" TypeF32] 
-                [DefFunction "magnitude" [Parameter "self" (TypeCustom "Vec2")] TypeF32 [] False]
+                [DefFunction "Vec2_magnitude" [Parameter "self" (TypeCustom "Vec2")] TypeF32 [] False]
           result = runGenUnsafe (genTopLevel def)
       in do
         length result @?= 2
@@ -150,18 +142,11 @@ testGenStruct = testGroup "genStruct"
 
 testGenStructMethod :: TestTree
 testGenStructMethod = testGroup "genStructMethod"
-  [ testCase "Mangles method name" $
-      let method = DefFunction "calc" [Parameter "self" (TypeCustom "Point")] TypeI32 [] False
+  [ testCase "Handle generation for method name" $
+      let method = DefFunction "Point_calc" [Parameter "self" (TypeCustom "Point")] TypeI32 [] False
           result = runGenUnsafe (genStructMethod "Point" method)
       in case result of
         [IRFunctionDef func] -> irFuncName func @?= "Point_calc"
-        _ -> assertBool "Expected IRFunctionDef" False
-
-  , testCase "Fixes self parameter type" $
-      let method = DefFunction "test" [Parameter "self" TypeAny] TypeNull [] False
-          result = runGenUnsafe (genStructMethod "Vec" method)
-      in case result of
-        [IRFunctionDef _] -> return ()
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Returns empty for non-function" $
