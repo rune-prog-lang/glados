@@ -33,7 +33,7 @@ import Rune.Semantics.Type
   , VarStack
   , StructStack
   , Templates
-  -- , Stack
+  , Stack
   )
 
 import Rune.Semantics.Helper
@@ -45,8 +45,11 @@ import Rune.Semantics.Helper
   , isTypeCompatible
   , SemanticError(..)
   , formatSemanticError
+  , fixSelfType
   )
 import Rune.Semantics.OpType (iHTBinary)
+
+import Debug.Trace (trace)
 
 --
 -- state monad
@@ -146,6 +149,10 @@ verifTopLevel (DefOverride name params r_t body isExport) = do
 
   body' <- verifScope vs body
   pure $ DefOverride name' params r_t body' isExport
+
+verifTopLevel (DefStruct name fields methods) = do
+  methods' <- mapM (verifMethod name) methods
+  pure $ DefStruct name fields methods'
 
 verifTopLevel def = pure def -- Structs & Somewhere
 
@@ -344,7 +351,7 @@ verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
   args' <- mapM (verifExpr vs) args
   argTypes <- lift $ mapM (exprType s) args'
 
-  callExpr <- resolveCall cPos vPos name args' argTypes hint
+  callExpr <- resolveCall cPos vPos s hint name args' argTypes
   pure $ ExprCall cPos callExpr args'
 
 verifExprWithContext _ _ (ExprCall _ _ _) =
@@ -376,6 +383,16 @@ verifExprWithContext _ vs (ExprVar pos var)
   | otherwise       = lift $ Left $ formatSemanticError $ SemanticError (posFile pos) (posLine pos) (posCol pos) (printf "Undefined variable '%s'" var) "undefined variable" ["variable reference"]
 
 verifExprWithContext _ _ expr = pure expr
+
+verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
+verifMethod sName (DefFunction methodName params retType body isExport) = do
+  let params' = fixSelfType sName params
+      baseName = sName ++ "_" ++ methodName
+      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
+
+  body' <- verifScope vs body
+  pure $ DefFunction baseName params' retType body' isExport
+verifMethod _ def = pure def
 
 --
 -- instanciation
@@ -422,13 +439,12 @@ registerInstantiation name def retTy argTys =
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
 
-resolveCall :: SourcePos -> SourcePos -> String -> [Expression] -> [Type] -> Maybe Type -> SemM Expression
-resolveCall cPos vPos name args argTypes hint = do
-  fs <- gets stFuncs
+resolveCall :: SourcePos -> SourcePos -> Stack -> Maybe Type -> String -> [Expression] -> [Type] -> SemM Expression
+resolveCall cPos vPos s hint name args argTypes = do
   let file = posFile cPos
       line = posLine cPos
       col = posCol cPos
-      match = checkParamType (fs, HM.empty, HM.empty) name file line col args
+      match = checkParamType s name file line col args
   case match of
     Right foundName -> pure $ ExprVar vPos foundName
     Left err -> do

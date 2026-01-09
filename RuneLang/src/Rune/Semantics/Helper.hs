@@ -9,6 +9,7 @@ module Rune.Semantics.Helper
   , isTypeCompatible
   , SemanticError(..)
   , formatSemanticError
+  , fixSelfType
   ) where
 
 import Data.Maybe (fromMaybe)
@@ -22,9 +23,12 @@ import Rune.AST.Nodes
 import Rune.Semantics.Type
   ( VarStack
   , FuncStack
+  , StructStack
   , Stack
   )
 import Rune.Semantics.OpType (isIntegerType, isFloatType, iHTBinary, sameType)
+
+-- import Debug.Trace (trace)
 
 -- | Semantic error with location information
 data SemanticError = SemanticError
@@ -87,7 +91,13 @@ exprType _ (ExprLitChar _ _)        = Right TypeChar
 exprType _ (ExprLitBool _ _)        = Right TypeBool
 exprType _ (ExprStructInit _ st _)  = Right $ TypeCustom st
 exprType _ (ExprLitNull _)          = Right TypeNull
-exprType _ (ExprAccess {})       = Right TypeAny -- don't know how to use struct
+exprType s (ExprAccess pos target field) = do
+  targetType <- exprType s target
+  let ss = case s of (_, _, ss') -> ss'
+  case getFieldType pos ss targetType field of
+    Right t -> Right t
+    Left err -> Left (formatSemanticError err)
+
 exprType _ (ExprCast _ _ t)         = Right t
 
 exprType s (ExprBinary _ op a b)    = do 
@@ -209,3 +219,26 @@ selectSignature fs name at =
     typeSpecificity (TypeArray TypeAny) = 1
     typeSpecificity (TypeArray t) = 2 + typeSpecificity t
     typeSpecificity _ = 3
+
+getFieldType :: SourcePos -> StructStack -> Type -> String -> Either SemanticError Type
+getFieldType pos ss (TypeCustom sName) fldName =
+  let SourcePos file line col = pos
+      mkError expected got = SemanticError file line col expected got ["field access", "global context"]
+  in case HM.lookup sName ss of
+    Nothing -> Left $ mkError (printf "struct '%s' to exist" sName) "undefined struct"
+    Just (DefStruct _ fields _) ->
+      case filter (\(Field fName _) -> fName == fldName) fields of
+        [] -> Left $ mkError (printf "field '%s' to exist in struct '%s'" fldName sName) "undefined field"
+        (Field _ t:_) -> Right t
+    Just _ -> Left $ mkError (printf "struct '%s' to be a valid struct definition" sName) "not a struct definition"
+getFieldType pos _ otherType fldName =
+  let SourcePos file line col = pos
+  in Left $ SemanticError file line col 
+    (printf "field access to be valid on type %s" (show otherType))
+    (printf "cannot access field '%s' on type '%s'" fldName (show otherType))
+    ["field access", "global context"]
+
+fixSelfType :: String -> [Parameter] -> [Parameter]
+fixSelfType sName (p:rest)
+  | paramName p == "self" = p { paramType = TypeCustom sName } : rest
+fixSelfType _ params = params
