@@ -138,6 +138,10 @@ isTypeCompatible (TypePtr _) TypeNull = True
 isTypeCompatible TypeNull (TypePtr _) = True
 isTypeCompatible (TypePtr TypeAny) (TypePtr _) = True
 isTypeCompatible (TypePtr _) (TypePtr TypeAny) = True
+isTypeCompatible (TypePtr TypeAny) TypeString = True
+isTypeCompatible TypeString (TypePtr TypeAny) = True
+isTypeCompatible (TypePtr TypeChar) TypeString = True
+isTypeCompatible TypeString (TypePtr TypeChar) = True
 isTypeCompatible (TypePtr a) (TypePtr b) = isTypeCompatible a b
 isTypeCompatible expected actual
   | sameType expected actual = True
