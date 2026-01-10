@@ -10,22 +10,16 @@ struct Vec2f
             y: self.y + other.y
         }
     }
+
 }
 
 override def show(v: Vec2f) -> null
 {
-    show("Vec2f(");
+    show("Vec2f(x: ");
     show(v.x);
-    show(", ");
+    show(", y: ");
     show(v.y);
     show(")\n");
-}
-
-override def show(prefix: string, i: i32) -> null
-{
-    show(prefix);
-    show(i);
-    show("\n");
 }
 
 def main() -> null
@@ -35,5 +29,4 @@ def main() -> null
     c = a.add(b);
 
     show(c);
-    show("Hello world !", 42);
 }

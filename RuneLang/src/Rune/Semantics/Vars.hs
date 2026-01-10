@@ -49,8 +49,6 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
-import Debug.Trace (trace)
-
 --
 -- state monad
 --
@@ -78,7 +76,7 @@ verifVars (Program n defs) = do
   ss <- findStruct (Program n concreteDefs)
 
   let initialState = SemState
-        { stFuncs = trace (show fs) fs
+        { stFuncs = fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
@@ -122,10 +120,8 @@ mangleFuncStack fs = fs
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
 verifTopLevel (DefFunction name params r_t body isExport) = do
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
-      paramTypes = map paramType params
-      mangledName = mangleName name r_t paramTypes
   body' <- verifScope vs body
-  pure $ DefFunction mangledName params r_t body' isExport
+  pure $ DefFunction name params r_t body' isExport
 
 verifTopLevel (DefOverride name params r_t body isExport) = do
   let paramTypes = map paramType params
@@ -138,7 +134,7 @@ verifTopLevel (DefStruct name fields methods) = do
   methods' <- mapM (verifMethod name) methods
   pure $ DefStruct name fields methods'
 
-verifTopLevel def = pure def -- Structs & Somewhere
+verifTopLevel def = pure def -- Somewhere
 
 -- | scope verification
 -- NOTE: 'FuncStack' is read from State, 'VarStack' is passed locally
@@ -343,17 +339,14 @@ verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) 
   ss <- gets stStructs
   let s = (fs, vs, ss)
 
-  -- Determine target type
   targetType <- lift $ exprType s (ExprVar vPos target)
   let baseName = show targetType ++ "_" ++ method
 
-  -- Prepare all arguments: target + explicit args
   args' <- mapM (verifExpr vs) args
   argTypes <- lift $ mapM (exprType s) args'
   let allArgs = ExprVar vPos target : args'
       allArgTypes = targetType : argTypes
 
-  -- Use resolveCall to handle the method call like a regular function
   callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
   pure $ ExprCall cPos callExpr allArgs
 
@@ -452,7 +445,7 @@ resolveCall cPos vPos s hint name args argTypes = do
   let file = posFile cPos
       line = posLine cPos
       col = posCol cPos
-      match = checkParamType s name file line col args
+      match = checkParamType s (name, argTypes) file line col args
   case match of
     Right foundName -> pure $ ExprVar vPos foundName
     Left err -> do

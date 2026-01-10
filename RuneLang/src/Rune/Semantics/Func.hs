@@ -40,24 +40,23 @@ findFunc (Program _ defs) = do
 
 findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 
--- | find normal function definitions
+-- | find normal function definitions - keep original name, no mangling
 findDefs s (DefFunction name params rType _ _) =
     let paramTypes = map paramType params
         sig = (rType, paramTypes)
-        mangledName = mangleFuncName name rType paramTypes
-    in if HM.member mangledName s
-       then Left $ printf "FuncAlreadyExist: %s (signature: %s) was already defined" name (show sig)
-       else Right $ HM.insert mangledName sig s
+    in if HM.member name s
+       then Left $ printf "FuncAlreadyExist: %s was already defined, use override" name
+       else Right $ HM.insert name sig s
 
--- | find override function definitions
+-- | find override function definitions - mangle the name
 findDefs s (DefOverride name params rType _ _) =
     let paramTypes = map paramType params
         sig = (rType, paramTypes)
         mangledName = mangleFuncName name rType paramTypes
         msg = "\n\tWrongOverrideDef: %s is declared as override without any base function"
-    in if HM.member name s
-       then Right $ HM.insert mangledName sig s
-       else Left $ printf msg name
+    in case HM.lookup name s of
+      Just _ -> Right $ HM.insert mangledName sig s
+      Nothing -> Left $ printf msg name
 
 -- | find function signatures defined somewhere else
 findDefs s (DefSomewhere sigs) = foldM addSig s sigs

@@ -13,13 +13,11 @@ module Rune.Semantics.Helper
   , fixSelfType
   ) where
 
-import Data.Maybe (fromMaybe, isNothing)
-import Data.List (intercalate, isPrefixOf)
+import Data.Maybe (fromMaybe)
+import Data.List (intercalate)
 import qualified Data.HashMap.Strict as HM
 
 import Text.Printf (printf)
-
-import Rune.AST.Nodes
 
 import Rune.Semantics.Type
   ( VarStack
@@ -28,6 +26,7 @@ import Rune.Semantics.Type
   , Stack
   )
 import Rune.Semantics.OpType (isIntegerType, isFloatType, iHTBinary, sameType)
+import Rune.AST.Nodes
 
 -- | Semantic error with location information
 data SemanticError = SemanticError
@@ -39,7 +38,6 @@ data SemanticError = SemanticError
   , seContext  :: [String]
   } deriving (Show, Eq)
 
-
 -- | Format semantic error to match AST parser convention
 formatSemanticError :: SemanticError -> String
 formatSemanticError (SemanticError file line col expected got ctx) =
@@ -50,32 +48,25 @@ formatSemanticError (SemanticError file line col expected got ctx) =
   in intercalate "\n" ([header, expectedLine, gotLine] <> contexts)
 
 
-checkParamType :: Stack -> String -> String -> Int -> Int -> [Expression] -> Either SemanticError String
-checkParamType s@(fs, _, _) fname file line col es =
+checkParamType :: Stack -> (String, [Type]) -> String -> Int -> Int -> [Expression] -> Either SemanticError String
+checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
   let mkError expected got = SemanticError file line col expected got ["function call", "global context"]
-      -- Find all entries that match: either exact match or mangled version of fname
-      candidates = HM.filterWithKey (\k _ -> k == fname || (fname ++ "_") `isPrefixOf` k) fs
-  in case HM.toList candidates of
+      mangled = HM.filterWithKey (\k (ret, args) -> isRightFunction (fname, argTypes) k (ret, args)) fs
+      candidates = case (HM.toList mangled, HM.lookup fname fs) of
+        (m@(_:_), _)           -> m
+        ([], Just sig)     -> (fname, sig) : []
+        ([], Nothing)      -> []
+  in case candidates of
     [] -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
-    sigs ->
-      let matches = [(name, ret, args) | (name, (ret, args)) <- sigs, isNothing (checkEachParam s file line col 0 es args)]
-      in case matches of
-        [] -> Left $ mkError (printf "matching signature for %s" fname) "no matching overload"
-        [(name, _, _)] -> Right name
-        candidates' -> Right $ selectMostSpecificName candidates'
-  where
-    selectMostSpecificName :: [(String, Type, [Type])] -> String
-    selectMostSpecificName = fst3 . selectMostSpecific
-    
-    selectMostSpecific :: [(String, Type, [Type])] -> (String, Type, [Type])
-    selectMostSpecific = foldr1 moreSpecific
-      where
-        moreSpecific s1@(_, _, args1) s2@(_, _, args2) =
-          if countTypeAny args1 < countTypeAny args2 then s1 else s2
-    
-    countTypeAny = length . filter (== TypeAny)
-    fst3 (a, _, _) = a
+    [(name, (_, args))] ->
+      case checkEachParam s file line col 0 es args of
+        Nothing -> Right name
+        Just err -> Left err
+    _ -> Left $ mkError (printf "multiple signatures for %s" fname) "ambiguous function call"
 
+isRightFunction :: (String, [Type]) -> String -> (Type, [Type]) -> Bool
+isRightFunction (funcToCheck, argTypesToCheck) fname (retType, _) =
+  fname == mangleName funcToCheck retType argTypesToCheck
 
 mangleName :: String -> Type -> [Type] -> String
 mangleName fname ret args
@@ -196,38 +187,12 @@ checkEachParam _ file line col i es [] =
 
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
-selectSignature fs name at =
-  let candidates = HM.filterWithKey (\k _ -> k == name || (name ++ "_") `isPrefixOf` k) fs
-  in case HM.toList candidates of
-    [] -> Nothing
-    sigs ->
-      case filter (match at) sigs of
-        [(_, (rt, _))] -> Just rt
-        matches@(_:_) -> 
-          let (_, (rt, _)) = selectMostSpecific matches
-          in Just rt
-        _ -> Nothing
-  where
-    match :: [Type] -> (String, (Type, [Type])) -> Bool
-    match act (_, (_, expec)) =
-      length act == length expec &&
-      and (zipWith isTypeCompatible expec act)
-
-    selectMostSpecific :: [(String, (Type, [Type]))] -> (String, (Type, [Type]))
-    selectMostSpecific = foldr1 moreSpecific
-    
-    moreSpecific s1@(_, (_, params1)) s2@(_, (_, params2))
-      | specificity params1 > specificity params2 = s1
-      | otherwise = s2
-    
-    specificity :: [Type] -> Int
-    specificity = sum . map typeSpecificity
-    
-    typeSpecificity :: Type -> Int
-    typeSpecificity TypeAny = 0
-    typeSpecificity (TypeArray TypeAny) = 1
-    typeSpecificity (TypeArray t) = 2 + typeSpecificity t
-    typeSpecificity _ = 3
+selectSignature fs name argTypes =
+  let mangled = HM.filterWithKey (\k (ret, args) -> isRightFunction (name, argTypes) k (ret, args)) fs
+  in case (HM.toList mangled, HM.lookup name fs) of
+    ((_, (ret, _)):_, _) -> Just ret          -- Trouvé manglé
+    ([], Just (ret, _))  -> Just ret          -- Trouvé en base
+    _                    -> Nothing            -- Pas trouvé
 
 getFieldType :: SourcePos -> StructStack -> Type -> String -> Either SemanticError Type
 getFieldType pos ss (TypeCustom sName) fldName =
