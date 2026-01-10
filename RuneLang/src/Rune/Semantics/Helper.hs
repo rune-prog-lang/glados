@@ -105,6 +105,7 @@ exprType s (ExprIndex _ target _) = exprType s target >>= extractArrayType
     extractArrayType (TypeArray inner) = Right inner
     extractArrayType TypeString = Right TypeChar
     extractArrayType TypeAny = Right TypeAny
+    extractArrayType (TypePtr inner) = Right inner
     extractArrayType t = Left $ printf "\n\tIndexingNonArray: cannot index type %s, expected array" (show t)
 
 exprType _ (ExprLitArray _ []) = Right $ TypeArray TypeAny
