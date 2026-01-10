@@ -93,6 +93,8 @@ genStruct _ = pure []
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]
 genStructMethod _ (DefFunction methName params retType body _) =
   genFunction (DefFunction methName params retType body False)
+genStructMethod _ (DefOverride methName params retType body _) =
+  genFunction (DefFunction methName params retType body False)
 genStructMethod _ _ = pure []
 
 --
