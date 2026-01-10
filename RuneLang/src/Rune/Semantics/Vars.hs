@@ -49,6 +49,8 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
+import Debug.Trace (trace)
+
 --
 -- state monad
 --
@@ -76,7 +78,7 @@ verifVars (Program n defs) = do
   ss <- findStruct (Program n concreteDefs)
 
   let initialState = SemState
-        { stFuncs = fs
+        { stFuncs = trace (show fs) fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
@@ -381,17 +383,24 @@ verifExprWithContext _ vs (ExprVar pos var)
 verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
+
 verifMethod sName (DefFunction methodName params retType body isExport) = do
-  case params of
-    [] -> lift $ Left "Method must have at least one parameter (self)"
-    (p:_) | paramName p /= "self" ->
-      lift $ Left $ printf "First parameter of method '%s' must be 'self', got '%s'" methodName (paramName p)
-    _ -> pure ()
+  checkMethodParams methodName params
   let params' = fixSelfType sName params
       baseName = sName ++ "_" ++ methodName
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
   body' <- verifScope vs body
   pure $ DefFunction baseName params' retType body' isExport
+
+verifMethod sName (DefOverride methodName params retType body isExport) = do
+  checkMethodParams methodName params
+  let params' = fixSelfType sName params
+      paramTypes = map paramType params'
+      baseName = sName ++ "_" ++ methodName
+      mangledName = mangleName baseName retType paramTypes
+      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
+  body' <- verifScope vs body
+  pure $ DefOverride mangledName params' retType body' isExport
 
 verifMethod _ def = pure def
 
@@ -453,3 +462,11 @@ resolveCall cPos vPos s hint name args argTypes = do
       case HM.lookup name templates of
         Nothing -> lift $ Left $ formatSemanticError err
         Just templateDef -> tryInstantiateTemplate templateDef name args argTypes hint
+
+checkMethodParams :: String -> [Parameter] -> SemM ()
+checkMethodParams methodName params = 
+  case params of
+    [] -> lift $ Left "Method must have at least one parameter (self)"
+    (p:_) | paramName p /= "self" ->
+      lift $ Left $ printf "First parameter of method '%s' must be 'self', got '%s'" methodName (paramName p)
+    _ -> pure ()
