@@ -26,7 +26,8 @@ module Rune.IR.IRHelpers
     isSigned,
     isIntType,
     isFloatType,
-    promoteTypes
+    promoteTypes,
+    getDefaultValue
   )
 where
 #else
@@ -46,7 +47,8 @@ module Rune.IR.IRHelpers
     getCurrentLoop,
     getOperandType,
     getCommonType,
-    selectReturnType
+    selectReturnType,
+    getDefaultValue
   )
 where
 #endif
@@ -119,6 +121,15 @@ irTypeToASTType (IRArray t _) = TypeArray (irTypeToASTType t)
 irTypeToASTType (IRPtr (IRArray t _)) = TypeArray (irTypeToASTType t)
 irTypeToASTType (IRPtr IRNull) = TypeAny
 irTypeToASTType (IRPtr t) = TypePtr (irTypeToASTType t)
+
+getDefaultValue :: IRType -> IROperand
+getDefaultValue (IRPtr _) = IRConstNull
+getDefaultValue IRNull = IRConstNull
+getDefaultValue IRBool = IRConstBool False
+getDefaultValue IRChar = IRConstChar '\0'
+getDefaultValue IRF32 = IRConstFloat 0.0
+getDefaultValue IRF64 = IRConstFloat 0.0
+getDefaultValue _ = IRConstInt 0
 
 -- TODO: treat struct properly
 -- currently they are treated as 8 byte references/pointers
