@@ -103,7 +103,7 @@ varsSemanticsTests =
 
     testGroup "Method Body Verification"
       [ expectOk "verifies method with self parameter and body" methodWithBodyProgram,
-        expectErr "rejects method without any parameters" methodNoParamsProgram "Method must have at least one parameter",
+        expectErr "rejects method without any parameters" methodNoParamsProgram "must have at least one parameter",
         expectErr "rejects method with wrong first parameter" methodNoSelfProgram "First parameter of method"
       ],
 
