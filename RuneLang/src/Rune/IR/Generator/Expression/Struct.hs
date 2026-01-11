@@ -91,7 +91,7 @@ genDefaultField sName resName sType (fName, fType) = do
     addrInstrOf ptr = IRADDR ptr resName (IRPtr sType)
 
     setInstrOf :: String -> IROperand -> IRInstruction
-    setInstrOf ptr dv = IRSET_FIELD (IRTemp ptr (IRPtr sType)) sName fName dv
+    setInstrOf ptr = IRSET_FIELD (IRTemp ptr (IRPtr sType)) sName fName
 
 
 --
