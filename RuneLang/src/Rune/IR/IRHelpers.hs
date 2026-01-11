@@ -153,9 +153,7 @@ sizeOfIRType structs (IRArray t len) =
   sizeOfIRType structs t * len
 
 sizeOfIRType structs (IRStruct name) =
-  case Map.lookup name structs of
-    Nothing     -> 8
-    Just fields -> sizeOfStructType fields
+  maybe 8 sizeOfStructType $ Map.lookup name structs
 
   where
     sizeOfStructType :: [(String, IRType)] -> Int
