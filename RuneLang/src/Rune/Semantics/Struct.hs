@@ -62,7 +62,7 @@ mkError (SourcePos file line col) expected got =
   formatSemanticError $ SemanticError file line col expected got ["struct definition"]
 
 getStructPos :: TopLevelDef -> SourcePos
-getStructPos (DefStruct _ _ _) = SourcePos "<unknown>" 0 0
+getStructPos (DefStruct {}) = SourcePos "<unknown>" 0 0
 getStructPos _ = SourcePos "<unknown>" 0 0
 
 checkMethods :: String -> SourcePos -> [TopLevelDef] -> Either String [TopLevelDef]
