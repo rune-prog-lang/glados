@@ -84,6 +84,7 @@ data TokenKind
   | Semicolon -- ;
   | Colon -- :
   | Dot -- .
+  | Ellipsis -- ...
   | LBracket -- [
   | RBracket -- ]
   | EOF
