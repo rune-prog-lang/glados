@@ -1,12 +1,19 @@
+somewhere
+{
+    def allocate(size: u64) ~> *any;
+    def liberate(ptr: *any) -> bool;
+    def reallocate(ptr: *any, size: u64) ~> *any;
+    def initialize(ptr: *any, size: u64, value: u8) ~> *any;
+    
+    def assert(condition: bool, message: string) -> bool;
+}
+
 struct Vec
 {
     data:     *any;
     size:     u64;
     capacity: u64;
 
-    /**
-    * INFO: creates a new empty vector
-    */
     def new() -> Vec
     {
         Vec {
@@ -16,85 +23,79 @@ struct Vec
         }
     }
 
-    /**
-    * INFO: creates a new vector from an array
-    */
-    override def new(value: any[]) -> Vec
-    {
-        vec = Vec {};
-
-        for item in value {
-            vec.push(item)?;
-        }
-        return vec;
-    }
-
-    /**
-    * INFO: creates a new vector with an initial capacity
-    */
     override def new(initial_capacity: u64) ~> Vec
     {
-        vec = Vec {};
-
-        if initial_capacity < 0 {
-            error("Initial capacity cannot be negative");
+        if initial_capacity == 0 {
+            new()
         }
-        vec.data = allocate(initial_capacity)?;
-        vec.capacity = initial_capacity;
-        return vec;
+
+        ptr = allocate(initial_capacity * 8)?; 
+
+        Vec {
+            data:     ptr,
+            size:     0,
+            capacity: initial_capacity
+        }
     }
 
-    /**
-    * INFO: get an element at index
-    */
     def get(self, index: u64) ~> any
     {
         if index >= self.size {
-            error("Index out of bounds");
+            error("Index out of bounds")
         }
-        return self.data[index];
+        self.data[index]
     }
 
-    /**
-    * INFO: pushes a new value to the end of the vector
-    */
     def push(self, value: any) ~> bool
     {
         if self.size >= self.capacity {
             new_capacity = self.capacity * 2 + 1;
-
-            self.data = reallocate(self.data, new_capacity)?;
+            self.data = reallocate(self.data, new_capacity * 8)?;
             self.capacity = new_capacity;
         }
 
-        initialize(self.data, self.size, value)?;
+        self.data[self.size] = value;
         self.size = self.size + 1;
-        return true;
+        true
     }
 
-    /**
-    * INFO: pops a value from the end of the vector
-    */
-    def pop(self) ~> bool
+    def pop(self) ~> any
     {
         if self.size == 0 {
-            error("Cannot pop from an empty vector");
+            error("Cannot pop from an empty vector")
         }
-
         self.size = self.size - 1;
-        return liberate(self.data[self.size])?;
+        self.data[self.size]
     }
 
-    /**
-    * INFO: clears the vector
-    */
-    def clear(self) ~> bool
+    def delete(self) -> bool
     {
-        for i = 0 to self.size - 1 {
-            liberate(self.data[i])?;
+        if self.data != null {
+            liberate(self.data);
         }
+        self.data = null;
         self.size = 0;
-        return true;
+        self.capacity = 0;
+        true
     }
 
+}
+
+def main() ~> null
+{
+    v = Vec.new(4)?;
+
+    v.push(10)?;
+    v.push(20)?;
+    v.push(30)?;
+
+    val = v.get(1)?;
+    assert(val == 20, "Le deuxième élément doit être 20");
+
+    v.push(40)?;
+    v.push(50)?;
+
+    dernier = v.pop()?;
+
+    v.delete(); // normalement, delete() doit être appelé à la fin du scope de v. comme le C++.
 }
