@@ -344,6 +344,8 @@ data Expression
   | -- array literal
     -- [1, 2, 3, 4]
     ExprLitArray SourcePos [Expression]
+  | -- sizeof <type> | sizeof <expression>
+    ExprSizeof SourcePos (Either Type Expression)
   deriving (Show, Eq)
 
 -- | Extract source position from an expression
@@ -363,6 +365,7 @@ getExprPos (ExprLitBool pos _) = pos
 getExprPos (ExprLitNull pos) = pos
 getExprPos (ExprVar pos _) = pos
 getExprPos (ExprLitArray pos _) = pos
+getExprPos (ExprSizeof pos _) = pos
 
 -- | Extract source position from a statement
 getStmtPos :: Statement -> SourcePos
