@@ -49,9 +49,8 @@ genAccess genExpr target field = do
 -- ALLOC var_name: "Type" & initialize fields
 genStructInit :: GenExprCallback -> String -> [(String, Expression)] -> IRGen ([IRInstruction], IROperand, IRType)
 genStructInit genExpr name providedFields = do
-  let structType = IRStruct name
   resName <- newTemp "struct" structType
-  let allocInstr = IRALLOC resName structType
+  let allocInstr = irAlloc resName structType
 
   -- get all struct fields from the struct definition
   structs <- gets gsStructs
@@ -63,20 +62,40 @@ genStructInit genExpr name providedFields = do
   fieldInstrs <- concat <$> mapM (genInitField genExpr name resName structType) providedFields
 
   -- generate default initialization for missing fields
-  let providedFieldNames = map fst providedFields
-      missingFields = filter (\(fName, _) -> fName `notElem` providedFieldNames) allFields
-  defaultInstrs <- concat <$> mapM (genDefaultField name resName structType) missingFields
+  let providedNames = providedFieldNames providedFields
+      missing = missingFields allFields providedNames
+  defaultInstrs <- concat <$> mapM (genDefaultField name resName structType) missing
 
   return (allocInstr : fieldInstrs ++ defaultInstrs, IRTemp resName structType, structType)
+
+  where
+    structType :: IRType
+    structType = IRStruct name
+
+    irAlloc :: String -> IRType -> IRInstruction
+    irAlloc r t = IRALLOC r t
+
+    providedFieldNames :: [(String, Expression)] -> [String]
+    providedFieldNames = map fst
+
+    missingFields :: [(String, IRType)] -> [String] -> [(String, IRType)]
+    missingFields allFs provided = filter (\(fName, _) -> fName `notElem` provided) allFs
 
 -- | generate default value initialization for a struct field
 genDefaultField :: String -> String -> IRType -> (String, IRType) -> IRGen [IRInstruction]
 genDefaultField sName resName sType (fName, fType) = do
   ptrName <- newTemp "p_init" (IRPtr sType)
-  let addrInstr = IRADDR ptrName resName (IRPtr sType)
-      defaultVal = getDefaultValue fType
-      setInstr = IRSET_FIELD (IRTemp ptrName (IRPtr sType)) sName fName defaultVal
+  let addrInstr    = addrInstrOf ptrName
+      defaultVal   = getDefaultValue fType
+      setInstr     = setInstrOf ptrName defaultVal
   pure [addrInstr, setInstr]
+  where
+    addrInstrOf :: String -> IRInstruction
+    addrInstrOf ptr = IRADDR ptr resName (IRPtr sType)
+
+    setInstrOf :: String -> IROperand -> IRInstruction
+    setInstrOf ptr dv = IRSET_FIELD (IRTemp ptr (IRPtr sType)) sName fName dv
+
 
 --
 -- private
