@@ -133,7 +133,7 @@ exprType s@(fs, _, _) (ExprCall _ (ExprVar _ fn) args) = do
   argTypes <- mapM (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
 
-exprType _ (ExprCall _ _ _) = Right TypeAny
+exprType _ (ExprCall {}) = Right TypeAny
 
 exprType s (ExprIndex _ target _) = exprType s target >>= extractArrayType
   where
@@ -239,6 +239,7 @@ getFieldType pos ss (TypeCustom sName) fldName =
         [] -> Left $ mkError (printf "field '%s' to exist in struct '%s'" fldName sName) "undefined field"
         (Field _ t:_) -> Right t
     Just _ -> Left $ mkError (printf "struct '%s' to be a valid struct definition" sName) "not a struct definition"
+
 getFieldType pos _ otherType fldName =
   let SourcePos file line col = pos
   in Left $ SemanticError file line col 
