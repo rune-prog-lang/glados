@@ -51,18 +51,48 @@ formatSemanticError (SemanticError file line col expected got ctx) =
 checkParamType :: Stack -> (String, [Type]) -> String -> Int -> Int -> [Expression] -> Either SemanticError String
 checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
   let mkError expected got = SemanticError file line col expected got ["function call", "global context"]
-      mangled = HM.filterWithKey (\k (ret, args) -> isRightFunction (fname, argTypes) k (ret, args)) fs
-      candidates = case (HM.toList mangled, HM.lookup fname fs) of
-        (m@(_:_), _)           -> m
-        ([], Just sig)     -> (fname, sig) : []
-        ([], Nothing)      -> []
+      -- Find candidates by exact match on mangled name
+      exactMangled = HM.filterWithKey (\k (ret, args) -> isRightFunction (fname, argTypes) k (ret, args)) fs
+      -- For struct method overrides (names containing _), also check compatible manglings
+      compatibleMangled = if isStructMethod fname
+                          then HM.toList $ HM.filterWithKey (\k (ret, args) -> isCompatibleMangling fname k ret args argTypes) fs
+                          else []
+      -- Also check direct name lookup
+      candidates = case (HM.toList exactMangled, compatibleMangled, HM.lookup fname fs) of
+        (m@(_:_), _, _) -> m                 -- Exact mangled match (priority)
+        ([], c@(_:_), _) -> c                -- Compatible mangled match (struct methods only)
+        ([], [], Just sig) -> [(fname, sig)] -- Direct name lookup
+        ([], [], Nothing) -> []
   in case candidates of
     [] -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
     [(name, (_, args))] ->
       case checkEachParam s file line col 0 es args of
         Nothing -> Right name
         Just err -> Left err
-    _ -> Left $ mkError (printf "multiple signatures for %s" fname) "ambiguous function call"
+    multiples ->
+      -- Filter to only those with matching parameter count and compatible types
+      case filter (\(_, (_, args)) -> checkEachParam s file line col 0 es args == Nothing) multiples of
+        [(name, _)] -> Right name
+        [] -> Left $ mkError ("function '" <> fname <> "' with compatible arguments") "no matching signature"
+        _ -> Left $ mkError (printf "multiple signatures for %s" fname) "ambiguous function call"
+
+-- | Check if a function name looks like a struct method (StructName_methodName)
+isStructMethod :: String -> Bool
+isStructMethod name = '_' `elem` name
+
+-- | Check if a function name is a valid mangling of the base name with compatible types
+isCompatibleMangling :: String -> String -> Type -> [Type] -> [Type] -> Bool
+isCompatibleMangling baseName fName retType funcArgTypes argTypes =
+  let -- The mangled name should be retType_baseName_... 
+      expectedPrefix = show retType <> "_" <> baseName
+      isNameMatch = fName == baseName ||
+                    fName == expectedPrefix ||
+                    (expectedPrefix <> "_") `isPrefixOfStr` fName
+      argsCompatible = length argTypes == length funcArgTypes &&
+                       all (uncurry isTypeCompatible) (zip funcArgTypes argTypes)
+  in isNameMatch && argsCompatible
+  where
+    isPrefixOfStr prefix str = take (length prefix) str == prefix
 
 isRightFunction :: (String, [Type]) -> String -> (Type, [Type]) -> Bool
 isRightFunction (funcToCheck, argTypesToCheck) fname (retType, _) =
@@ -139,12 +169,10 @@ assignVarType vs v file line col t =
 isTypeCompatible :: Type -> Type -> Bool
 isTypeCompatible TypeAny _ = True
 isTypeCompatible _ TypeAny = True
+isTypeCompatible (TypePtr TypeAny) _ = True  -- *any accepts any type
+isTypeCompatible _ (TypePtr TypeAny) = True  -- anything can be passed as *any
 isTypeCompatible (TypePtr _) TypeNull = True
 isTypeCompatible TypeNull (TypePtr _) = True
-isTypeCompatible (TypePtr TypeAny) (TypePtr _) = True
-isTypeCompatible (TypePtr _) (TypePtr TypeAny) = True
-isTypeCompatible (TypePtr TypeAny) TypeString = True
-isTypeCompatible TypeString (TypePtr TypeAny) = True
 isTypeCompatible (TypePtr TypeChar) TypeString = True
 isTypeCompatible TypeString (TypePtr TypeChar) = True
 isTypeCompatible (TypePtr a) (TypePtr b) = isTypeCompatible a b
