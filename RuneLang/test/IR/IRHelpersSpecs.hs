@@ -42,6 +42,7 @@ irHelpersTests =
     , testSignedTypeOfWidth
     , testUnsignedTypeOfWidth
     , testIsFloatType
+    , testGetDefaultValue
     ]
 
 --
@@ -453,4 +454,27 @@ testIsFloatType = testGroup "isFloatType"
       isFloatType IRNull @?= False
       isFloatType (IRPtr IRI32) @?= False
       isFloatType (IRStruct "S") @?= False
+  ]
+
+testGetDefaultValue :: TestTree
+testGetDefaultValue = testGroup "getDefaultValue"
+  [ testCase "Returns correct default values for primitive types" $ do
+      getDefaultValue IRI8 @?= IRConstInt 0
+      getDefaultValue IRI16 @?= IRConstInt 0
+      getDefaultValue IRI32 @?= IRConstInt 0
+      getDefaultValue IRI64 @?= IRConstInt 0
+      getDefaultValue IRU8 @?= IRConstInt 0
+      getDefaultValue IRU16 @?= IRConstInt 0
+      getDefaultValue IRU32 @?= IRConstInt 0
+      getDefaultValue IRU64 @?= IRConstInt 0
+      getDefaultValue IRF32 @?= IRConstFloat 0.0
+      getDefaultValue IRF64 @?= IRConstFloat 0.0
+      getDefaultValue IRBool @?= IRConstBool False
+      getDefaultValue IRChar @?= IRConstChar '\0'
+      getDefaultValue IRNull @?= IRConstNull
+  , testCase "Returns null pointer for pointer types" $ do
+      getDefaultValue (IRPtr IRI32) @?= IRConstNull
+      getDefaultValue (IRPtr (IRStruct "S")) @?= IRConstNull
+  , testCase "Returns null pointer for struct types" $ do
+      getDefaultValue (IRStruct "MyStruct") @?= IRConstNull
   ]
