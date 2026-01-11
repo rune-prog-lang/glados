@@ -103,15 +103,20 @@ genStructMethod _ _ = pure []
 
 -- | generate IR for a function parameter and register it in the symbol table
 genParam :: Parameter -> IRGen (String, IRType)
-genParam (Parameter name typ) = do
-  let irType = case typ of
-                 TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
-                 TypeCustom s -> IRPtr (IRStruct s)
-                 t -> astTypeToIRType t
+genParam (Parameter name typ isVariadic) = do
+  let irType = genIRType (isVariadic, typ)
       irName = "p_" ++ name
 
   registerVar name (IRParam irName irType) irType
   pure (irName, irType)
+
+  where
+
+    genIRType :: (Bool, Type) -> IRType
+    genIRType (True, t)                   = IRPtr (IRArray (astTypeToIRType t) 0)
+    genIRType (False, TypeArray elemType) = IRPtr (IRArray (astTypeToIRType elemType) 0)
+    genIRType (False, TypeCustom s)       = IRPtr (IRStruct s)
+    genIRType (False, t)                  = astTypeToIRType t
 
 resetFunctionState :: String -> IRGen ()
 resetFunctionState name =
