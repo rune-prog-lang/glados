@@ -68,12 +68,18 @@ genSizeof val = do
     Left astType -> pure $ astTypeToIRType astType
     Right expr   -> do
       (_, _, t) <- genExpression expr
-      pure t
+      pure $ normalizePtr t
 
   structs <- gets gsStructs
   let size = sizeOfIRType structs targetIRType
 
   return ([], IRConstInt size, IRU64)
+
+  where
+
+    normalizePtr :: IRType -> IRType
+    normalizePtr (IRPtr (IRArray elemType len)) = IRArray elemType len
+    normalizePtr t = t
 
 genCast :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
 genCast genExpr (ExprIndex _ target idx) astType = do
