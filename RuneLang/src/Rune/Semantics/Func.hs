@@ -74,16 +74,22 @@ findDefs s (DefStruct name _ methods) =
       (dup:_) -> Left $ printf msg dup name
       [] -> foldM findDefs s (transformStructMethods name methods)
 
+-- | check if a method is static (doesn't need self)
+-- TODO: add maybe more static method such as static keyword idk
+isStaticMethod :: String -> Bool
+isStaticMethod "new" = True
+isStaticMethod _     = False
+
 transformStructMethods :: String -> [TopLevelDef] -> [TopLevelDef]
 transformStructMethods sName = map transform
   where
     transform (DefFunction methodName params rType body isExport) =
       let baseName = sName ++ "_" ++ methodName
-          params' = fixSelfType sName params
+          params' = if isStaticMethod methodName then params else fixSelfType sName params
       in DefFunction baseName params' rType body isExport
     transform (DefOverride methodName params rType body isExport) =
       let baseName = sName ++ "_" ++ methodName
-          params' = fixSelfType sName params
+          params' = if isStaticMethod methodName then params else fixSelfType sName params
       in DefOverride baseName params' rType body isExport
     transform other = other
 
