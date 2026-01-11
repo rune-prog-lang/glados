@@ -144,6 +144,8 @@ exprType s (ExprIndex _ target _) = exprType s target >>= extractArrayType
     extractArrayType t = Left $ printf "\n\tIndexingNonArray: cannot index type %s, expected array" (show t)
 
 exprType _ (ExprLitArray _ []) = Right $ TypeArray TypeAny
+exprType _ (ExprSizeof _ _) = Right TypeU64
+
 exprType s (ExprLitArray _ (e:es)) = do
   firstType <- exprType s e
   allTypes <- mapM (exprType s) es
