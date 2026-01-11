@@ -156,9 +156,9 @@ emitTextSectionGen mbExterns structMap fs = "section .text" : concatMap (emitFun
 emitFunction :: StructMap -> Function -> [String]
 emitFunction = emitFunctionGen Nothing
 
--- | Emit function for library (exports marked with 'export' become global, uses PLT for externs)
+-- | emit function for library (exports marked with 'export' become global, uses PLT for externs)
 emitFunctionLib :: [Extern] -> StructMap -> Function -> [String]
-emitFunctionLib externs structMap = emitFunctionGen (Just externs) structMap
+emitFunctionLib externs = emitFunctionGen $ Just externs
 
 emitFunctionGen :: Maybe [Extern] -> StructMap -> Function -> [String]
 emitFunctionGen mbExterns structMap fn@(IRFunction name params _ body _) =
