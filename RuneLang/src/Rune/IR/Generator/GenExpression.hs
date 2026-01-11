@@ -23,7 +23,7 @@ import Rune.IR.Generator.Expression.Struct (genAccess, genStructInit)
 import Rune.IR.Generator.Expression.Unary (genUnary)
 import Rune.IR.Generator.Expression.Array (genLitArray, genIndex)
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
-import Rune.IR.IRHelpers (astTypeToIRType, newTemp)
+import Rune.IR.IRHelpers (astTypeToIRType, newTemp, sizeOfIRType)
 
 --
 -- public
@@ -48,6 +48,7 @@ genExpression (ExprStructInit _ name fields) = genStructInit genExpression name 
 genExpression (ExprLitArray _ exprs) = genLitArray genExpression exprs
 genExpression (ExprIndex _ target idx) = genIndex genExpression target idx
 genExpression (ExprCast _ expr typ) = genCast genExpression expr typ
+genExpression (ExprSizeof _ val) = genSizeof val
 
 --
 -- private
@@ -59,6 +60,20 @@ genVar name = do
   case Map.lookup name symTable of
     Just (op, typ) -> return ([], op, typ)
     Nothing -> throwError $ "genVar: variable not found in symbol table: " <> name
+
+genSizeof :: Either Type Expression -> IRGen ([IRInstruction], IROperand, IRType)
+genSizeof val = do
+
+  targetIRType <- case val of
+    Left astType -> pure $ astTypeToIRType astType
+    Right expr   -> do
+      (_, _, t) <- genExpression expr
+      pure t
+
+  structs <- gets gsStructs
+  let size = sizeOfIRType structs targetIRType
+
+  return ([], IRConstInt size, IRU64)
 
 genCast :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
 genCast genExpr (ExprIndex _ target idx) astType = do

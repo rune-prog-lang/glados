@@ -61,6 +61,8 @@ import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IR
 import Rune.Semantics.Type (FuncStack)
 import Rune.Semantics.Helper (selectSignature)
 
+import Lib (alignTo, align8, alignSize)
+
 --
 -- type conversion
 --
@@ -153,17 +155,10 @@ sizeOfIRType structs (IRStruct name) =
     step :: (Int, Int) -> (String, IRType) -> (Int, Int)
     step (offset, _) (_, t) =
       let s       = sizeOfIRType structs t
-          align   = min 8 $ max 1 s
+          align   = alignSize s
           aligned = alignTo align offset
 
       in (aligned + s, aligned)
-
-    alignTo :: Int -> Int -> Int
-    alignTo a x =
-      ((x + a - 1) `div` a) * a
-
-    align8 :: Int -> Int
-    align8 = alignTo 8
 
 getCommonType :: IROperand -> IROperand -> IRType
 getCommonType l r =
