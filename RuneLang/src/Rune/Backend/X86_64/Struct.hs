@@ -22,12 +22,15 @@ where
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe)
+
 import Rune.Backend.Helpers (emit)
 import Rune.Backend.X86_64.LoadStore (loadReg, loadRegWithExt, stackAddr, storeReg)
 import Rune.Backend.X86_64.Registers (getRegisterName, getSizeSpecifier)
 import Rune.Backend.X86_64.Compare (loadFloatOperand, isFloatType)
 import Rune.IR.Nodes (IROperand (..), IRType (..))
 import Rune.IR.IRHelpers (sizeOfIRType)
+
 import Lib (alignTo, alignSize)
 
 -- | Type alias for struct field definitions: (fieldName, fieldType)
@@ -53,13 +56,9 @@ getFieldOffset structMap structName fieldName =
       | name == fieldName = alignedOffset
       | otherwise = findFieldOffset rest (alignedOffset + size)
       where
-        size = getFieldSize structMap typ
+        size = sizeOfIRType structMap typ
         align = alignSize size
         alignedOffset = alignTo align offset
-
--- | Get the size of a field, handling nested structs.
-getFieldSize :: StructMap -> IRType -> Int
-getFieldSize structMap t = sizeOfIRType structMap t
 
 -- | Emit assembly for allocating a struct on the stack.
 -- This is essentially a no-op since stack space is pre-allocated,
@@ -118,11 +117,8 @@ emitSetField stackMap structMap basePtr structName fieldName valueOp =
 getFieldType :: StructMap -> String -> String -> IRType
 getFieldType structMap structName fieldName =
   case Map.lookup structName structMap of
-    Nothing -> IRI64  -- fallback
-    Just fields ->
-      case lookup fieldName fields of
-        Just t -> t
-        Nothing -> IRI64  -- fallback
+    Nothing -> IRI64 -- should never happens
+    Just fields -> fromMaybe IRI64 $ lookup fieldName fields
 
 -- | Emit assembly for setting an integer/pointer field.
 emitSetFieldInt :: Map String Int -> IROperand -> Int -> IROperand -> IRType -> [String]
