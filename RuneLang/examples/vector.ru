@@ -6,6 +6,7 @@ somewhere
     def initialize(ptr: *any, size: u64, value: u8) ~> *any;
     
     def assert(condition: bool, message: string) -> bool;
+    def assert_eq(a: string, b: string, message: string) -> bool;
 }
 
 struct Vec
@@ -46,6 +47,15 @@ struct Vec
         self.data[index]
     }
 
+    def reserve(self, new_capacity: u64) ~> bool
+    {
+        if new_capacity > self.capacity {
+            self.data = reallocate(self.data, new_capacity * 8)?;
+            self.capacity = new_capacity;
+        }
+        true
+    }
+
     def push(self, value: any) ~> bool
     {
         if self.size >= self.capacity {
@@ -68,7 +78,7 @@ struct Vec
         self.data[self.size]
     }
 
-    def delete(self) -> bool
+    def clear(self) -> bool
     {
         if self.data != null {
             liberate(self.data);
@@ -79,9 +89,14 @@ struct Vec
         true
     }
 
+    def delete(self) -> bool
+    {
+        self.clear()
+    }
+
 }
 
-def main() ~> null
+def vec_number() -> null
 {
     v = Vec.new(4)?;
 
@@ -89,13 +104,38 @@ def main() ~> null
     v.push(20)?;
     v.push(30)?;
 
-    val = v.get(1)?;
-    assert(val == 20, "Le deuxième élément doit être 20");
+    assert(v.get(1)? == 20, "Le deuxième élément doit être 20");
 
+    v.clear();
+    assert(v.size == 0, "La taille doit être 0 après clear()");
+
+    v.reserve(2)?;
     v.push(40)?;
     v.push(50)?;
 
-    dernier = v.pop()?;
+    assert(v.pop()? == 50, "Le dernier élément doit être 50");
 
     v.delete(); // normalement, delete() doit être appelé à la fin du scope de v. comme le C++.
+}
+
+def vec_string() -> null
+{
+    v = Vec {}; // équivalent de v = Vec.new();
+
+    v.reserve(3)?;
+
+    v.push("Bonjour")?; // no allocation needed
+    v.push("le")?;      // no allocation needed
+    v.push("monde")?;   // no allocation needed
+
+    assert_eq(v.get(0)?, "Bonjour", "Le premier élément doit être 'Bonjour'");
+    assert_eq(v.pop()?, "monde", "Le dernier élément doit être 'monde'");
+
+    v.delete(); // normalement, delete() doit être appelé à la fin du scope de v. comme le C++.
+}
+
+def main() ~> null
+{
+    vec_number();
+    vec_string();
 }
