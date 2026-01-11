@@ -50,7 +50,7 @@ genAccess genExpr target field = do
 genStructInit :: GenExprCallback -> String -> [(String, Expression)] -> IRGen ([IRInstruction], IROperand, IRType)
 genStructInit genExpr name providedFields = do
   resName <- newTemp "struct" structType
-  let allocInstr = irAlloc resName structType
+  let allocInstr = IRALLOC resName structType
 
   -- get all struct fields from the struct definition
   structs <- gets gsStructs
@@ -71,9 +71,6 @@ genStructInit genExpr name providedFields = do
   where
     structType :: IRType
     structType = IRStruct name
-
-    irAlloc :: String -> IRType -> IRInstruction
-    irAlloc r t = IRALLOC r t
 
     providedFieldNames :: [(String, Expression)] -> [String]
     providedFieldNames = map fst
