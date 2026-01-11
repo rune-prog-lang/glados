@@ -157,7 +157,6 @@ exprType s (ExprLitArray _ (e:es)) = do
 
 
 assignVarType :: VarStack -> String -> String -> Int -> Int -> Type -> Either SemanticError VarStack
-assignVarType vs _ _ _ _ TypeAny = Right vs
 assignVarType vs v file line col t =
   let updated = Right $ HM.insert v t vs
   in case HM.lookup v vs of
