@@ -339,16 +339,28 @@ verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) 
   ss <- gets stStructs
   let s = (fs, vs, ss)
 
-  targetType <- lift $ exprType s (ExprVar vPos target)
-  let baseName = show targetType ++ "_" ++ method
+  case HM.lookup target ss of
 
-  args' <- mapM (verifExpr vs) args
-  argTypes <- lift $ mapM (exprType s) args'
-  let allArgs = ExprVar vPos target : args'
-      allArgTypes = targetType : argTypes
+    -- | static method call: StructName.method(args)
+    Just _ -> do
+      let baseName = target ++ "_" ++ method
+      args' <- mapM (verifExpr vs) args
+      argTypes <- lift $ mapM (exprType s) args'
+      callExpr <- resolveCall cPos vPos s hint baseName args' argTypes
+      pure $ ExprCall cPos callExpr args'
 
-  callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
-  pure $ ExprCall cPos callExpr allArgs
+    -- instance method call: variable.method(args)
+    Nothing -> do
+      targetType <- lift $ exprType s (ExprVar vPos target)
+      let baseName = show targetType ++ "_" ++ method
+
+      args' <- mapM (verifExpr vs) args
+      argTypes <- lift $ mapM (exprType s) args'
+      let allArgs = ExprVar vPos target : args'
+          allArgTypes = targetType : argTypes
+
+      callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
+      pure $ ExprCall cPos callExpr allArgs
 
 verifExprWithContext _ _ (ExprCall _ _ _) =
   lift $ Left "Invalid function call target"
@@ -384,7 +396,7 @@ verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 
 verifMethod sName (DefFunction methodName params retType body isExport) = do
   checkMethodParams methodName params
-  let params' = fixSelfType sName params
+  let params' = if isStaticMethod methodName then params else fixSelfType sName params
       baseName = sName ++ "_" ++ methodName
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
   body' <- verifScope vs body
@@ -392,7 +404,7 @@ verifMethod sName (DefFunction methodName params retType body isExport) = do
 
 verifMethod sName (DefOverride methodName params retType body isExport) = do
   checkMethodParams methodName params
-  let params' = fixSelfType sName params
+  let params' = if isStaticMethod methodName then params else fixSelfType sName params
       paramTypes = map paramType params'
       baseName = sName ++ "_" ++ methodName
       mangledName = mangleName baseName retType paramTypes
@@ -461,10 +473,16 @@ resolveCall cPos vPos s hint name args argTypes = do
         Nothing -> lift $ Left $ formatSemanticError err
         Just templateDef -> tryInstantiateTemplate templateDef name args argTypes hint
 
+-- | Check if a method is static (doesn't need self)
+isStaticMethod :: String -> Bool
+isStaticMethod "new" = True
+isStaticMethod _     = False
+
 checkMethodParams :: String -> [Parameter] -> SemM ()
-checkMethodParams methodName params = 
-  case params of
-    [] -> lift $ Left "Method must have at least one parameter (self)"
-    (p:_) | paramName p /= "self" ->
-      lift $ Left $ printf "First parameter of method '%s' must be 'self', got '%s'" methodName (paramName p)
-    _ -> pure ()
+checkMethodParams methodName params
+  | isStaticMethod methodName = pure ()  -- Static methods don't need self
+  | otherwise = case params of
+      [] -> lift $ Left $ printf "Instance method '%s' must have at least one parameter (self)" methodName
+      (p:_) | paramName p /= "self" ->
+        lift $ Left $ printf "First parameter of method '%s' must be 'self', got '%s'" methodName (paramName p)
+      _ -> pure ()
