@@ -29,8 +29,8 @@ import Rune.Semantics.Helper (fixSelfType)
 findFunc :: Program -> Either String FuncStack
 findFunc (Program _ defs) = do
   let builtins = HM.fromList
-        [ ("show" , (TypeNull, [TypeAny], Nothing))
-        , ("error", (TypeNull, [TypeAny], Nothing))
+        [ ("show" , (TypeNull, [TypeAny], Nothing, True))
+        , ("error", (TypeNull, [TypeAny], Nothing, True))
         ]
   foldM findDefs builtins defs
 
@@ -45,7 +45,7 @@ findDefs s (DefFunction name params rType _ _) =
     let (fixedParams, variadicParam) = splitParams params
         paramTypes = map paramType fixedParams
         variadicType = fmap paramType variadicParam
-        sig = (rType, paramTypes, variadicType)
+        sig = (rType, paramTypes, variadicType, False)  -- False = not external
     in if HM.member name s
        then Left $ printf "FuncAlreadyExist: %s was already defined, use override" name
        else Right $ HM.insert name sig s
@@ -59,7 +59,7 @@ findDefs s (DefOverride name params rType _ _) =
     let (fixedParams, variadicParam) = splitParams params
         paramTypes = map paramType fixedParams
         variadicType = fmap paramType variadicParam
-        sig = (rType, paramTypes, variadicType)
+        sig = (rType, paramTypes, variadicType, False)  -- False = not external
         mangledName = mangleFuncName name rType paramTypes
         msg = "\n\tWrongOverrideDef: %s is declared as override without any base function"
     in case HM.lookup name s of
@@ -73,8 +73,8 @@ findDefs s (DefOverride name params rType _ _) =
 -- | find function signatures defined somewhere else
 findDefs s (DefSomewhere sigs) = foldM addSig s sigs
   where
-    addSig fs (FunctionSignature name paramTypes rType _isOverride) =
-      let sig = (rType, paramTypes, Nothing)
+    addSig fs (FunctionSignature name paramTypes rType _isOverride varT) =
+      let sig = (rType, paramTypes, varT, True)  -- True = external
       in Right $ HM.insertWith (\_ old -> old) name sig fs
 
 -- | find struct method definitions

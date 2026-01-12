@@ -465,7 +465,7 @@ registerInstantiation :: String -> TopLevelDef -> Type -> [Type] -> SemM ()
 registerInstantiation name def retTy argTys =
   modify $ \st -> st
     { stNewDefs      = stNewDefs st <> [def]
-    , stFuncs        = HM.insert name (retTy, argTys, Nothing) (stFuncs st)
+    , stFuncs        = HM.insert name (retTy, argTys, Nothing, False) (stFuncs st)
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
 
