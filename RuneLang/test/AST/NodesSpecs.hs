@@ -87,11 +87,12 @@ testParameterAndField =
   testGroup
     "Parameter and Field Accessors"
     [ testCase "Parameter accessors" $
-        let p = Parameter {paramName = "x", paramType = TypeI32}
+        let p = Parameter {paramName = "x", paramType = TypeI32, paramIsVariadic = False}
          in do
               paramName p @?= "x"
               paramType p @?= TypeI32
-              show p @?= "Parameter {paramName = \"x\", paramType = i32}",
+              paramIsVariadic p @?= False
+              show p @?= "Parameter {paramName = \"x\", paramType = i32, paramIsVariadic = False}",
       testCase "Field accessors" $
         let f = Field {fieldName = "y", fieldType = TypeF64}
          in do

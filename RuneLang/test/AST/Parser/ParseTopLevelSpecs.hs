@@ -129,17 +129,17 @@ testParseParams = testGroup "parseParams"
 
 testParseParameter :: TestTree
 testParseParameter = testGroup "parseParameter"
-  [ testCase "Self branch"  $ assertS "self" parseParameter [tok (T.Identifier "self")] (Parameter "self" TypeAny)
-  , testCase "Typed branch" $ assertS "typed" parseParameter [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32] (Parameter "x" TypeI32)
+  [ testCase "Self branch"  $ assertS "self" parseParameter [tok (T.Identifier "self")] (Parameter "self" TypeAny False)
+  , testCase "Typed branch" $ assertS "typed" parseParameter [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32] (Parameter "x" TypeI32 False)
   ]
 
 testParseSelfParam :: TestTree
 testParseSelfParam = testCase "parseSelfParam" $
-  assertS "self" parseSelfParam [tok (T.Identifier "self")] (Parameter "self" TypeAny)
+  assertS "self" parseSelfParam [tok (T.Identifier "self")] (Parameter "self" TypeAny False)
 
 testParseTypedParam :: TestTree
 testParseTypedParam = testGroup "parseTypedParam"
-  [ testCase "Success" $ assertS "x: i32" parseTypedParam [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32] (Parameter "x" TypeI32)
+  [ testCase "Success" $ assertS "x: i32" parseTypedParam [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32] (Parameter "x" TypeI32 False)
   , testCase "failParse branch" $ assertF "no colon error" parseTypedParam [tok (T.Identifier "x"), tok T.Semicolon]
   ]
 

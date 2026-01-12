@@ -99,12 +99,12 @@ unaryOpTests = testGroup "UnaryOp Tests"
 parameterTests :: TestTree
 parameterTests = testGroup "Parameter Tests"
   [ testCase "Show Parameter" $
-      assertEqual "Show" "Parameter {paramName = \"x\", paramType = i32}" (show (Parameter "x" TypeI32))
+      assertEqual "Show" "Parameter {paramName = \"x\", paramType = i32, paramIsVariadic = False}" (show (Parameter "x" TypeI32 False))
   , testCase "Eq Parameter" $ do
-      let p1 = Parameter "x" TypeI32
-      let p2 = Parameter "x" TypeI32
-      let p3 = Parameter "y" TypeI32
-      let p4 = Parameter "x" TypeF32
+      let p1 = Parameter "x" TypeI32 False
+      let p2 = Parameter "x" TypeI32 False
+      let p3 = Parameter "y" TypeI32 False
+      let p4 = Parameter "x" TypeF32 False
       assertBool "Equal" (p1 == p2)
       assertBool "Unequal name" (p1 /= p3)
       assertBool "Unequal type" (p1 /= p4)
@@ -159,7 +159,7 @@ topLevelDefTests = testGroup "TopLevelDef Tests"
       assertBool "DefStruct /= DefOverride" (defStruct /= defOverride)
   ]
   where
-    param = Parameter "x" TypeI32
+    param = Parameter "x" TypeI32 False
     field = Field "x" TypeI32
     blockA = [StmtStop dummyPos]
     blockB = [StmtNext dummyPos]
