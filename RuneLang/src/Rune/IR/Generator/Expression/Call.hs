@@ -38,10 +38,10 @@ genCall genExpr funcName args = do
 
   -- INFO: generate arguments, using parameter type context
   (argsData, variadicData) <- case funcSignature of
-    Just (_, paramTypes, Nothing)
+    Just (_, paramTypes, Nothing, _)
       | length paramTypes == length args ->
           (,) <$> zipWithM (genArgWithContext genExpr) args paramTypes <*> pure []
-    Just (_, paramTypes, Just varType)
+    Just (_, paramTypes, Just varType, _)
       | length args >= length paramTypes ->
           let (fixedArgs, varArgs) = splitAt (length paramTypes) args
           in (,) <$> zipWithM (genArgWithContext genExpr) fixedArgs paramTypes 
@@ -53,22 +53,30 @@ genCall genExpr funcName args = do
       allInstrs     = concat instrs
   
   -- INFO: handle variadic arguments if present
+  -- For external functions, pass variadic args individually (C ABI)
+  -- For internal Rune functions, bundle into array
   (varInstrs, finalOps) <- case (funcSignature, variadicData) of
-    (Just (_, _, Just varType), vData) | not (null vData) -> do
-      let (vInstrs, vOps, _) = unzip3 vData
-          vAllInstrs = concat vInstrs
-          -- Add NULL terminator for array iteration
-          nullTerminatedOps = vOps ++ [IRConstNull]
-      -- Create array of variadic arguments (null-terminated)
-      arrayTemp <- newTemp "vargs" (IRPtr (IRArray (astTypeToIRType varType) 0))
-      let arrayInstr = IRALLOC_ARRAY arrayTemp (astTypeToIRType varType) nullTerminatedOps
-      pure (vAllInstrs ++ [arrayInstr], ops ++ [IRTemp arrayTemp (IRPtr (IRArray (astTypeToIRType varType) 0))])
+    (Just (_, _, Just varType, ext), vData) | not (null vData) ->
+      if ext
+        then do
+          -- External function: pass variadic args individually
+          let (vInstrs, vOps, _) = unzip3 vData
+              vAllInstrs = concat vInstrs
+          pure (vAllInstrs, ops ++ vOps)
+        else do
+          -- Internal Rune function: bundle into null-terminated array
+          let (vInstrs, vOps, _) = unzip3 vData
+              vAllInstrs = concat vInstrs
+              nullTerminatedOps = vOps ++ [IRConstNull]
+          arrayTemp <- newTemp "vargs" (IRPtr (IRArray (astTypeToIRType varType) 0))
+          let arrayInstr = IRALLOC_ARRAY arrayTemp (astTypeToIRType varType) nullTerminatedOps
+          pure (vAllInstrs ++ [arrayInstr], ops ++ [IRTemp arrayTemp (IRPtr (IRArray (astTypeToIRType varType) 0))])
     _ -> pure ([], ops)
 
   -- INFO: determine return type (should always succeed)
   -- NOTE: otherwise should never happen due to semantic analysis
   retType <- case funcSignature of
-    Just (rt, _, _) -> pure $ case rt of
+    Just (rt, _, _, _) -> pure $ case rt of
                               TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
                               t -> astTypeToIRType t
     Nothing -> throwError $ "IR error: Function " <> funcName <> " not found in function stack"
