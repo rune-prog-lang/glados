@@ -4,7 +4,7 @@ def showln(value: any) -> null
     show('\n');
 }
 
-def many_args(args: string...) -> null
+def many_args(args: ...string) -> null
 {
     for arg in args {
         showln(arg);
