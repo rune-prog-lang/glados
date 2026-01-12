@@ -24,6 +24,7 @@ import Rune.IR.Nodes (GenState(..), IRGen, IRInstruction (..), IROperand (..), I
 --
 
 type GenExprCallback = Expression -> IRGen ([IRInstruction], IROperand, IRType)
+type FuncSig = (Type, [Type], Maybe Type, Bool)
 
 --
 -- public
@@ -32,61 +33,80 @@ type GenExprCallback = Expression -> IRGen ([IRInstruction], IROperand, IRType)
 genCall :: GenExprCallback -> String -> [Expression] -> IRGen ([IRInstruction], IROperand, IRType)
 genCall genExpr funcName args = do
   fs <- gets gsFuncStack
-
-  -- INFO: lookup for the resolved function signature
-  let funcSignature = HM.lookup funcName fs
+  let signature = HM.lookup funcName fs
 
   -- INFO: generate arguments, using parameter type context
-  (argsData, variadicData) <- case funcSignature of
-    Just (_, paramTypes, Nothing, _)
-      | length paramTypes == length args ->
-          (,) <$> zipWithM (genArgWithContext genExpr) args paramTypes <*> pure []
-    Just (_, paramTypes, Just varType, _)
-      | length args >= length paramTypes ->
-          let (fixedArgs, varArgs) = splitAt (length paramTypes) args
-          in (,) <$> zipWithM (genArgWithContext genExpr) fixedArgs paramTypes 
-                 <*> mapM (\arg -> genArgWithContext genExpr arg varType) varArgs
-    _ -> (,) <$> mapM genExpr args <*> pure []
+  argData <- lowerArguments signature
 
   -- INFO: prepare fixed arguments (get addresses for structs ect...)
-  let (instrs, ops) = unzip $ map prepareArg argsData
-      allInstrs     = concat instrs
-  
+  let (fixedData, varData) = splitBySignature signature argData
+      (fixedInstrsRaw, fixedOps) = unzip $ map prepareArg fixedData
+      fixedInstrs = concat fixedInstrsRaw
+
   -- INFO: handle variadic arguments if present
-  -- For external functions, pass variadic args individually (C ABI)
-  -- For internal Rune functions, bundle into array
-  (varInstrs, finalOps) <- case (funcSignature, variadicData) of
-    (Just (_, _, Just varType, ext), vData) | not (null vData) ->
-      if ext
-        then do
-          -- External function: pass variadic args individually
-          let (vInstrs, vOps, _) = unzip3 vData
-              vAllInstrs = concat vInstrs
-          pure (vAllInstrs, ops ++ vOps)
-        else do
-          -- Internal Rune function: bundle into null-terminated array
-          let (vInstrs, vOps, _) = unzip3 vData
-              vAllInstrs = concat vInstrs
-              nullTerminatedOps = vOps ++ [IRConstNull]
-          arrayTemp <- newTemp "vargs" (IRPtr (IRArray (astTypeToIRType varType) 0))
-          let arrayInstr = IRALLOC_ARRAY arrayTemp (astTypeToIRType varType) nullTerminatedOps
-          pure (vAllInstrs ++ [arrayInstr], ops ++ [IRTemp arrayTemp (IRPtr (IRArray (astTypeToIRType varType) 0))])
-    _ -> pure ([], ops)
+  (varInstrs, finalOps) <- emitVariadicLayout signature varData fixedOps
 
   -- INFO: determine return type (should always succeed)
   -- NOTE: otherwise should never happen due to semantic analysis
-  retType <- case funcSignature of
-    Just (rt, _, _, _) -> pure $ case rt of
-                              TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
-                              t -> astTypeToIRType t
-    Nothing -> throwError $ "IR error: Function " <> funcName <> " not found in function stack"
-
+  retType <- inferReturnType signature
   registerCall funcName
   retTemp <- newTemp "t" retType
 
   let callInstr = IRCALL retTemp funcName finalOps (Just retType)
+  let allInstrs = fixedInstrs ++ varInstrs ++ [callInstr]
 
-  pure (allInstrs <> varInstrs <> [callInstr], IRTemp retTemp retType, retType)
+  pure (allInstrs, IRTemp retTemp retType, retType)
+
+  where
+    genWithCtx :: Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
+    genWithCtx = genArgWithContext genExpr
+
+    lowerArguments :: Maybe FuncSig -> IRGen [([IRInstruction], IROperand, IRType)]
+    lowerArguments sig = case sig of
+
+      -- NOTE: exact match
+      Just (_, params, Nothing, _) | length params == length args ->
+        zipWithM genWithCtx args params
+
+      -- NOTE: variadic match
+      Just (_, params, Just varT, _) | length args >= length params ->
+        let (f, v) = splitAt (length params) args
+        in (++) <$> zipWithM genWithCtx f params <*> mapM (`genWithCtx` varT) v
+
+      _ -> mapM genExpr args
+
+    splitBySignature :: Maybe FuncSig -> [a] -> ([a], [a])
+    splitBySignature (Just (_, params, Just _, _)) allData = splitAt (length params) allData
+    splitBySignature _ allData = (allData, [])
+
+    emitVariadicLayout :: Maybe FuncSig -> [([IRInstruction], IROperand, IRType)] -> [IROperand] -> IRGen ([IRInstruction], [IROperand])
+    emitVariadicLayout (Just (_, _, Just varT, isExt)) vData fOps
+      | not (null vData) = 
+          if isExt 
+            then flattenCVariadics vData fOps
+            else bundleRuneVariadics varT vData fOps
+    emitVariadicLayout _ _ fOps = pure ([], fOps)
+
+    flattenCVariadics :: [([IRInstruction], IROperand, IRType)] -> [IROperand] -> IRGen ([IRInstruction], [IROperand])
+    flattenCVariadics vData fOps =
+      let (instrs, ops, _) = unzip3 vData 
+      in pure (concat instrs, fOps ++ ops)
+
+    bundleRuneVariadics :: Type -> [([IRInstruction], IROperand, IRType)] -> [IROperand] -> IRGen ([IRInstruction], [IROperand])
+    bundleRuneVariadics varT vData fOps = do
+      let (instrs, ops, _) = unzip3 vData
+          irElemT = astTypeToIRType varT
+          arrayT  = IRPtr (IRArray irElemT 0)
+      temp <- newTemp "vargs" arrayT
+      let alloc = IRALLOC_ARRAY temp irElemT (ops ++ [IRConstNull])
+      pure (concat instrs ++ [alloc], fOps ++ [IRTemp temp arrayT])
+
+    inferReturnType :: Maybe FuncSig -> IRGen IRType
+    inferReturnType (Just (rt, _, _, _)) = pure $ case rt of
+      TypeArray elemT -> IRPtr (IRArray (astTypeToIRType elemT) 0)
+      t               -> astTypeToIRType t
+    inferReturnType Nothing = 
+      throwError $ "IR error: Function " <> funcName <> " not found in function stack"
 
 genArgWithContext :: GenExprCallback -> Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
 genArgWithContext genExpr expr expectedType = do
