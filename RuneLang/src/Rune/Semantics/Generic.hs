@@ -35,7 +35,7 @@ instantiate def _ _ = def
 --
 
 replaceParam :: Parameter -> Type -> Parameter
-replaceParam (Parameter n pType) argType = Parameter n (replaceAny pType argType)
+replaceParam (Parameter n pType pDefault) argType = Parameter n (replaceAny pType argType) pDefault
 
 replaceAny :: Type -> Type -> Type
 replaceAny TypeAny t = t
