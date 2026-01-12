@@ -37,30 +37,48 @@ genCall genExpr funcName args = do
   let funcSignature = HM.lookup funcName fs
 
   -- INFO: generate arguments, using parameter type context
-  argsData <- case funcSignature of
-    Just (_, paramTypes)
+  (argsData, variadicData) <- case funcSignature of
+    Just (_, paramTypes, Nothing)
       | length paramTypes == length args ->
-          zipWithM (genArgWithContext genExpr) args paramTypes
-    _ -> mapM genExpr args
+          (,) <$> zipWithM (genArgWithContext genExpr) args paramTypes <*> pure []
+    Just (_, paramTypes, Just varType)
+      | length args >= length paramTypes ->
+          let (fixedArgs, varArgs) = splitAt (length paramTypes) args
+          in (,) <$> zipWithM (genArgWithContext genExpr) fixedArgs paramTypes 
+                 <*> mapM (\arg -> genArgWithContext genExpr arg varType) varArgs
+    _ -> (,) <$> mapM genExpr args <*> pure []
 
-  -- INFO: prepare arguments (get addresses for structs ect...)
+  -- INFO: prepare fixed arguments (get addresses for structs ect...)
   let (instrs, ops) = unzip $ map prepareArg argsData
       allInstrs     = concat instrs
+  
+  -- INFO: handle variadic arguments if present
+  (varInstrs, finalOps) <- case (funcSignature, variadicData) of
+    (Just (_, _, Just varType), vData) | not (null vData) -> do
+      let (vInstrs, vOps, _) = unzip3 vData
+          vAllInstrs = concat vInstrs
+          -- Add NULL terminator for array iteration
+          nullTerminatedOps = vOps ++ [IRConstNull]
+      -- Create array of variadic arguments (null-terminated)
+      arrayTemp <- newTemp "vargs" (IRPtr (IRArray (astTypeToIRType varType) 0))
+      let arrayInstr = IRALLOC_ARRAY arrayTemp (astTypeToIRType varType) nullTerminatedOps
+      pure (vAllInstrs ++ [arrayInstr], ops ++ [IRTemp arrayTemp (IRPtr (IRArray (astTypeToIRType varType) 0))])
+    _ -> pure ([], ops)
 
   -- INFO: determine return type (should always succeed)
   -- NOTE: otherwise should never happen due to semantic analysis
   retType <- case funcSignature of
-    Just (rt, _) -> pure $ case rt of
-                             TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
-                             t -> astTypeToIRType t
+    Just (rt, _, _) -> pure $ case rt of
+                              TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
+                              t -> astTypeToIRType t
     Nothing -> throwError $ "IR error: Function " <> funcName <> " not found in function stack"
 
   registerCall funcName
   retTemp <- newTemp "t" retType
 
-  let callInstr = IRCALL retTemp funcName ops (Just retType)
+  let callInstr = IRCALL retTemp funcName finalOps (Just retType)
 
-  pure (allInstrs <> [callInstr], IRTemp retTemp retType, retType)
+  pure (allInstrs <> varInstrs <> [callInstr], IRTemp retTemp retType, retType)
 
 genArgWithContext :: GenExprCallback -> Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
 genArgWithContext genExpr expr expectedType = do
