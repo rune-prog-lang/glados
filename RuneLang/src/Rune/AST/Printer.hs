@@ -245,7 +245,9 @@ visitExpression (ExprStructInit _ name fields) = do
     emitInitField (n, e) = do
       newLine
       emit $ n <> ":"
-      emitBlock "" (newLine >> visitExpression e)
+      indent
+      emitBlock "" (visitExpression e)
+      dedent
 visitExpression (ExprAccess _ target field) = do
   emit $ "ExprAccess ." <> field
   indent
