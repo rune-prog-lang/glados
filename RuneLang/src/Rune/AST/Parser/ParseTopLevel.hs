@@ -30,7 +30,7 @@ where
 import Control.Applicative ((<|>))
 import Control.Monad (when)
 import Data.Either (partitionEithers)
-import Rune.AST.Nodes (Field (..), FunctionSignature (..), Parameter (..), TopLevelDef (..), Type (..))
+import Rune.AST.Nodes (Field (..), FunctionSignature (..), Parameter (..), TopLevelDef (..), Type (..), Visibility (..))
 import Rune.AST.Parser.ParseBlock (parseBlock)
 import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
 import Rune.AST.ParserHelper (advance, between, check, expect, expectIdent, failParse, peek, sepBy, try, withContext)
@@ -114,11 +114,12 @@ parseStructItemsLoop = do
 
 parseStructItem :: Parser (Either Field TopLevelDef)
 parseStructItem = do
-  t<- peek
+  visibility <- parseVisibility
+  t <- peek
   case T.tokenKind t of
     T.KwDef -> Right <$> parseFunction False
     T.KwOverride -> Right <$> parseOverride False
-    T.Identifier _ -> Left <$> parseField <* expect T.Semicolon
+    T.Identifier _ -> Left <$> parseField visibility <* expect T.Semicolon
     _ -> failParse "Expected struct field or method"
 
 --
@@ -171,8 +172,25 @@ parseReturnType =
 -- fields
 --
 
-parseField :: Parser Field
-parseField = Field <$> parseIdentifier <*> (expect T.Colon *> parseType)
+parseField :: Visibility -> Parser Field
+parseField visibility = do
+  name <- parseIdentifier
+  _ <- expect T.Colon
+  typ <- parseType
+  pure $ Field name typ visibility
+
+--
+-- visibility
+--
+
+parseVisibility :: Parser Visibility
+parseVisibility = do
+  t <- peek
+  case T.tokenKind t of
+    T.KwPublic -> advance >> pure Public
+    T.KwProtected -> advance >> pure Protected
+    T.KwPrivate -> advance >> pure Private
+    _ -> pure Public
 
 --
 -- somewhere (forward declarations)

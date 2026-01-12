@@ -83,7 +83,7 @@ genOverride _ = throwError "genOverride called on non-override"
 -- STRUCT Vec2f { x: f32, y: f32 }
 genStruct :: TopLevelDef -> IRGen [IRTopLevel]
 genStruct (DefStruct name fields methods) = do
-  let irFields = map (\(Field n t) -> (n, astTypeToIRType t)) fields
+  let irFields = map (\(Field n t _) -> (n, astTypeToIRType t)) fields
   modify $ \s -> s {gsStructs = insert name irFields (gsStructs s)}
   methodDefs <- concat <$> mapM (genStructMethod name) methods
   pure $ IRStructDef name irFields : methodDefs

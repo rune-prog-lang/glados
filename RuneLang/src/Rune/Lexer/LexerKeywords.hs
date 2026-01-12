@@ -34,7 +34,10 @@ keywordMap =
     (OpAnd, "and"),
     (OpOr, "or"),
     (OpNot, "not"),
-    (KwSizeof, "sizeof")
+    (KwSizeof, "sizeof"),
+    (KwPublic, "public"),
+    (KwProtected, "protected"),
+    (KwPrivate, "private")
   ]
 
 keywordParsers :: [Parser (Int -> Int -> Token)]

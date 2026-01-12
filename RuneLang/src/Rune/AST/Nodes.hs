@@ -7,6 +7,7 @@ module Rune.AST.Nodes
     Statement (..),
     Expression (..),
     Type (..),
+    Visibility (..),
     BinaryOp (..),
     UnaryOp (..),
     Parameter (..),
@@ -70,6 +71,17 @@ instance Show Type where
   show (TypeArray t)  = "arr" <> show t
   show (TypeCustom s) = s
   show (TypePtr t)    = "ptr_" <> show t
+
+data Visibility
+  = Public
+  | Protected
+  | Private
+  deriving (Eq, Ord)
+
+instance Show Visibility where
+  show Public         = "public"
+  show Protected      = "protected"
+  show Private        = "private"
 
 data BinaryOp
   = Add
@@ -175,7 +187,7 @@ data Parameter = Parameter {paramName :: String, paramType :: Type}
 --     x: f32;
 --     y: f32;
 -- }
-data Field = Field {fieldName :: String, fieldType :: Type}
+data Field = Field {fieldName :: String, fieldType :: Type, fieldVisibility :: Visibility}
   deriving (Show, Eq)
 
 -- | function signature for forward declarations

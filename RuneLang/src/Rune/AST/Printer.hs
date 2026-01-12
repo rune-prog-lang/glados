@@ -96,7 +96,7 @@ visitStruct (DefStruct name fields methods) = do
   emitBlock "Methods:" (mapM_ (\m -> newLine >> visitTopLevel m) methods)
   dedent
   where
-    emitField (Field n t) = newLine >> emit (n <> ": " <> showType t)
+    emitField (Field n t v) = newLine >> emit (show v <> " " <> n <> ": " <> showType t)
 visitStruct _ = return ()
 
 visitOverride :: TopLevelDef -> Printer ()

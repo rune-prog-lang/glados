@@ -22,6 +22,9 @@ data TokenKind
   | KwExport
   | KwAs
   | KwSizeof
+  | KwPublic
+  | KwProtected
+  | KwPrivate
   -- | primitive types
   | TypeI8
   | TypeI16
