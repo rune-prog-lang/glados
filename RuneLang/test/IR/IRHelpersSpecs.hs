@@ -414,20 +414,20 @@ testIsSigned = testGroup "isSigned"
 testSelectReturnType :: TestTree
 testSelectReturnType = testGroup "selectReturnType"
   [ testCase "Returns correct return type for existing function" $
-      let fs = HM.fromList [("i32_f_i32_f32", (TypeI32, [TypeI32, TypeF32]))]
+      let fs = HM.fromList [("i32_f_i32_f32", (TypeI32, [TypeI32, TypeF32], Nothing, False))]
           args = [IRI32, IRF32]
       in runGenUnsafe (selectReturnType fs "f" args) @?= IRI32
   
   , testCase "Maps IR types back to AST types correctly" $
-      let fs = HM.fromList [("u32_g_u32_ptr_i32_S", (TypeU32, [TypeU32, TypePtr TypeI32, TypeCustom "S"]))]
+      let fs = HM.fromList [("u32_g_u32_ptr_i32_S", (TypeU32, [TypeU32, TypePtr TypeI32, TypeCustom "S"], Nothing, False))]
           args = [IRU32, IRPtr IRI32, IRPtr (IRStruct "S")]
       in runGenUnsafe (selectReturnType fs "g" args) @?= IRU32 
   , testCase "Select signature Nothing" $
-      let fs = HM.fromList [("f64_h_f32", (TypeF64, [TypeF32]))]
+      let fs = HM.fromList [("f64_h_f32", (TypeF64, [TypeF32], Nothing, False))]
           args = [IRF32]
       in runGenUnsafe (selectReturnType fs "h" args) @?= IRF64
   , testCase "Returns Left for no matching signature" $ do
-        let fs = HM.fromList [("i32_mismatched_i32_f32", (TypeI32, [TypeI32, TypeF32]))]
+        let fs = HM.fromList [("i32_mismatched_i32_f32", (TypeI32, [TypeI32, TypeF32], Nothing, False))]
             funcName = "mismatched"
             args = [IRI32, IRU64, IRI8]
             result = runGen (selectReturnType fs funcName args)
