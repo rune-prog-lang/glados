@@ -10,7 +10,7 @@ module Rune.Semantics.Func
   )
 where
 #else
-module Rune.Semantics.Func (findFunc) where
+module Rune.Semantics.Func (findFunc, inferParamType) where
 #endif
 
 import Control.Monad (foldM)

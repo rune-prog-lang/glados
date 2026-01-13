@@ -24,7 +24,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.List as List
 
 import Rune.AST.Nodes
-import Rune.Semantics.Func (findFunc)
+import Rune.Semantics.Func (findFunc, inferParamType)
 import Rune.Semantics.Struct (findStruct)
 import Rune.Semantics.Generic (instantiate)
 
