@@ -42,21 +42,13 @@ genericInstantiateTests = testGroup "instantiate function"
 
     , testCase "Instantiate DefFunction with TypeAny params (was override)" $
         let 
-<<<<<<< HEAD
-          def = DefOverride "bar" [Parameter "y" TypeAny Nothing] TypeAny [] False
-=======
-          def = DefFunction "bar" [Parameter "y" TypeAny] TypeAny [] False
->>>>>>> dev
+          def = DefFunction "bar" [Parameter "y" TypeAny Nothing] TypeAny [] False
           args = [TypeF32]
           ret = TypeNull
           expectedName = mangleName "bar" ret args
           instantiated = instantiate def args ret
         in case instantiated of
-<<<<<<< HEAD
-            DefOverride n [Parameter "y" t _] r _ _ -> do
-=======
-            DefFunction n [Parameter "y" t] r _ _ -> do
->>>>>>> dev
+            DefFunction n [Parameter "y" t _] r _ _ -> do
                 n @?= expectedName
                 t @?= TypeF32
                 r @?= TypeNull

@@ -30,8 +30,8 @@ import Rune.Semantics.Helper (fixSelfType)
 findFunc :: Program -> Either String FuncStack
 findFunc (Program _ defs) = do
   let builtins = HM.fromList
-        [ ("show" , (TypeNull, [Parameter "x" TypeAny Nothing]))
-        , ("error", (TypeNull, [Parameter "x" TypeAny Nothing]))
+        [ ("show" , (TypeNull, [Parameter "value" TypeAny Nothing]))
+        , ("error", (TypeNull, [Parameter "msg" TypeAny Nothing]))
         ]
   foldM findDefs builtins defs
 
@@ -48,7 +48,7 @@ findDefs s (DefFunction name params rType _ _) =
     in case HM.lookup name s of
          Nothing -> Right $ HM.insert name sig s
          Just (existingRet, existingArgs) ->
-             if existingRet == rType && existingArgs == paramTypes
+             if existingRet == rType && existingArgs == params
              then Left $ printf "FuncAlreadyExist: %s was already defined with same signature" name
              else
                  let mangledName = mangleFuncName name rType paramTypes
@@ -60,31 +60,13 @@ findDefs s (DefFunction name params rType _ _) =
 findDefs s (DefSomewhere sigs) = foldM addSig s sigs
   where
     addSig fs (FunctionSignature name paramTypes rType) =
-      let sig = (rType, params)
+      let params = map (\pType -> Parameter "" pType Nothing) paramTypes
+          sig = (rType, params)
       in Right $ HM.insertWith (\_ old -> old) name sig fs
 
 -- | find struct method definitions
 findDefs s (DefStruct name _ methods) =
     foldM findDefs s (transformStructMethods name methods)
-
--- | Infer parameter type from default value if type is TypeAny
-inferParamType :: Parameter -> Parameter
-inferParamType (Parameter name TypeAny (Just defaultExpr)) =
-  Parameter name (inferTypeFromExpr defaultExpr) (Just defaultExpr)
-inferParamType param = param
-
--- | Infer type from a literal expression
-inferTypeFromExpr :: Expression -> Type
-inferTypeFromExpr (ExprLitInt _ _) = TypeI32
-inferTypeFromExpr (ExprLitFloat _ _) = TypeF32
-inferTypeFromExpr (ExprLitString _ _) = TypeString
-inferTypeFromExpr (ExprLitChar _ _) = TypeChar
-inferTypeFromExpr (ExprLitBool _ _) = TypeBool
-inferTypeFromExpr (ExprLitNull _) = TypeNull
-inferTypeFromExpr (ExprLitArray _ []) = TypeArray TypeAny
-inferTypeFromExpr (ExprLitArray _ (e:_)) = TypeArray (inferTypeFromExpr e)
-inferTypeFromExpr (ExprStructInit _ sName _) = TypeCustom sName
-inferTypeFromExpr _ = TypeAny  -- For complex expressions, keep TypeAny
 
 -- | Infer parameter type from default value if type is TypeAny
 inferParamType :: Parameter -> Parameter

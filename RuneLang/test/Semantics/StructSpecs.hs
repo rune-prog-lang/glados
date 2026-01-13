@@ -171,19 +171,3 @@ duplicateFieldProgram =
         ]
         []
     ]
-<<<<<<< HEAD
-
-duplicateMethodProgram :: Program
-duplicateMethodProgram =
-  Program
-    "duplicate-method"
-    [ DefStruct
-        "Vector"
-        [ Field "x" TypeF32
-        ]
-        [ DefFunction "len" [Parameter "self" TypeAny Nothing] TypeI32 [] False,
-          DefFunction "len" [Parameter "self" TypeAny Nothing] TypeF32 [] False
-        ]
-    ]
-=======
->>>>>>> dev

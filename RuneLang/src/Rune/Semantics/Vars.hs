@@ -102,8 +102,6 @@ isGeneric _ = False
 applyInferenceToParams :: TopLevelDef -> TopLevelDef
 applyInferenceToParams (DefFunction name params ret body isExport) =
   DefFunction name (map inferParamType params) ret body isExport
-applyInferenceToParams (DefOverride name params ret body isExport) =
-  DefOverride name (map inferParamType params) ret body isExport
 applyInferenceToParams def = def
 
 
@@ -131,7 +129,7 @@ verifTopLevel (DefFunction name params r_t body isExport) = do
   let paramTypes = map paramType params
       finalName = case HM.lookup name fs of
         Just (exRet, exArgs) ->
-            if exRet == r_t && exArgs == paramTypes
+            if exRet == r_t && map paramType exArgs == paramTypes
             then name
             else mangleName name r_t paramTypes
         Nothing -> name
@@ -433,7 +431,7 @@ verifMethod sName (DefFunction methodName params retType body isExport) = do
 
       finalName = case HM.lookup baseName fs of
         Just (exRet, exArgs) ->
-            if exRet == retType && exArgs == paramTypes
+            if exRet == retType && map paramType exArgs == paramTypes
             then baseName
             else mangleName baseName retType paramTypes
         Nothing -> baseName
