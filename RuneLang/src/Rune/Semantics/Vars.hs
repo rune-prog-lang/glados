@@ -377,12 +377,15 @@ verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) 
 
       -- Inject defaults for instance methods (after self parameter)
       finalArgs <- case HM.lookup baseName fs of
-        Just (_, params) | length args' < length (drop 1 params) && not (null params) ->
+        Just (_, params) | not (null params) ->
           let missingParams = drop (length args' + 1) params  -- +1 for self
-              defaults = [paramDefault p | p <- missingParams, isJust (paramDefault p)]
-          in do
-            verifiedDefaults <- mapM (verifExpr vs) [fromJust d | d <- defaults]
-            pure (selfArg : args' ++ verifiedDefaults)
+          in if not (null missingParams) && all (isJust . paramDefault) missingParams
+               then
+                 let defaults = [fromJust (paramDefault p) | p <- missingParams]
+                 in do
+                   verifiedDefaults <- mapM (verifExpr vs) defaults
+                   pure (selfArg : args' ++ verifiedDefaults)
+               else pure (selfArg : args')
         _ -> pure (selfArg : args')
 
       finalArgTypes <- lift $ mapM (exprType s) finalArgs
@@ -452,7 +455,7 @@ injectDefaultArgs fs name args vs =
     Just (_, params) | length args < length params ->
       let missingParams = drop (length args) params
           -- Extract only the expressions from parameters that have defaults
-          defaultExprs = [fromJust (paramDefault p) | p <- missingParams, isJust (paramDefault p)]
+          defaultExprs = [expr | p <- missingParams, Just expr <- [paramDefault p]]
       in do
         verifiedDefaults <- mapM (verifExpr vs) defaultExprs
         pure (args ++ verifiedDefaults)
@@ -493,7 +496,6 @@ resolveReturnType originalName argTypes mCtx =
 
 alreadyInstantiated :: String -> SemM Bool
 alreadyInstantiated name = HM.member name <$> gets stInstantiated
-
 
 registerInstantiation :: String -> TopLevelDef -> Type -> [Type] -> SemM ()
 registerInstantiation name def retTy argTys =
