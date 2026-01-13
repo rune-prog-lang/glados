@@ -11,5 +11,5 @@ export def errorfmt(fmt: string, args: ...any) -> i32
 {
     stderr = 2;
 
-    dprintf(stderr, fmt, args)
+    dprintf(stderr, fmt, ...args)
 }
