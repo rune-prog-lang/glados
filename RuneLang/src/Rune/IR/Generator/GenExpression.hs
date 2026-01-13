@@ -49,6 +49,7 @@ genExpression (ExprLitArray _ exprs) = genLitArray genExpression exprs
 genExpression (ExprIndex _ target idx) = genIndex genExpression target idx
 genExpression (ExprCast _ expr typ) = genCast genExpression expr typ
 genExpression (ExprSizeof _ val) = genSizeof val
+genExpression (ExprFold _ expr) = genExpression expr
 
 --
 -- private
