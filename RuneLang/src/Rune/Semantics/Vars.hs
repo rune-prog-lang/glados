@@ -49,8 +49,6 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
-import Debug.Trace (trace)
-
 --
 -- state monad
 --
@@ -342,52 +340,14 @@ verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
   callExpr <- resolveCall cPos vPos s hint name args' argTypes
   pure $ ExprCall cPos callExpr args'
 
--- EACH POSSIBLE CASE OF A FIELD ACCESS:
--- CAN BE ACCESSED IF:
---    THE FIELD IS PUBLIC -> ALWAYS
---    THE FIELD IS PRIVATE -> ONLY IF THE CONTEXT IS THE SAME STRUCT
---    THE FIELD IS PROTECTED -> IF THE CONTEXT IS THE SAME STRUCT OR A CHILD STRUCT
--- OTHERWISE -> ERROR
-verifExprWithContext hint vs (ExprAccess pos target field) = do
-  currentStruct <- gets stCurrentStruct
-  target' <- trace ("FIELD ACCESS: " ++ field ++ " " ++ show currentStruct) verifExprWithContext hint vs target
-  pure $ ExprAccess pos target' field
+verifExprWithContext hint vs (ExprAccess pos target field) =
+  verifFieldAccess pos target field hint vs
 
--- EACH POSSIBLE CASE OF A METHOD CALL:
--- CAN BE CALLED IF:
---    THE METHOD IS STATIC -> ALWAYS
---    THE METHOD IS PUBLIC -> ALWAYS
---    THE METHOD IS PRIVATE -> ONLY IF THE CONTEXT IS THE SAME STRUCT
---    THE METHOD IS PROTECTED -> IF THE CONTEXT IS THE SAME STRUCT OR A CHILD STRUCT
--- OTHERWISE -> ERROR
 verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) method) args) = do
-  currentStruct <- gets stCurrentStruct
-  fs <- trace ("CALL ACCESS: " ++ target ++ " " ++ show currentStruct) gets stFuncs
   ss <- gets stStructs
-  let s = (fs, vs, ss)
-
   case HM.lookup target ss of
-
-    -- | static method call: StructName.method(args)
-    Just _ -> do
-      let baseName = target ++ "_" ++ method
-      args' <- mapM (verifExpr vs) args
-      argTypes <- lift $ mapM (exprType s) args'
-      callExpr <- resolveCall cPos vPos s hint baseName args' argTypes
-      pure $ ExprCall cPos callExpr args'
-
-    -- instance method call: variable.method(args)
-    Nothing -> do
-      targetType <- lift $ exprType s (ExprVar vPos target)
-      let baseName = show targetType ++ "_" ++ method
-
-      args' <- mapM (verifExpr vs) args
-      argTypes <- lift $ mapM (exprType s) args'
-      let allArgs = ExprVar vPos target : args'
-          allArgTypes = targetType : argTypes
-
-      callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
-      pure $ ExprCall cPos callExpr allArgs
+    Just _ -> verifStaticMethodCall cPos vPos target method args hint vs
+    Nothing -> verifInstanceMethodCall cPos vPos target method args hint vs
 
 verifExprWithContext _ _ (ExprCall {}) =
   lift $ Left "Invalid function call target"
@@ -505,3 +465,142 @@ checkMethodParams methodName params
       (p:_) | paramName p /= "self" ->
         lift $ Left $ printf "First parameter of method '%s' must be 'self', got '%s'" methodName (paramName p)
       _ -> pure ()
+
+-- | Check if a member (field or method) can be accessed based on visibility rules
+-- Returns True if access is allowed, False otherwise
+canAccessMember :: Visibility -> Maybe String -> String -> Bool -> Bool
+canAccessMember Public _ _ _ = True
+canAccessMember Private currentStruct targetStruct isSelf =
+  case currentStruct of
+    Nothing -> False
+    Just ctx -> ctx == targetStruct && isSelf
+canAccessMember Protected currentStruct targetStruct isSelf =
+  case currentStruct of
+    Nothing -> False
+    Just ctx -> (ctx == targetStruct || isChildOf ctx targetStruct) && isSelf
+  where
+    isChildOf _ _ = True  -- TODO: implement inheritance checking
+
+isSelfAccess :: Expression -> Bool
+isSelfAccess (ExprVar _ "self") = True
+isSelfAccess _                  = False
+
+-- | Verify field access with visibility checking
+verifFieldAccess :: SourcePos -> Expression -> String -> Maybe Type -> VarStack -> SemM Expression
+verifFieldAccess pos target field hint vs = do
+  fs <- gets stFuncs
+  ss <- gets stStructs
+  currentStruct <- gets stCurrentStruct
+  let s = (fs, vs, ss)
+      SourcePos file line col = pos
+  target' <- verifExprWithContext hint vs target
+  targetType <- lift $ either
+    (\msg -> Left . formatSemanticError $ SemanticError file line col "valid target type" msg ["field access"])
+    Right $ exprType s target'
+  verifStructFieldAccess pos target' field targetType currentStruct ss file line col
+
+-- | Verify struct field access with visibility checking
+verifStructFieldAccess :: SourcePos -> Expression -> String -> Type -> Maybe String -> StructStack -> String -> Int -> Int -> SemM Expression
+verifStructFieldAccess pos target' field targetType currentStruct ss file line col =
+  case targetType of
+    TypeCustom sName -> do
+      fields <- lookupStructFields ss sName file line col
+      Field _ _ visibility <- findField fields field sName file line col
+      checkFieldVisibility visibility currentStruct sName (isSelfAccess target') field file line col
+      pure $ ExprAccess pos target' field
+    _ -> lift $ Left $ formatSemanticError $ SemanticError file line col
+      "struct type for field access"
+      (printf "type '%s' does not have fields" (show targetType))
+      ["field access"]
+
+-- | Lookup struct fields in the struct stack
+lookupStructFields :: StructStack -> String -> String -> Int -> Int -> SemM [Field]
+lookupStructFields ss sName file line col =
+  case HM.lookup sName ss of
+    Nothing -> lift $ Left $ formatSemanticError $ SemanticError file line col
+      (printf "struct '%s'" sName)
+      (printf "struct '%s' not found" sName)
+      ["field access"]
+    Just (DefStruct _ fields _) -> pure fields
+    Just _ -> lift $ Left $ formatSemanticError $ SemanticError file line col
+      (printf "struct '%s'" sName)
+      (printf "'%s' is not a struct" sName)
+      ["field access"]
+
+-- | Find a field in a list of fields
+findField :: [Field] -> String -> String -> String -> Int -> Int -> SemM Field
+findField fields targetFieldName sName file line col =
+  case List.find (\f -> fieldName f == targetFieldName) fields of
+    Nothing -> lift $ Left $ formatSemanticError $ SemanticError file line col
+      (printf "field '%s' in struct '%s'" targetFieldName sName)
+      (printf "field '%s' does not exist" targetFieldName)
+      ["field access"]
+    Just f -> pure f
+
+-- | Raise a visibility error if access is not allowed
+raiseVisibilityError :: Visibility -> Maybe String -> String -> Bool -> String -> String -> String -> Int -> Int -> String -> SemM ()
+raiseVisibilityError visibility currentStruct sName isSelf memberName memberType file line col context =
+  unless (canAccessMember visibility currentStruct sName isSelf) $
+    lift $ Left $ formatSemanticError $ SemanticError file line col
+      (printf "access to %s %s '%s' of struct '%s'" (show visibility) memberType memberName sName)
+      (if isSelf
+       then printf "cannot access %s %s outside struct context" (show visibility) memberType
+       else printf "cannot access %s %s '%s' on other instances (only 'self' allowed)" (show visibility) memberType memberName)
+      [context, "visibility"]
+
+-- | Check if field access is allowed based on visibility rules
+checkFieldVisibility :: Visibility -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()
+checkFieldVisibility visibility currentStruct sName isSelf field file line col =
+  raiseVisibilityError visibility currentStruct sName isSelf field "field" file line col "field access"
+
+-- | Verify static method call (StructName.method)
+verifStaticMethodCall :: SourcePos -> SourcePos -> String -> String -> [Expression] -> Maybe Type -> VarStack -> SemM Expression
+verifStaticMethodCall cPos vPos target method args hint vs = do
+  currentStruct <- gets stCurrentStruct
+  fs <- gets stFuncs
+  ss <- gets stStructs
+  let s = (fs, vs, ss)
+      SourcePos file line col = cPos
+      baseName = target ++ "_" ++ method
+
+  args' <- mapM (verifExpr vs) args
+  argTypes <- lift $ mapM (exprType s) args'
+
+  checkMethodVisibility fs baseName currentStruct target False method file line col
+  callExpr <- resolveCall cPos vPos s hint baseName args' argTypes
+  pure $ ExprCall cPos callExpr args'
+
+-- | Verify instance method call (variable.method)
+verifInstanceMethodCall :: SourcePos -> SourcePos -> String -> String -> [Expression] -> Maybe Type -> VarStack -> SemM Expression
+verifInstanceMethodCall cPos vPos target method args hint vs = do
+  currentStruct <- gets stCurrentStruct
+  fs <- gets stFuncs
+  ss <- gets stStructs
+  let s = (fs, vs, ss)
+      SourcePos file line col = cPos
+
+  targetType <- lift $ exprType s (ExprVar vPos target)
+  args' <- mapM (verifExpr vs) args
+  argTypes <- lift $ mapM (exprType s) args'
+
+  let baseName = show targetType ++ "_" ++ method
+      isSelf = target == "self"
+      sName = case targetType of { TypeCustom name -> name; _ -> show targetType }
+      allArgs = ExprVar vPos target : args'
+      allArgTypes = targetType : argTypes
+
+  checkMethodVisibility fs baseName currentStruct sName isSelf method file line col
+  callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
+  pure $ ExprCall cPos callExpr allArgs
+
+-- | Check if method call is allowed based on visibility rules
+checkMethodVisibility :: FuncStack -> String -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()
+checkMethodVisibility fs baseName currentStruct sName isSelf method file line col = do
+  let prefix = baseName ++ "$"
+      matchingMethods = HM.filterWithKey (\k _ -> k == baseName || prefix `List.isPrefixOf` k) fs
+      visibilities = map (\(_, (_, vis)) -> vis) (HM.toList matchingMethods)
+  case visibilities of
+    [] -> pure ()
+    (visibility:_) ->
+      raiseVisibilityError visibility currentStruct sName isSelf method "method" file line col "method call"
+

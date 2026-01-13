@@ -3,7 +3,7 @@ struct Vec2f
     private x: f32;
     private y: f32;
 
-    protected def new() -> Vec2f
+    public def new() -> Vec2f
     {
         show("Default constructor called\n");
         Vec2f { x: 0.0, y: 0.0 }
@@ -19,8 +19,8 @@ struct Vec2f
     {
         show("Adding two Vec2f instances\n");
         Vec2f {
-            x: self.x + other.x,
-            y: self.y + other.y
+            x: self.x + other.get_x(),
+            y: self.y + other.get_y()
         }
     }
 
@@ -32,29 +32,39 @@ struct Vec2f
             y: self.y + f
         }
     }
+
+    public def get_x(self) -> f32
+    {
+        self.print_hello();
+        self.x
+    }
+
+    public def get_y(self) -> f32
+    {
+        self.y
+    }
+
+    private def print_hello(self) -> null
+    {
+        show("Hello from Vec2f!\n");
+    }
 }
 
 def show(prefix: string, v: Vec2f) -> null
 {
     show(prefix);
     show("(x: ");
-    show(v.x);
+    show(v.get_x());
     show(", y: ");
-    show(v.y);
+    show(v.get_y());
     show(")\n");
 }
 
 def main() -> null
 {
-    show("--------------------\nCreating Vec2f instances:\n\n");
     v1 = Vec2f.new();
-    show("v1: ", v1);
     v2 = Vec2f.new(3.0, 4.0);
-    show("v2: ", v2);
-    v3 = Vec2f { x: 1.0, y: 2.0 };
-    show("v3: ", v3);
-    show("--------------------\n");
 
-    a: f32 = v1.x;
-    show(a);
+    show("v1: ", v1);
+    show("v2: ", v2);
 }

@@ -41,9 +41,9 @@ findFunc (Program _ defs) = do
 findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 
 -- | find function definitions
-findDefs s (DefFunction name params rType _ _ _) =
+findDefs s (DefFunction name params rType _ _ visibility) =
     let paramTypes = map paramType params
-        sig = ((rType, paramTypes), Public)
+        sig = ((rType, paramTypes), visibility)
     in case HM.lookup name s of
          Nothing -> Right $ HM.insert name sig s
          Just ((existingRet, existingArgs), _) ->
