@@ -47,7 +47,6 @@ formatSemanticError (SemanticError file line col expected got ctx) =
       contexts = map ("  ... in " <>) ctx
   in intercalate "\n" ([header, expectedLine, gotLine] <> contexts)
 
-
 checkParamType :: Stack -> (String, [Type]) -> String -> Int -> Int -> [Expression] -> Either SemanticError String
 checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
   let mkError expected got = SemanticError file line col expected got ["function call", "global context"]

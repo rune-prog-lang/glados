@@ -56,11 +56,12 @@ import Debug.Trace (trace)
 --
 
 data SemState = SemState
-  { stFuncs        :: FuncStack               -- << known signatures
-  , stTemplates    :: Templates               -- << generic functions ('any')
-  , stNewDefs      :: [TopLevelDef]           -- << new functions
-  , stInstantiated :: HM.HashMap String Bool  -- << cache of instantiated templates
-  , stStructs      :: StructStack             -- << known structs
+  { stFuncs         :: FuncStack               -- << known signatures
+  , stTemplates     :: Templates               -- << generic functions ('any')
+  , stNewDefs       :: [TopLevelDef]           -- << new functions
+  , stInstantiated  :: HM.HashMap String Bool  -- << cache of instantiated templates
+  , stStructs       :: StructStack             -- << known structs
+  , stCurrentStruct :: Maybe String            -- << current struct context (for methods)
   }
 
 type SemM a = StateT SemState (Either String) a
@@ -78,11 +79,12 @@ verifVars (Program n defs) = do
   ss <- findStruct (Program n concreteDefs)
 
   let initialState = SemState
-        { stFuncs = trace (show fs) fs
+        { stFuncs = fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
         , stStructs = ss
+        , stCurrentStruct = Nothing
         }
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
@@ -325,12 +327,6 @@ verifExprWithContext hint vs (ExprBinary pos op l r) = do
     Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation"]
     Right _  -> pure $ ExprBinary pos op l' r'
 
--- EACH POSSIBLE CASE OF A FIELD ACCESS:
--- CAN BE ACCESSED IF:
---    THE FIELD IS PUBLIC -> ALWAYS
---    THE FIELD IS PRIVATE -> ONLY IF THE CONTEXT IS THE SAME STRUCT
---    THE FIELD IS PROTECTED -> IF THE CONTEXT IS THE SAME STRUCT OR A CHILD STRUCT
--- OTHERWISE -> ERROR
 verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
   fs <- gets stFuncs
   ss <- gets stStructs
@@ -342,6 +338,17 @@ verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
   callExpr <- resolveCall cPos vPos s hint name args' argTypes
   pure $ ExprCall cPos callExpr args'
 
+-- EACH POSSIBLE CASE OF A FIELD ACCESS:
+-- CAN BE ACCESSED IF:
+--    THE FIELD IS PUBLIC -> ALWAYS
+--    THE FIELD IS PRIVATE -> ONLY IF THE CONTEXT IS THE SAME STRUCT
+--    THE FIELD IS PROTECTED -> IF THE CONTEXT IS THE SAME STRUCT OR A CHILD STRUCT
+-- OTHERWISE -> ERROR
+verifExprWithContext hint vs (ExprAccess pos target field) = do
+  currentStruct <- gets stCurrentStruct
+  target' <- trace ("FIELD ACCESS: " ++ field ++ " " ++ show currentStruct) verifExprWithContext hint vs target
+  pure $ ExprAccess pos target' field
+
 -- EACH POSSIBLE CASE OF A METHOD CALL:
 -- CAN BE CALLED IF:
 --    THE METHOD IS STATIC -> ALWAYS
@@ -350,7 +357,8 @@ verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
 --    THE METHOD IS PROTECTED -> IF THE CONTEXT IS THE SAME STRUCT OR A CHILD STRUCT
 -- OTHERWISE -> ERROR
 verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) method) args) = do
-  fs <- gets stFuncs
+  currentStruct <- gets stCurrentStruct
+  fs <- trace ("CALL ACCESS: " ++ target ++ " " ++ show currentStruct) gets stFuncs
   ss <- gets stStructs
   let s = (fs, vs, ss)
 
@@ -384,10 +392,6 @@ verifExprWithContext hint vs (ExprStructInit pos name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
   pure $ ExprStructInit pos name fields'
 
-verifExprWithContext hint vs (ExprAccess pos target field) = do
-  target' <- verifExprWithContext hint vs target
-  pure $ ExprAccess pos target' field
-
 verifExprWithContext hint vs (ExprIndex pos target idx) = do
   target' <- verifExprWithContext hint vs target
   idx'    <- verifExpr vs idx
@@ -411,20 +415,24 @@ verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 
 verifMethod sName (DefFunction methodName params retType body isExport visibility) = do
   checkMethodParams methodName params
+  modify $ \st -> st { stCurrentStruct = Just sName }
   let params' = if isStaticMethod methodName then params else fixSelfType sName params
       baseName = sName ++ "_" ++ methodName
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
   body' <- verifScope vs body
+  modify $ \st -> st { stCurrentStruct = Nothing }
   pure $ DefFunction baseName params' retType body' isExport visibility
 
 verifMethod sName (DefOverride methodName params retType body isExport visibility) = do
   checkMethodParams methodName params
+  modify $ \st -> st { stCurrentStruct = Just sName }
   let params' = if isStaticMethod methodName then params else fixSelfType sName params
       paramTypes = map paramType params'
       baseName = sName ++ "_" ++ methodName
       mangledName = mangleName baseName retType paramTypes
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
   body' <- verifScope vs body
+  modify $ \st -> st { stCurrentStruct = Nothing }
   pure $ DefOverride mangledName params' retType body' isExport visibility
 
 verifMethod _ def = pure def
