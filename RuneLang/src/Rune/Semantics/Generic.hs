@@ -23,11 +23,6 @@ instantiate (DefFunction name params _ body isExport visibility) argTypes retTyp
         mangled = mangleName name retType argTypes
         newParams = zipWith replaceParam params argTypes
     in DefFunction mangled newParams retType body isExport visibility
-instantiate (DefOverride name params _ body isExport visibility) argTypes retType =
-    let 
-        mangled = mangleName name retType argTypes
-        newParams = zipWith replaceParam params argTypes
-    in DefOverride mangled newParams retType body isExport visibility
 instantiate def _ _ = def
 
 --

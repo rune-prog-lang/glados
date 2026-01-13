@@ -9,7 +9,7 @@ struct Vec2f
         Vec2f { x: 0.0, y: 0.0 }
     }
 
-    public override def new(x: f32, y: f32) -> Vec2f
+    public def new(x: f32, y: f32) -> Vec2f
     {
         show("Parameterized constructor called\n");
         Vec2f { x: x, y: y }
@@ -24,7 +24,7 @@ struct Vec2f
         }
     }
 
-    public override def add(self, f: f32) -> Vec2f
+    public def add(self, f: f32) -> Vec2f
     {
         show("Adding scalar to Vec2f instance\n");
         Vec2f {
@@ -34,7 +34,7 @@ struct Vec2f
     }
 }
 
-override def show(prefix: string, v: Vec2f) -> null
+def show(prefix: string, v: Vec2f) -> null
 {
     show(prefix);
     show("(x: ");

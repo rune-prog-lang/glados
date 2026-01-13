@@ -4,7 +4,6 @@
 module Rune.IR.Generator.GenTopLevel
   ( genTopLevel,
     genFunction,
-    genOverride,
     genStruct,
     genStructMethod,
     genParam,
@@ -24,7 +23,7 @@ where
 import Control.Monad.State (modify)
 import Control.Monad.Except (throwError)
 import Data.Map (empty, insert)
-import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..))
+import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..), Visibility (..))
 import Rune.IR.Generator.GenStatement (genStatement)
 import Rune.IR.IRHelpers (astTypeToIRType, registerVar)
 import Rune.IR.Nodes
@@ -43,7 +42,6 @@ import Rune.IR.Nodes
 
 genTopLevel :: TopLevelDef -> IRGen [IRTopLevel]
 genTopLevel def@DefFunction {} = genFunction def
-genTopLevel ovr@DefOverride {} = genOverride ovr
 genTopLevel str@DefStruct {} = genStruct str
 genTopLevel DefSomewhere {} = pure []
 
@@ -71,13 +69,6 @@ genFunction (DefFunction name params retType body isExport _) = do
   pure [IRFunctionDef func]
 genFunction x = throwError $ "genFunction called on non-function: received " ++ show x
 
--- | generate IR for an override function
--- show(Vec2f) -> show_Vec2f
-genOverride :: TopLevelDef -> IRGen [IRTopLevel]
-genOverride (DefOverride name params retType body isExport visibility) =
-  genFunction (DefFunction name params retType body isExport visibility)
-genOverride _ = throwError "genOverride called on non-override"
-
 -- | generate IR for a struct definition and its methods
 -- struct Vec2f { x: f32, y: f32 }
 -- STRUCT Vec2f { x: f32, y: f32 }
@@ -91,10 +82,8 @@ genStruct _ = pure []
 
 -- | generate IR for a struct method
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]
-genStructMethod _ (DefFunction methName params retType body _ visibility) =
-  genFunction (DefFunction methName params retType body False visibility)
-genStructMethod _ (DefOverride methName params retType body _ visibility) =
-  genFunction (DefFunction methName params retType body False visibility)
+genStructMethod _ (DefFunction methName params retType body _ _) =
+  genFunction (DefFunction methName params retType body False Public)
 genStructMethod _ _ = pure []
 
 --

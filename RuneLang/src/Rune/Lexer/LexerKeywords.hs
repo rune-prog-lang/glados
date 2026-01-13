@@ -24,7 +24,6 @@ keywordMap =
     (KwFor, "for"),
     (KwTo, "to"),
     (KwIn, "in"),
-    (KwOverride, "override"),
     (KwLoop, "loop"),
     (KwNext, "next"),
     (KwStop, "stop"),

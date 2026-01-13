@@ -7,7 +7,6 @@ module Rune.AST.Printer
     visitTopLevel,
     visitFunction,
     visitStruct,
-    visitOverride,
     visitStatement,
     visitVarDecl,
     visitAssignment,
@@ -74,7 +73,6 @@ visitProgram (Program name defs) = do
 visitTopLevel :: TopLevelDef -> Printer ()
 visitTopLevel d@DefFunction {} = visitFunction d
 visitTopLevel d@DefStruct {} = visitStruct d
-visitTopLevel d@DefOverride {} = visitOverride d
 visitTopLevel d@DefSomewhere {} = visitSomewhere d
 
 visitFunction :: TopLevelDef -> Printer ()
@@ -99,17 +97,6 @@ visitStruct (DefStruct name fields methods) = do
     emitField (Field n t v) = newLine >> emit (show v <> " " <> n <> ": " <> showType t)
 visitStruct _ = return ()
 
-visitOverride :: TopLevelDef -> Printer ()
-visitOverride (DefOverride name params retType body isExport visibility) = do
-  emit $ show visibility <> (if isExport then " export " else " ") <> "DefOverride " <> name
-  indent
-  emitBlock "Parameters:" (mapM_ emitParam params)
-  newLine
-  emit $ "ReturnType: " <> showType retType
-  emitBlock "Body:" (visitBody body)
-  dedent
-visitOverride _ = return ()
-
 visitSomewhere :: TopLevelDef -> Printer ()
 visitSomewhere (DefSomewhere sigs) = do
   emit "DefSomewhere"
@@ -117,9 +104,9 @@ visitSomewhere (DefSomewhere sigs) = do
   emitBlock "Signatures:" (mapM_ emitSig sigs)
   dedent
   where
-    emitSig (FunctionSignature name paramTypes retType isOverride) = do
+    emitSig (FunctionSignature name paramTypes retType) = do
       newLine
-      emit $ (if isOverride then "override " else "") <> name <> "("
+      emit $ name <> "("
       emit $ unwords (map showType paramTypes)
       emit $ ") -> " <> showType retType
 visitSomewhere _ = return ()

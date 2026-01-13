@@ -148,19 +148,6 @@ data TopLevelDef
         structFields :: [Field],
         structMethods :: [TopLevelDef]
       }
-  | -- | method override definition
-    -- override def show(value: Vec2f) -> null
-    -- {
-    --    ...
-    -- }
-    DefOverride
-      { overrideName :: String,
-        overrideParams :: [Parameter],
-        overrideReturnType :: Type,
-        overrideBody :: Block,
-        overrideIsExport :: Bool,
-        overrideVisibility :: Visibility
-      }
   | -- | somewhere block (forward declarations)
     -- somewhere
     -- {
@@ -196,8 +183,7 @@ data Field = Field {fieldName :: String, fieldType :: Type, fieldVisibility :: V
 data FunctionSignature = FunctionSignature
   { sigName :: String,
     sigParams :: [Type],
-    sigReturnType :: Type,
-    sigIsOverride :: Bool
+    sigReturnType :: Type
   }
   deriving (Show, Eq)
 
