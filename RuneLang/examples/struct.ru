@@ -1,6 +1,6 @@
 struct Vec2f
 {
-    public x: f32;
+    private x: f32;
     private y: f32;
 
     protected def new() -> Vec2f
@@ -9,13 +9,13 @@ struct Vec2f
         Vec2f { x: 0.0, y: 0.0 }
     }
 
-    override def new(x: f32, y: f32) -> Vec2f
+    public override def new(x: f32, y: f32) -> Vec2f
     {
         show("Parameterized constructor called\n");
         Vec2f { x: x, y: y }
     }
 
-    def add(self, other: Vec2f) -> Vec2f
+    public def add(self, other: Vec2f) -> Vec2f
     {
         show("Adding two Vec2f instances\n");
         Vec2f {
@@ -24,7 +24,7 @@ struct Vec2f
         }
     }
 
-    override def add(self, f: f32) -> Vec2f
+    public override def add(self, f: f32) -> Vec2f
     {
         show("Adding scalar to Vec2f instance\n");
         Vec2f {
@@ -54,4 +54,7 @@ def main() -> null
     v3 = Vec2f { x: 1.0, y: 2.0 };
     show("v3: ", v3);
     show("--------------------\n");
+
+    a: f32 = v1.x;
+    show(a);
 }

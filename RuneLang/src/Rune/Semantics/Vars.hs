@@ -49,6 +49,8 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
+import Debug.Trace (trace)
+
 --
 -- state monad
 --
@@ -76,7 +78,7 @@ verifVars (Program n defs) = do
   ss <- findStruct (Program n concreteDefs)
 
   let initialState = SemState
-        { stFuncs = fs
+        { stFuncs = trace (show fs) fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
@@ -306,23 +308,29 @@ verifExprWithContext hint vs (ExprUnary pos op val) = do
 verifExprWithContext hint vs (ExprBinary pos op l r) = do
   l' <- verifExprWithContext hint vs l
   r' <- verifExprWithContext hint vs r
-  
+
   fs <- gets stFuncs
   ss <- gets stStructs
   let s   = (fs, vs, ss)
       SourcePos file line col = pos
-  
-  leftType  <- lift $ either 
+
+  leftType  <- lift $ either
                  (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type" msg ["binary left operand"]) 
                  Right $ exprType s l'
-  rightType <- lift $ either 
+  rightType <- lift $ either
                  (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type" msg ["binary right operand"]) 
                  Right $ exprType s r'
-  
+
   case iHTBinary op leftType rightType of
     Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation"]
     Right _  -> pure $ ExprBinary pos op l' r'
 
+-- EACH POSSIBLE CASE OF A FIELD ACCESS:
+-- CAN BE ACCESSED IF:
+--    THE FIELD IS PUBLIC -> ALWAYS
+--    THE FIELD IS PRIVATE -> ONLY IF THE CONTEXT IS THE SAME STRUCT
+--    THE FIELD IS PROTECTED -> IF THE CONTEXT IS THE SAME STRUCT OR A CHILD STRUCT
+-- OTHERWISE -> ERROR
 verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
   fs <- gets stFuncs
   ss <- gets stStructs
@@ -334,6 +342,13 @@ verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
   callExpr <- resolveCall cPos vPos s hint name args' argTypes
   pure $ ExprCall cPos callExpr args'
 
+-- EACH POSSIBLE CASE OF A METHOD CALL:
+-- CAN BE CALLED IF:
+--    THE METHOD IS STATIC -> ALWAYS
+--    THE METHOD IS PUBLIC -> ALWAYS
+--    THE METHOD IS PRIVATE -> ONLY IF THE CONTEXT IS THE SAME STRUCT
+--    THE METHOD IS PROTECTED -> IF THE CONTEXT IS THE SAME STRUCT OR A CHILD STRUCT
+-- OTHERWISE -> ERROR
 verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) method) args) = do
   fs <- gets stFuncs
   ss <- gets stStructs
@@ -455,7 +470,7 @@ registerInstantiation :: String -> TopLevelDef -> Type -> [Type] -> SemM ()
 registerInstantiation name def retTy argTys =
   modify $ \st -> st
     { stNewDefs      = stNewDefs st <> [def]
-    , stFuncs        = HM.insert name (retTy, argTys) (stFuncs st)
+    , stFuncs        = HM.insert name ((retTy, argTys), Public) (stFuncs st)
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
 

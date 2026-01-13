@@ -52,10 +52,10 @@ checkParamType :: Stack -> (String, [Type]) -> String -> Int -> Int -> [Expressi
 checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
   let mkError expected got = SemanticError file line col expected got ["function call", "global context"]
       -- Find candidates by exact match on mangled name
-      exactMangled = HM.filterWithKey (\k (ret, args) -> isRightFunction (fname, argTypes) k (ret, args)) fs
+      exactMangled = HM.filterWithKey (\k ((ret, args), _) -> isRightFunction (fname, argTypes) k (ret, args)) fs
       -- For struct method overrides (names containing _), also check compatible manglings
       compatibleMangled = if isStructMethod fname
-                          then HM.toList $ HM.filterWithKey (\k (ret, args) -> isCompatibleMangling fname k ret args argTypes) fs
+                          then HM.toList $ HM.filterWithKey (\k ((ret, args), _) -> isCompatibleMangling fname k ret args argTypes) fs
                           else []
       -- Also check direct name lookup
       candidates = case (HM.toList exactMangled, compatibleMangled, HM.lookup fname fs) of
@@ -65,13 +65,13 @@ checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
         ([], [], Nothing) -> []
   in case candidates of
     [] -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
-    [(name, (_, args))] ->
+    [(name, ((_, args), _))] ->
       case checkEachParam s file line col 0 es args of
         Nothing -> Right name
         Just err -> Left err
     multiples ->
       -- Filter to only those with matching parameter count and compatible types
-      case filter (\(_, (_, args)) -> isNothing $ checkEachParam s file line col 0 es args) multiples of
+      case filter (\(_, ((_, args), _)) -> isNothing $ checkEachParam s file line col 0 es args) multiples of
         [(name, _)] -> Right name
         [] -> Left $ mkError ("function '" <> fname <> "' with compatible arguments") "no matching signature"
         _ -> Left $ mkError (printf "multiple signatures for %s" fname) "ambiguous function call"
@@ -222,11 +222,11 @@ checkEachParam _ file line col i es [] =
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
 selectSignature fs name argTypes =
-  let mangled = HM.filterWithKey (\k (ret, args) -> isRightFunction (name, argTypes) k (ret, args)) fs
+  let mangled = HM.filterWithKey (\k ((ret, args), _) -> isRightFunction (name, argTypes) k (ret, args)) fs
   in case (HM.toList mangled, HM.lookup name fs) of
-    ((_, (ret, _)):_, _) -> Just ret          -- Trouvé manglé
-    ([], Just (ret, _))  -> Just ret          -- Trouvé en base
-    _                    -> Nothing            -- Pas trouvé
+    ((_, ((ret, _), _)):_, _) -> Just ret          -- Trouvé manglé
+    ([], Just ((ret, _), _))  -> Just ret          -- Trouvé en base
+    _                         -> Nothing            -- Pas trouvé
 
 getFieldType :: SourcePos -> StructStack -> Type -> String -> Either SemanticError Type
 getFieldType pos ss (TypeCustom sName) fldName =
