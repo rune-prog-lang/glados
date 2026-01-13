@@ -73,7 +73,10 @@ collectTopLevel (IRStructDef name fields) (e, g, f, s) = (e, g, f, Map.insert na
 collectIRVars :: Function -> Map.Map String IRType
 collectIRVars (IRFunction _ params _ body _) = 
   let initialMap = Map.fromList params
-   in foldl' collectVars initialMap body
+      -- add storage for varargs for System V calling convention
+      -- single array for both int and float (6+8 = 14 qwords)
+      varargsMap = Map.fromList [(pname <> "_data", IRArray IRI64 14) | (pname, IRPtr (IRArray _ _)) <- params]
+   in foldl' collectVars (Map.union initialMap varargsMap) body
 
 collectVars :: Map.Map String IRType -> IRInstruction -> Map.Map String IRType
 collectVars acc (IRASSIGN n _ t) = Map.insert n t acc
