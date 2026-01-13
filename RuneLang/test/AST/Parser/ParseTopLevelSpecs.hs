@@ -73,8 +73,8 @@ testParseTopLevels = testGroup "parseTopLevels"
 
 testParseTopLevelDef :: TestTree
 testParseTopLevelDef = testGroup "parseTopLevelDef"
-  [ testCase "KwExport" $ assertS "export" parseTopLevelDef [tok T.KwExport, tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefFunction "f" [] TypeNull [] True)
-  , testCase "KwDef"    $ assertS "def"    parseTopLevelDef [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefFunction "f" [] TypeNull [] False)
+  [ testCase "KwExport" $ assertS "export" parseTopLevelDef [tok T.KwExport, tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefFunction "f" [] TypeNull [] True Public)
+  , testCase "KwDef"    $ assertS "def"    parseTopLevelDef [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefFunction "f" [] TypeNull [] False Public)
   , testCase "KwStruct" $ assertS "struct" parseTopLevelDef [tok T.KwStruct, tok (T.Identifier "S"), tok T.LBrace, tok T.RBrace] (DefStruct "S" [] [])
   , testCase "KwSomewhere"$ assertS "somewhere" parseTopLevelDef [tok T.KwSomewhere, tok T.LBrace, tok T.RBrace] (DefSomewhere [])
   , testCase "Fallthrough error" $ assertF "error msg" parseTopLevelDef [tok T.Semicolon]
@@ -82,15 +82,15 @@ testParseTopLevelDef = testGroup "parseTopLevelDef"
 
 testParseExportedDef :: TestTree
 testParseExportedDef = testGroup "parseExportedDef"
-  [ testCase "KwDef"      $ assertS "export def" parseExportedDef [tok T.KwExport, tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefFunction "f" [] TypeNull [] True)
+  [ testCase "KwDef"      $ assertS "export def" parseExportedDef [tok T.KwExport, tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefFunction "f" [] TypeNull [] True Public)
   , testCase "Fallthrough error" $ assertF "error after export" parseExportedDef [tok T.KwExport, tok T.KwStruct]
   ]
 
 testParseFunction :: TestTree
 testParseFunction = testGroup "parseFunction"
-  [ testCase "Success" $ assertS "normal" (parseFunction False) [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefFunction "f" [] TypeNull [] False)
-  , testCase "Context fail params" $ assertF "params ctx" (parseFunction False) [tok T.KwDef, tok (T.Identifier "f"), tok (T.Identifier "missing_paren")]
-  , testCase "Context fail return" $ assertF "return ctx" (parseFunction False) [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.LBrace]
+  [ testCase "Success" $ assertS "normal" (parseFunction False Public) [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefFunction "f" [] TypeNull [] False Public)
+  , testCase "Context fail params" $ assertF "params ctx" (parseFunction False Public) [tok T.KwDef, tok (T.Identifier "f"), tok (T.Identifier "missing_paren")]
+  , testCase "Context fail return" $ assertF "return ctx" (parseFunction False Public) [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.LBrace]
   ]
 
 testParseStruct :: TestTree
@@ -101,12 +101,12 @@ testParseStruct = testGroup "parseStruct"
 
 testParseStructBody :: TestTree
 testParseStructBody = testCase "parseStructBody" $
-  assertS "partitionEithers" parseStructBody [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32, tok T.Semicolon, tok T.RBrace] ([Field "x" TypeI32], [])
+  assertS "partitionEithers" parseStructBody [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32, tok T.Semicolon, tok T.RBrace] ([Field "x" TypeI32 Public], [])
 
 testParseStructItem :: TestTree
 testParseStructItem = testGroup "parseStructItem"
-  [ testCase "KwDef" $ assertS "method" parseStructItem [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (Right (DefFunction "f" [] TypeNull [] False))
-  , testCase "Identifier" $ assertS "field" parseStructItem [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32, tok T.Semicolon] (Left (Field "x" TypeI32))
+  [ testCase "KwDef" $ assertS "method" parseStructItem [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (Right (DefFunction "f" [] TypeNull [] False Public))
+  , testCase "Identifier" $ assertS "field" parseStructItem [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32, tok T.Semicolon] (Left (Field "x" TypeI32 Public))
   , testCase "Fallthrough error" $ assertF "item error" parseStructItem [tok T.KwSomewhere]
   ]
 
@@ -142,7 +142,7 @@ testParseReturnType = testGroup "parseReturnType"
 
 testParseField :: TestTree
 testParseField = testCase "parseField" $
-  assertS "field" parseField [tok (T.Identifier "f"), tok T.Colon, tok T.TypeString] (Field "f" TypeString)
+  assertS "field" (parseField Public) [tok (T.Identifier "f"), tok T.Colon, tok T.TypeString] (Field "f" TypeString Public)
 
 testParseSomewhere :: TestTree
 testParseSomewhere = testCase "parseSomewhere" $

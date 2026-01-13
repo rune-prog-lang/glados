@@ -93,11 +93,11 @@ testParameterAndField =
               paramType p @?= TypeI32
               show p @?= "Parameter {paramName = \"x\", paramType = i32}",
       testCase "Field accessors" $
-        let f = Field {fieldName = "y", fieldType = TypeF64}
+        let f = Field {fieldName = "y", fieldType = TypeF64, fieldVisibility = Public}
          in do
               fieldName f @?= "y"
               fieldType f @?= TypeF64
-              show f @?= "Field {fieldName = \"y\", fieldType = f64}"
+              show f @?= "Field {fieldName = \"y\", fieldType = f64, fieldVisibility = public}"
     ]
 
 testProgramAccessors :: TestTree
@@ -120,7 +120,8 @@ testTopLevelDefAccessors =
                   funcParams = [],
                   funcReturnType = TypeNull,
                   funcBody = dummyBlock,
-                  funcIsExport = False
+                  funcIsExport = False,
+                  funcVisibility = Public
                 }
          in do
               funcName def @?= "main"

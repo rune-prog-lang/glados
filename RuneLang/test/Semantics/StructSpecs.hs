@@ -95,14 +95,14 @@ simpleProgram =
     "simple"
     [ DefStruct
         "Point"
-        [ Field "x" TypeI32
-        , Field "y" TypeI32
+        [ Field "x" TypeI32 Public
+        , Field "y" TypeI32 Public
         ]
         [],
       DefStruct
         "Vec2f"
-        [ Field "x" TypeF32
-        , Field "y" TypeF32
+        [ Field "x" TypeF32 Public
+        , Field "y" TypeF32 Public
         ]
         []
     ]
@@ -113,7 +113,7 @@ anyFieldProgram =
     "any-field"
     [ DefStruct
         "BadStruct"
-        [ Field "data" TypeAny
+        [ Field "data" TypeAny Public
         ]
         []
     ]
@@ -124,7 +124,7 @@ nullFieldProgram =
     "null-field"
     [ DefStruct
         "BadStruct"
-        [ Field "data" TypeNull
+        [ Field "data" TypeNull Public
         ]
         []
     ]
@@ -135,7 +135,7 @@ unknownTypeProgram =
     "unknown-type"
     [ DefStruct
         "Container"
-        [ Field "item" (TypeCustom "UnknownStruct")
+        [ Field "item" (TypeCustom "UnknownStruct") Public
         ]
         []
     ]
@@ -146,8 +146,8 @@ selfRefProgram =
     "self-ref"
     [ DefStruct
         "Node"
-        [ Field "value" TypeI32
-        , Field "next" (TypeCustom "Node")
+        [ Field "value" TypeI32 Public
+        , Field "next" (TypeCustom "Node") Public
         ]
         []
     ]
@@ -156,8 +156,8 @@ duplicateStructProgram :: Program
 duplicateStructProgram =
   Program
     "duplicate-struct"
-    [ DefStruct "Point" [Field "x" TypeI32] [],
-      DefStruct "Point" [Field "y" TypeF32] []
+    [ DefStruct "Point" [Field "x" TypeI32 Public] [],
+      DefStruct "Point" [Field "y" TypeF32 Public] []
     ]
 
 duplicateFieldProgram :: Program
@@ -166,8 +166,8 @@ duplicateFieldProgram =
     "duplicate-field"
     [ DefStruct
         "BadStruct"
-        [ Field "value" TypeI32
-        , Field "value" TypeF32
+        [ Field "value" TypeI32 Public
+        , Field "value" TypeF32 Public
         ]
         []
     ]

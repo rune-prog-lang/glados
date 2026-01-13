@@ -16,17 +16,17 @@ import TestHelpers (dummyPos)
 
 funcStack1 :: FuncStack
 funcStack1 = HM.fromList
-  [ ("i32_foo_i32_f32", (TypeI32, [TypeI32, TypeF32]))
-  , ("i32_overloaded_i32", (TypeI32, [TypeI32]))
-  , ("f32_overloaded_f32", (TypeF32, [TypeF32]))
-  , ("i32_overloaded_i64", (TypeI32, [TypeI64]))
-  , ("any_arg", (TypeNull, [TypeAny]))
-  , ("show", (TypeNull, [TypeAny]))
-  , ("null_show_arrany", (TypeNull, [TypeArray TypeAny]))
-  , ("empty_sigs", (TypeNull, []))
-  , ("str_deep_overload_str", (TypeString, [TypeString]))
-  , ("bool_deep_overload_bool", (TypeBool, [TypeBool]))
-  , ("i32_deep_overload_i32", (TypeI32, [TypeI32]))
+  [ ("i32_foo_i32_f32", ((TypeI32, [TypeI32, TypeF32]), Public))
+  , ("i32_overloaded_i32", ((TypeI32, [TypeI32]), Public))
+  , ("f32_overloaded_f32", ((TypeF32, [TypeF32]), Public))
+  , ("i32_overloaded_i64", ((TypeI32, [TypeI64]), Public))
+  , ("any_arg", ((TypeNull, [TypeAny]), Public))
+  , ("show", ((TypeNull, [TypeAny]), Public))
+  , ("null_show_arrany", ((TypeNull, [TypeArray TypeAny]), Public))
+  , ("empty_sigs", ((TypeNull, []), Public))
+  , ("str_deep_overload_str", ((TypeString, [TypeString]), Public))
+  , ("bool_deep_overload_bool", ((TypeBool, [TypeBool]), Public))
+  , ("i32_deep_overload_i32", ((TypeI32, [TypeI32]), Public))
   ]
 
 stack1 :: Stack
@@ -82,16 +82,16 @@ typeCompatibleTests = testGroup "isTypeCompatible additional branches"
 specificityTests :: TestTree
 specificityTests = testGroup "Signature specificity"
   [ testCase "picks more specific signature (concrete over Any) - branch 1" $ 
-      let fs = HM.fromList [("i64_f_i32", (TypeI64, [TypeI32])), ("i32_f_any", (TypeI32, [TypeAny]))]
+      let fs = HM.fromList [("i64_f_i32", ((TypeI64, [TypeI32]), Public)), ("i32_f_any", ((TypeI32, [TypeAny]), Public))]
       in selectSignature fs "f" [TypeI32] @?= Just TypeI64
   , testCase "picks more specific signature (concrete over Any) - branch 2" $ 
-      let fs = HM.fromList [("i32_f_any", (TypeI32, [TypeAny])), ("i64_f_i32", (TypeI64, [TypeI32]))]
+      let fs = HM.fromList [("i32_f_any", ((TypeI32, [TypeAny]), Public)), ("i64_f_i32", ((TypeI64, [TypeI32]), Public))]
       in selectSignature fs "f" [TypeI32] @?= Just TypeI64
   , testCase "picks more specific signature (concrete array over Any array)" $ 
-      let fs = HM.fromList [("i32_f_arrany", (TypeI32, [TypeArray TypeAny])), ("i64_f_arri32", (TypeI64, [TypeArray TypeI32]))]
+      let fs = HM.fromList [("i32_f_arrany", ((TypeI32, [TypeArray TypeAny]), Public)), ("i64_f_arri32", ((TypeI64, [TypeArray TypeI32]), Public))]
       in selectSignature fs "f" [TypeArray TypeI32] @?= Just TypeI64
   , testCase "handles nested arrays specificity" $ 
-      let fs = HM.fromList [("i32_f_arrarrany", (TypeI32, [TypeArray (TypeArray TypeAny)])), ("i64_f_arrarri32", (TypeI64, [TypeArray (TypeArray TypeI32)]))]
+      let fs = HM.fromList [("i32_f_arrarrany", ((TypeI32, [TypeArray (TypeArray TypeAny)]), Public)), ("i64_f_arrarri32", ((TypeI64, [TypeArray (TypeArray TypeI32)]), Public))]
       in selectSignature fs "f" [TypeArray (TypeArray TypeI32)] @?= Just TypeI64
   ]
 

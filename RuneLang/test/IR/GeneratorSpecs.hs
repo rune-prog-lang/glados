@@ -10,7 +10,7 @@ import TestHelpers (dummyPos)
 import qualified Data.Set as Set
 import Rune.IR.Generator (generateIR, initialState, getDefinedFuncName)
 import Rune.IR.Nodes (IRProgram(..), IRTopLevel(..), IRFunction(..), IRType(..), IRInstruction(..), GenState(..), IRGlobalValue(..))
-import Rune.AST.Nodes (Program(..), TopLevelDef(..), Type(..), Statement(..), Expression(..), Field(..))
+import Rune.AST.Nodes (Program(..), TopLevelDef(..), Type(..), Statement(..), Expression(..), Field(..), Visibility(..))
 
 --
 -- public
@@ -41,7 +41,7 @@ testGenerateIR = testGroup "generateIR"
   
   , testCase "Generates program with function" $
       let prog = Program "test" 
-            [ DefFunction "main" [] TypeNull [] False ]
+            [ DefFunction "main" [] TypeNull [] False Public ]
           fs = HM.empty
           result = generateIR prog fs
       in case result of
@@ -62,8 +62,9 @@ testGenerateIR = testGroup "generateIR"
             [ DefFunction "caller" [] TypeNull 
                 [ StmtReturn dummyPos (Just (ExprCall dummyPos (ExprVar dummyPos "external_func") [])) ]
                 False
+                Public
             ]
-          fs = HM.singleton "external_func" (TypeNull, [])
+          fs = HM.singleton "external_func" ((TypeNull, []), Public)
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
@@ -78,8 +79,8 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Generates program with struct" $
       let prog = Program "test"
             [ DefStruct "Point" 
-                [ Field "x" TypeI32
-                , Field "y" TypeI32
+                [ Field "x" TypeI32 Public
+                , Field "y" TypeI32 Public
                 ] 
                 []
             ]
@@ -100,8 +101,9 @@ testGenerateIR = testGroup "generateIR"
             [ DefFunction "caller" [] TypeNull 
                 [ StmtReturn dummyPos (Just (ExprCall dummyPos (ExprVar dummyPos "ext1") [])) ]
                 False
+                Public
             ]
-          fs = HM.singleton "ext1" (TypeNull, [])
+          fs = HM.singleton "ext1" ((TypeNull, []), Public)
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
@@ -117,6 +119,7 @@ testGenerateIR = testGroup "generateIR"
                 , StmtReturn dummyPos (Just (ExprLitString dummyPos "world"))
                 ]
                 False
+                Public
             ]
           fs = HM.empty
           result = generateIR prog fs
@@ -128,8 +131,8 @@ testGenerateIR = testGroup "generateIR"
 
   , testCase "Multiple functions" $
       let prog = Program "test"
-            [ DefFunction "func1" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))] False
-            , DefFunction "func2" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 2))] False
+            [ DefFunction "func1" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))] False Public
+            , DefFunction "func2" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 2))] False Public
             ]
           fs = HM.empty
           result = generateIR prog fs
@@ -141,12 +144,11 @@ testGenerateIR = testGroup "generateIR"
 
   , testCase "Calls to defined functions are not extern" $
       let prog = Program "test"
-            [ DefFunction "callee" [] TypeNull [] False
+            [ DefFunction "callee" [] TypeNull [] False Public
             , DefFunction "caller" [] TypeNull 
-                [ StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "callee") []) ]
-                False
+                [ StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "callee") []) ] False Public
             ]
-          fs = HM.singleton "callee" (TypeNull, [])
+          fs = HM.singleton "callee" ((TypeNull, []), Public)
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
@@ -158,11 +160,9 @@ testGenerateIR = testGroup "generateIR"
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
                 [ StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "ext1") [])
-                , StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "ext2") [])
-                ]
-                False
+                , StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "ext2") []) ] False Public
             ]
-          fs = HM.fromList [("ext1", (TypeNull, [])), ("ext2", (TypeNull, []))]
+          fs = HM.fromList [("ext1", ((TypeNull, []), Public)), ("ext2", ((TypeNull, []), Public))]
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
@@ -186,7 +186,7 @@ testInitialState = testGroup "initialState"
         gsFuncStack state @?= fs
 
   , testCase "Preserves funcStack in initial state" $
-      let fs = HM.singleton "test" (TypeI32, [])
+      let fs = HM.singleton "test" ((TypeI32, []), Public)
           state = initialState fs
       in gsFuncStack state @?= fs
   ]
