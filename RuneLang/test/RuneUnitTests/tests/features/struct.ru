@@ -38,7 +38,7 @@ struct Vec
         }
     }
 
-    override def new(initial_capacity: u64) ~> Vec
+    def new(initial_capacity: u64) ~> Vec
     {
         if initial_capacity == 0 {
             new()

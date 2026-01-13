@@ -40,19 +40,27 @@ genericInstantiateTests = testGroup "instantiate function"
                 r @?= TypeI32
             _ -> error "Expected DefFunction"
 
-    , testCase "Instantiate DefOverride with TypeAny params" $
+    , testCase "Instantiate DefFunction with TypeAny params (was override)" $
         let 
+<<<<<<< HEAD
           def = DefOverride "bar" [Parameter "y" TypeAny Nothing] TypeAny [] False
+=======
+          def = DefFunction "bar" [Parameter "y" TypeAny] TypeAny [] False
+>>>>>>> dev
           args = [TypeF32]
           ret = TypeNull
           expectedName = mangleName "bar" ret args
           instantiated = instantiate def args ret
         in case instantiated of
+<<<<<<< HEAD
             DefOverride n [Parameter "y" t _] r _ _ -> do
+=======
+            DefFunction n [Parameter "y" t] r _ _ -> do
+>>>>>>> dev
                 n @?= expectedName
                 t @?= TypeF32
                 r @?= TypeNull
-            _ -> error "Expected DefOverride"
+            _ -> error "Expected DefFunction"
 
     , testCase "Instantiate preserves non-TypeAny params" $
         let 

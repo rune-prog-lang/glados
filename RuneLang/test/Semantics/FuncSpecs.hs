@@ -32,7 +32,7 @@ findFuncTests = testGroup "findFunc"
       case findFunc mixedProgram of
         Right stack -> do
           HM.member "printer" stack @? "Base function should exist"
-          HM.member "null_printer_str" stack @? "Override function should exist"
+          HM.member "null_printer_i32" stack @? "Override function should exist"
         Left err -> assertFailure $ "Expected success, but got error: " ++ err,
     testCase "later definitions override earlier entries" $
       let stack = either error id (findFunc shadowProgram)
@@ -45,11 +45,7 @@ findFuncTests = testGroup "findFunc"
       case findFunc duplicateFunctionProgram of
         Left err -> "FuncAlreadyExist:" `isInfixOf` err @? "Expected FuncAlreadyExist error for foo"
         Right _ -> assertFailure "Expected error for duplicate function",
-    testCase "rejects override without base function" $
-      case findFunc lonelyOverrideProgram of
-        Left err -> "WrongOverrideDef:" `isInfixOf` err @? "Expected WrongOverrideDef error for nonExistent"
-        Right _ -> assertFailure "Expected error for lonely override",
-    testCase "accepts override with array of any type" $
+    testCase "accepts function definition with array of any type" $
       let stack = either error id (findFunc arrayOverrideProgram)
        in do
          HM.lookup "show" stack @?= Just (TypeNull, [Parameter "x" TypeAny Nothing])
@@ -76,7 +72,7 @@ findDefsTests = testGroup "findDefs"
         Left err -> "FuncAlreadyExist:" `isInfixOf` err @? "Expected FuncAlreadyExist error"
         Right _ -> assertFailure "Expected error for duplicate signature",
     testCase "appends override to existing function" $
-      case findDefs (HM.singleton "show" (TypeNull, [Parameter "value" TypeAny Nothing])) (DefOverride "show" [Parameter "x" TypeI32 Nothing] TypeNull [] False) of
+      case findDefs (HM.singleton "show" (TypeNull, [TypeAny])) (DefFunction "show" [Parameter "x" TypeI32] TypeNull [] False) of
         Right stack -> do
           case HM.lookup "show" stack of
             Just (TypeNull, params) -> do
@@ -94,11 +90,9 @@ findDefsTests = testGroup "findDefs"
             _ -> assertFailure "Expected override 'null_show_i32' in stack"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "rejects override without base function" $
-      case findDefs HM.empty (DefOverride "show" [Parameter "x" TypeI32 Nothing] TypeNull [] False) of
-        Left err -> "WrongOverrideDef:" `isInfixOf` err @? "Expected WrongOverrideDef error"
-        Right _ -> assertFailure "Expected error for override without base",
+
     testCase "processes DefSomewhere with non-override signature" $
-      case findDefs HM.empty (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull False]) of
+      case findDefs HM.empty (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull]) of
         Right stack -> do
           case HM.lookup "print" stack of
             Just (TypeNull, params) -> do
@@ -109,15 +103,15 @@ findDefsTests = testGroup "findDefs"
             _ -> assertFailure "Expected function 'print' in stack"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "processes DefSomewhere with override signature" $
-      case findDefs (HM.singleton "print" (TypeNull, [Parameter "value" TypeAny Nothing])) (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull True]) of
+      case findDefs (HM.singleton "print" (TypeNull, [Parameter "value" TypeAny Nothing])) (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull]) of
         Right stack -> do
           case HM.lookup "print" stack of
             Just (TypeNull, params) -> length params @?= 1
             _ -> assertFailure "Expected function 'print' in stack"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "rejects struct with duplicate method names" $
-      case findDefs HM.empty (DefStruct "Vec" [] [DefFunction "len" [Parameter "self" TypeAny Nothing] TypeI32 [] False, DefFunction "len" [Parameter "self" TypeAny Nothing] TypeF32 [] False]) of
-        Left err -> "DuplicateMethodInStruct:" `isInfixOf` err && "len" `isInfixOf` err @? "Expected DuplicateMethodInStruct error mentioning 'len'"
+      case findDefs HM.empty (DefStruct "Vec" [] [DefFunction "len" [Parameter "self" TypeAny] TypeI32 [] False, DefFunction "len" [Parameter "self" TypeAny] TypeI32 [] False]) of
+        Left err -> "FuncAlreadyExist:" `isInfixOf` err @? "Expected FuncAlreadyExist error"
         Right _ -> assertFailure "Expected error for duplicate method in struct"
   ]
 
@@ -169,9 +163,9 @@ mixedProgram =
         TypeBool
         []
         False,
-      DefOverride
+      DefFunction
         "printer"
-        [Parameter "text" TypeString Nothing]
+        [Parameter "val" TypeI32]
         TypeNull
         []
         False,
@@ -191,7 +185,7 @@ shadowProgram =
         TypeI32
         []
         False,
-      DefOverride
+      DefFunction
         "dup"
         [Parameter "value" TypeBool Nothing]
         TypeBool
@@ -219,20 +213,13 @@ duplicateFunctionProgram :: Program
 duplicateFunctionProgram =
   Program
     "duplicate-func"
-    [ DefFunction "foo" [Parameter "x" TypeI32 Nothing] TypeI32 [] False,
-      DefFunction "foo" [Parameter "y" TypeF32 Nothing] TypeF32 [] False
-    ]
-
-lonelyOverrideProgram :: Program
-lonelyOverrideProgram =
-  Program
-    "lonely-override"
-    [ DefOverride "nonExistent" [Parameter "x" TypeI32 Nothing] TypeI32 [] False
+    [ DefFunction "foo" [Parameter "x" TypeI32] TypeI32 [] False,
+      DefFunction "foo" [Parameter "y" TypeI32] TypeI32 [] False
     ]
 
 arrayOverrideProgram :: Program
 arrayOverrideProgram =
   Program
     "array-override"
-    [ DefOverride "show" [Parameter "arr" (TypeArray TypeAny) Nothing] TypeNull [] False
+    [ DefFunction "show" [Parameter "arr" (TypeArray TypeAny)] TypeNull [] False
     ]
