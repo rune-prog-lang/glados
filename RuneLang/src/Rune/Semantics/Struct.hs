@@ -66,7 +66,7 @@ getStructPos (DefStruct {}) = SourcePos "<unknown>" 0 0
 getStructPos _ = SourcePos "<unknown>" 0 0
 
 checkMethods :: String -> SourcePos -> [TopLevelDef] -> Either String [TopLevelDef]
-checkMethods _ _ methods = Right methods
+checkMethods _ _ = Right
 
 checkFields :: String -> SourcePos -> StructStack -> [Field] -> Either String [Field]
 checkFields sName pos structs fields = do
