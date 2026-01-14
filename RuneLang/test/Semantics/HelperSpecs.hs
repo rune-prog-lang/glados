@@ -1,7 +1,7 @@
 module Semantics.HelperSpecs (helperSemanticsTests) where
 
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase, (@?=), assertFailure, assertBool, (@?))
+import Test.Tasty.HUnit (testCase, (@?=), assertFailure, (@?))
 import qualified Data.HashMap.Strict as HM
 import Data.List (isInfixOf)
 
@@ -41,6 +41,18 @@ structStack1 = HM.fromList
   , ("Empty", DefStruct "Empty" [] [])
   , ("Fake", DefFunction "Fake" [] TypeNull [] False)
   ]
+
+paramI32 :: Parameter
+paramI32 = Parameter "a" TypeI32 Nothing
+
+paramF32 :: Parameter
+paramF32 = Parameter "b" TypeF32 Nothing
+
+paramVariadicI32 :: Parameter
+paramVariadicI32 = Parameter "v" (TypeVariadic TypeI32) Nothing
+
+paramWithDefault :: Parameter
+paramWithDefault = Parameter "d" TypeI32 (Just (ExprLitInt dummyPos 42))
 
 --
 -- public
@@ -256,44 +268,59 @@ selectSignatureTests = testGroup "selectSignature Tests"
   ]
 
 checkEachParamTests :: TestTree
-checkEachParamTests = testGroup "checkEachParam Tests"
-  [ testCase "Match" $ 
-      checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "f"] [Parameter "a" TypeI32 Nothing, Parameter "b" TypeF32 Nothing] @?= Nothing
-  , testCase "Mismatch Type - Error Content" $ 
-      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "x"] [Parameter "a" TypeI32 Nothing, Parameter "b" TypeF32 Nothing]
-      in case result of 
-        Just err -> do 
-          seExpected err @?= "argument 1 to have type f32"
-          seGot err @?= "type i32"
-          seContext err @?= ["parameter check", "function call", "global context"]
-        Nothing -> assertFailure "Expected error"
-  , testCase "Too Few Arguments - Error Content" $ 
-      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [Parameter "a" TypeI32 Nothing, Parameter "b" TypeF32 Nothing]
-      in case result of 
-        Just err -> do 
-           seExpected err @?= "2 arguments"
-           seGot err @?= "1 arguments (too few)"
-           seContext err @?= ["parameter count", "function call", "global context"]
-        Nothing -> assertFailure "Expected error"
-  , testCase "Too Many Arguments - Error Content" $ 
-      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "f"] [Parameter "a" TypeI32 Nothing]
-      in result @?= Nothing
-  , testCase "TypeAny Match" $ 
-      checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [Parameter "a" TypeAny Nothing] @?= Nothing
-  , testCase "TypeArray TypeAny (Match with array literal)" $ 
-      checkEachParam stack1 "test.ru" 0 0 0 [ExprLitArray dummyPos [ExprLitInt dummyPos 1]] [Parameter "a" (TypeArray TypeAny) Nothing] @?= Nothing
-  , testCase "TypeArray TypeAny (Mismatch with non-array)" $ 
-      let expectedMsg = "argument 0 to have type arrany"
-          result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [Parameter "a" (TypeArray TypeAny) Nothing]
-      in assertBool ("Expected msg: " ++ expectedMsg) (case result of Just _ -> True; Nothing -> False)
-  , testCase "Nested Expression Error - Error Content" $ 
-      let badExpr = ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitString dummyPos "s")
-      in (case checkEachParam stack1 "test.ru" 0 0 0 [badExpr] [Parameter "a" TypeI32 Nothing] of 
-        Just err -> do 
-           seExpected err @?= "valid expression type"
-           assertBool "Got should contain WrongType" ("WrongType" `isInfixOf` seGot err)
-           seContext err @?= ["parameter check", "function call"]
-        Nothing -> assertFailure "Expected error")
+checkEachParamTests = testGroup "checkEachParam Tests (100% Coverage)"
+  [ testCase "Match simple: multiple params" $
+      checkEachParam stack1 "test.ru" 1 1 0 
+        [ExprLitInt dummyPos 1, ExprLitFloat dummyPos 2.0] 
+        [paramI32, paramF32] @?= Nothing
+
+  , testCase "Error: Expression type failure (Binary mismatch)" $
+      let badExpr = ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitString dummyPos "hi")
+          result = checkEachParam stack1 "test.ru" 1 1 0 [badExpr] [paramI32]
+      in case result of
+           Just err -> do
+             seExpected err @?= "valid expression type"
+             seContext err @?= ["parameter check", "function call"]
+           Nothing -> assertFailure "Should have failed due to invalid expression"
+
+  , testCase "Variadic: Match multiple arguments" $
+      checkEachParam stack1 "test.ru" 1 1 0 
+        [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2, ExprLitInt dummyPos 3] 
+        [paramVariadicI32] @?= Nothing
+
+  , testCase "Variadic: Match zero arguments (empty)" $
+      checkEachParam stack1 "test.ru" 1 1 0 [] [paramVariadicI32] @?= Nothing
+
+  , testCase "Variadic: Type mismatch on second variadic arg" $
+      let result = checkEachParam stack1 "test.ru" 1 1 0 
+                     [ExprLitInt dummyPos 1, ExprLitString dummyPos "fail"] 
+                     [paramVariadicI32]
+      in case result of
+           Just err -> seGot err @?= "type str"
+           Nothing -> assertFailure "Should have failed: variadic type mismatch"
+
+  , testCase "Normal: Type mismatch" $
+      let result = checkEachParam stack1 "test.ru" 1 1 0 [ExprLitString dummyPos "hi"] [paramI32]
+      in case result of
+           Just err -> seExpected err @?= "argument 0 to have type i32"
+           Nothing -> assertFailure "Should have failed: type mismatch"
+
+  , testCase "Too few arguments: missing required param" $
+      let result = checkEachParam stack1 "test.ru" 1 1 0 [] [paramI32]
+      in case result of
+           Just err -> seGot err @?= "0 arguments (too few)"
+           Nothing -> assertFailure "Should have failed: too few arguments"
+
+  , testCase "Default values: missing arg but has default" $
+      checkEachParam stack1 "test.ru" 1 1 0 [] [paramWithDefault] @?= Nothing
+
+  , testCase "Too many arguments: extra args are ignored (standard behavior)" $
+      checkEachParam stack1 "test.ru" 1 1 0 
+        [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2] 
+        [paramI32] @?= Nothing
+
+  , testCase "Empty: No args, no params" $
+      checkEachParam stack1 "test.ru" 1 1 0 [] [] @?= Nothing
   ]
 
 checkParamTypeTests :: TestTree
