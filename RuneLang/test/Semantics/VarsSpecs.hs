@@ -78,7 +78,7 @@ mockSemState fs ss currentStruct = SemState
 
 -- Helper to run SemM computations for testing
 runSemMForTest :: SemM a -> SemState -> Either String a
-runSemMForTest action st = evalStateT action st
+runSemMForTest = evalStateT
 
 --
 -- ============================================================================
@@ -275,61 +275,212 @@ verifTopLevelTests =
 verifScopeTests :: TestTree
 verifScopeTests =
   testGroup "verifScope"
-    [ testGroup "Success Cases"
+    [ testGroup "Empty Block"
       [ testCase "verifies empty block" $ do
           let vs = HM.empty
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifScope vs []) state
           result @?= Right []
-      , testCase "verifies variable declaration" $ do
+      ]
+    , testGroup "StmtVarDecl"
+      [ testCase "verifies var decl with explicit type" $ do
           let vs = HM.empty
               stmt = StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 42)
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifScope vs [stmt]) state
           case result of
-            Right [StmtVarDecl _ "x" _ _] -> return ()
-            _ -> assertFailure "Expected variable declaration"
-      , testCase "verifies return statement" $ do
+            Right [StmtVarDecl _ "x" (Just TypeI32) _] -> return ()
+            _ -> assertFailure "Expected variable declaration with TypeI32"
+      , testCase "verifies var decl with type inference" $ do
+          let vs = HM.empty
+              stmt = StmtVarDecl dummyPos "msg" Nothing (ExprLitString dummyPos "hello")
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtVarDecl _ "msg" (Just TypeString) _] -> return ()
+            _ -> assertFailure "Expected variable declaration with inferred TypeString"
+      , testCase "verifies multiple var decls in sequence" $ do
+          let vs = HM.empty
+              stmts = [ StmtVarDecl dummyPos "a" (Just TypeI32) (ExprLitInt dummyPos 1)
+                      , StmtVarDecl dummyPos "b" (Just TypeI32) (ExprLitInt dummyPos 2)
+                      ]
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs stmts) state
+          case result of
+            Right [StmtVarDecl {}, StmtVarDecl {}] -> return ()
+            _ -> assertFailure "Expected two variable declarations"
+      , testCase "rejects var decl with undefined variable in initializer" $ do
+          let vs = HM.empty
+              stmt = StmtVarDecl dummyPos "x" Nothing (ExprVar dummyPos "undefined")
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Left err -> assertBool "should mention undefined" ("Undefined variable" `isInfixOf` err)
+            Right _ -> assertFailure "Expected error"
+      ]
+    , testGroup "StmtExpr"
+      [ testCase "verifies expression statement" $ do
+          let vs = HM.empty
+              stmt = StmtExpr dummyPos (ExprLitInt dummyPos 42)
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtExpr _ _] -> return ()
+            _ -> assertFailure "Expected expression statement"
+      , testCase "verifies function call expression" $ do
+          let fs = HM.fromList [("print", ((TypeNull, [TypeString]), Public))]
+              vs = HM.empty
+              stmt = StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "print") [ExprLitString dummyPos "test"])
+              state = mockSemState fs HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtExpr {}] -> return ()
+            _ -> assertFailure "Expected expression statement with call"
+      ]
+    , testGroup "StmtReturn"
+      [ testCase "verifies return with value" $ do
           let vs = HM.empty
               stmt = StmtReturn dummyPos (Just (ExprLitInt dummyPos 42))
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifScope vs [stmt]) state
           case result of
-            Right [StmtReturn _ _] -> return ()
-            _ -> assertFailure "Expected return statement"
-      , testCase "verifies if statement" $ do
+            Right [StmtReturn _ (Just _)] -> return ()
+            _ -> assertFailure "Expected return statement with value"
+      , testCase "verifies return without value (converts to null)" $ do
           let vs = HM.empty
-              stmt = StmtIf dummyPos (ExprLitBool dummyPos True) [] Nothing
+              stmt = StmtReturn dummyPos Nothing
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifScope vs [stmt]) state
           case result of
-            Right [StmtIf {}] -> return ()
-            _ -> assertFailure "Expected if statement"
-      , testCase "verifies for loop" $ do
+            Right [StmtReturn _ (Just (ExprLitNull _))] -> return ()
+            _ -> assertFailure "Expected return converted to null"
+      , testCase "rejects return with undefined variable" $ do
+          let vs = HM.empty
+              stmt = StmtReturn dummyPos (Just (ExprVar dummyPos "undefined"))
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Left err -> assertBool "should mention undefined" ("Undefined variable" `isInfixOf` err)
+            Right _ -> assertFailure "Expected error"
+      ]
+    , testGroup "StmtIf"
+      [ testCase "verifies if without else" $ do
+          let vs = HM.empty
+              stmt = StmtIf dummyPos (ExprLitBool dummyPos True) [StmtReturn dummyPos Nothing] Nothing
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtIf _ _ _ Nothing] -> return ()
+            _ -> assertFailure "Expected if without else"
+      , testCase "verifies if with else" $ do
+          let vs = HM.empty
+              stmt = StmtIf dummyPos (ExprLitBool dummyPos False) 
+                       [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))]
+                       (Just [StmtReturn dummyPos (Just (ExprLitInt dummyPos 2))])
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtIf _ _ _ (Just _)] -> return ()
+            _ -> assertFailure "Expected if with else"
+      , testCase "rejects if with undefined variable in condition" $ do
+          let vs = HM.empty
+              stmt = StmtIf dummyPos (ExprVar dummyPos "undefined") [] Nothing
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Left err -> assertBool "should mention undefined" ("Undefined variable" `isInfixOf` err)
+            Right _ -> assertFailure "Expected error"
+      ]
+    , testGroup "StmtFor"
+      [ testCase "verifies for loop with start value" $ do
           let vs = HM.empty
               stmt = StmtFor dummyPos "i" (Just TypeI32) (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10) []
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifScope vs [stmt]) state
           case result of
-            Right [StmtFor {}] -> return ()
-            _ -> assertFailure "Expected for loop"
-      , testCase "verifies foreach loop" $ do
+            Right [StmtFor _ "i" (Just TypeI32) (Just _) _ _] -> return ()
+            _ -> assertFailure "Expected for loop with start"
+      , testCase "verifies for loop without start value" $ do
           let vs = HM.empty
-              stmt = StmtForEach dummyPos "x" (Just TypeChar) (ExprLitString dummyPos "test") []
+              stmt = StmtFor dummyPos "j" (Just TypeI32) Nothing (ExprLitInt dummyPos 5) []
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtFor _ "j" (Just TypeI32) Nothing _ _] -> return ()
+            _ -> assertFailure "Expected for loop without start"
+      , testCase "verifies for loop with type inference from start" $ do
+          let vs = HM.empty
+              stmt = StmtFor dummyPos "k" Nothing (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 3) []
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtFor _ "k" (Just TypeI32) _ _ _] -> return ()
+            _ -> assertFailure "Expected for loop with inferred type"
+      , testCase "verifies loop variable is accessible in body" $ do
+          let vs = HM.empty
+              stmt = StmtFor dummyPos "i" (Just TypeI32) (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10)
+                       [StmtExpr dummyPos (ExprVar dummyPos "i")]
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtFor {}] -> return ()
+            _ -> assertFailure "Expected for loop with body using loop var"
+      ]
+    , testGroup "StmtForEach"
+      [ testCase "verifies foreach over array" $ do
+          let vs = HM.fromList [("arr", TypeArray TypeI32)]
+              stmt = StmtForEach dummyPos "elem" (Just TypeI32) (ExprVar dummyPos "arr") []
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtForEach _ "elem" (Just TypeI32) _ _] -> return ()
+            _ -> assertFailure "Expected foreach over array"
+      , testCase "verifies foreach over string (yields char)" $ do
+          let vs = HM.empty
+              stmt = StmtForEach dummyPos "ch" (Just TypeChar) (ExprLitString dummyPos "test") []
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtForEach _ "ch" (Just TypeChar) _ _] -> return ()
+            _ -> assertFailure "Expected foreach over string"
+      , testCase "verifies foreach with type inference from array" $ do
+          let vs = HM.fromList [("numbers", TypeArray TypeF32)]
+              stmt = StmtForEach dummyPos "n" Nothing (ExprVar dummyPos "numbers") []
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtForEach _ "n" (Just TypeF32) _ _] -> return ()
+            _ -> assertFailure "Expected foreach with inferred element type"
+      , testCase "verifies foreach variable accessible in body" $ do
+          let vs = HM.empty
+              stmt = StmtForEach dummyPos "c" (Just TypeChar) (ExprLitString dummyPos "hi")
+                       [StmtExpr dummyPos (ExprVar dummyPos "c")]
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifScope vs [stmt]) state
           case result of
             Right [StmtForEach {}] -> return ()
-            _ -> assertFailure "Expected foreach loop"
-      , testCase "verifies loop statement" $ do
+            _ -> assertFailure "Expected foreach with body using loop var"
+      ]
+    , testGroup "StmtLoop"
+      [ testCase "verifies infinite loop" $ do
+          let vs = HM.empty
+              stmt = StmtLoop dummyPos [StmtReturn dummyPos Nothing]
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtLoop _ _] -> return ()
+            _ -> assertFailure "Expected loop statement"
+      , testCase "verifies empty loop body" $ do
           let vs = HM.empty
               stmt = StmtLoop dummyPos []
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifScope vs [stmt]) state
           case result of
-            Right [StmtLoop {}] -> return ()
-            _ -> assertFailure "Expected loop"
-      , testCase "verifies assignment" $ do
+            Right [StmtLoop _ []] -> return ()
+            _ -> assertFailure "Expected empty loop"
+      ]
+    , testGroup "StmtAssignment"
+      [ testCase "verifies assignment to existing variable" $ do
           let vs = HM.fromList [("x", TypeI32)]
               stmt = StmtAssignment dummyPos (ExprVar dummyPos "x") (ExprLitInt dummyPos 42)
               state = mockSemState HM.empty HM.empty Nothing
@@ -337,16 +488,75 @@ verifScopeTests =
           case result of
             Right [StmtAssignment {}] -> return ()
             _ -> assertFailure "Expected assignment"
-      ]
-    , testGroup "Failure Cases"
-      [ testCase "rejects undefined variable in expression" $ do
-          let vs = HM.empty
-              stmt = StmtReturn dummyPos (Just (ExprVar dummyPos "undefined"))
+      , testCase "verifies assignment to field access" $ do
+          let fields = [Field "val" TypeI32 Public]
+              ss = HM.fromList [("S", DefStruct "S" fields [])]
+              vs = HM.fromList [("obj", TypeCustom "S")]
+              stmt = StmtAssignment dummyPos (ExprAccess dummyPos (ExprVar dummyPos "obj") "val") (ExprLitInt dummyPos 99)
+              state = mockSemState HM.empty ss Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtAssignment _ (ExprAccess {}) _] -> return ()
+            _ -> assertFailure "Expected assignment to field"
+      , testCase "verifies assignment to array index" $ do
+          let vs = HM.fromList [("arr", TypeArray TypeI32)]
+              stmt = StmtAssignment dummyPos (ExprIndex dummyPos (ExprVar dummyPos "arr") (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10)
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifScope vs [stmt]) state
           case result of
-            Left err -> assertBool "should mention undefined variable" ("Undefined variable" `isInfixOf` err)
+            Right [StmtAssignment _ (ExprIndex {}) _] -> return ()
+            _ -> assertFailure "Expected assignment to index"
+      , testCase "rejects assignment type mismatch" $ do
+          let vs = HM.fromList [("num", TypeI32)]
+              stmt = StmtAssignment dummyPos (ExprVar dummyPos "num") (ExprLitString dummyPos "text")
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Left err -> assertBool "should mention type mismatch" ("type" `isInfixOf` err)
             Right _ -> assertFailure "Expected error"
+      ]
+    , testGroup "StmtStop and StmtNext"
+      [ testCase "verifies stop statement" $ do
+          let vs = HM.empty
+              stmt = StmtStop dummyPos
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtStop _] -> return ()
+            _ -> assertFailure "Expected stop statement"
+      , testCase "verifies next statement" $ do
+          let vs = HM.empty
+              stmt = StmtNext dummyPos
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs [stmt]) state
+          case result of
+            Right [StmtNext _] -> return ()
+            _ -> assertFailure "Expected next statement"
+      ]
+    , testGroup "Complex Scenarios"
+      [ testCase "verifies nested scopes" $ do
+          let vs = HM.empty
+              stmts = [ StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 5)
+                      , StmtIf dummyPos (ExprVar dummyPos "x")
+                          [StmtVarDecl dummyPos "y" (Just TypeI32) (ExprLitInt dummyPos 10)]
+                          Nothing
+                      ]
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs stmts) state
+          case result of
+            Right [StmtVarDecl {}, StmtIf {}] -> return ()
+            _ -> assertFailure "Expected nested scope"
+      , testCase "verifies sequential statements maintain variable scope" $ do
+          let vs = HM.empty
+              stmts = [ StmtVarDecl dummyPos "a" (Just TypeI32) (ExprLitInt dummyPos 1)
+                      , StmtVarDecl dummyPos "b" Nothing (ExprVar dummyPos "a")
+                      , StmtReturn dummyPos (Just (ExprVar dummyPos "b"))
+                      ]
+              state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (verifScope vs stmts) state
+          case result of
+            Right [StmtVarDecl {}, StmtVarDecl {}, StmtReturn {}] -> return ()
+            _ -> assertFailure "Expected sequential statements with scope"
       ]
     ]
 
