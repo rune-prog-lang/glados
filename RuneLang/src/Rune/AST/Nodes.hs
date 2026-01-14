@@ -201,6 +201,7 @@ data SomewhereDecl
   = DeclFuncSig FunctionSignature
   | DeclStructSig StructureSignature
   | DeclDefs TopLevelDef
+  | DeclUse String  -- use filename.sw;
   deriving (Show, Eq)
 
 -- | statements

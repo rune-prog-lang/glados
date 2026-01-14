@@ -22,6 +22,7 @@ data TokenKind
   | KwExport
   | KwAs
   | KwSizeof
+  | KwUse
   -- | primitive types
   | TypeI8
   | TypeI16
