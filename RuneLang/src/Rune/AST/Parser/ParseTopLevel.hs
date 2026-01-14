@@ -194,7 +194,6 @@ parseSomewhereDecl = do
   case T.tokenKind tok of
     T.KwUse -> parseUseStatement
     T.KwDef -> DeclFuncSig <$> parseFunctionSignature
-    T.KwOverride -> DeclFuncSig <$> parseFunctionSignature
     T.KwStruct -> DeclDefs <$> parseStruct
     _ -> failParse $ "Expected use, function signature, or struct definition, got: " ++ show tok
 

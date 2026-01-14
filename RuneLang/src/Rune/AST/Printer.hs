@@ -104,7 +104,7 @@ visitSomewhere (DefSomewhere sigs) = do
   emitBlock "Signatures:" (mapM_ emitSomewhereDecl sigs)
   dedent
   where
-    emitSomewhereDecl (DeclFuncSig (FunctionSignature name paramTypes retType isOverride)) = do
+    emitSomewhereDecl (DeclFuncSig (FunctionSignature name paramTypes retType)) = do
       newLine
       emit $ name <> "("
       emit $ unwords (map showType paramTypes)
