@@ -571,8 +571,12 @@ emitIncDecHelper structs sm name t asmOp =
 --  2- source is a local variable: lea its address
 emitAddr :: Map String Int -> String -> String -> IRType -> [String]
 emitAddr sm dest source t
-  | take 4 source == "str_" = [emit 1 $ "mov rax, " <> source, storeReg sm dest "rax" t]
+  | isGlobalName source = [emit 1 $ "lea rax, [rel " <> source <> "]", storeReg sm dest "rax" t]
   | otherwise = [emit 1 $ "lea rax, " <> stackAddr sm source, storeReg sm dest "rax" t]
+  where
+    -- Check if this is a global variable name (has prefix like str_, f32_, i32_, etc.)
+    isGlobalName name = any (\prefix -> take (length prefix) name == prefix) globalPrefixes
+    globalPrefixes = ["str_", "f32_", "f64_", "i8_", "i16_", "i32_", "i64_", "u8_", "u16_", "u32_", "u64_", "bool_", "char_"]
 
 -- | emit conditional jump based on test (zero/not-zero)
 emitConditionalJump :: Map String Int -> IROperand -> String -> String -> [String]
