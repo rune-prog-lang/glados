@@ -16,6 +16,7 @@ astNodesTests =
     [ testTypes,
       testBinaryOps,
       testUnaryOps,
+      testVisibility,
       testParameterAndField,
       testProgramAccessors,
       testTopLevelDefAccessors,
@@ -80,6 +81,50 @@ testUnaryOps =
     [ testCase "Constructors and Show" $
         let ops = [Negate, Not, PropagateError, PrefixInc, PrefixDec, PostfixInc, PostfixDec]
          in length ops @?= 7
+    ]
+
+testVisibility :: TestTree
+testVisibility =
+  testGroup
+    "Visibility"
+    [ testCase "All Visibility constructors and Show" $
+        let visibilities = [Public, Protected, Private]
+            expectedStrs = ["public", "protected", "private"]
+         in map show visibilities @?= expectedStrs,
+      testCase "Eq derived instance - equality" $ do
+        (Public == Public) @?= True
+        (Protected == Protected) @?= True
+        (Private == Private) @?= True,
+      testCase "Eq derived instance - inequality" $ do
+        (Public == Protected) @?= False
+        (Public == Private) @?= False
+        (Protected == Private) @?= False
+        (Protected == Public) @?= False
+        (Private == Public) @?= False
+        (Private == Protected) @?= False,
+      testCase "Ord derived instance - ordering" $ do
+        (Public < Protected) @?= True
+        (Public < Private) @?= True
+        (Protected < Private) @?= True
+        (Private < Public) @?= False
+        (Private < Protected) @?= False
+        (Protected < Public) @?= False,
+      testCase "Ord derived instance - compare" $ do
+        compare Public Protected @?= LT
+        compare Public Private @?= LT
+        compare Protected Private @?= LT
+        compare Protected Public @?= GT
+        compare Private Public @?= GT
+        compare Private Protected @?= GT
+        compare Public Public @?= EQ
+        compare Protected Protected @?= EQ
+        compare Private Private @?= EQ,
+      testCase "Ord derived instance - ordering operators" $ do
+        (Public <= Public) @?= True
+        (Public <= Protected) @?= True
+        (Protected >= Public) @?= True
+        (Private > Protected) @?= True
+        (Private >= Private) @?= True
     ]
 
 testParameterAndField :: TestTree
