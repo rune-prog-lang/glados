@@ -1,10 +1,11 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE LambdaCase #-}
 
 #if defined(TESTING_EXPORT)
 module Rune.IR.Generator.Expression.Call
-  ( genCall,
-    prepareArg,
-    genArgWithContext
+  ( genCall
+  , prepareArg
+  , genArgWithContext
   )
 where
 #else
@@ -17,90 +18,223 @@ import Control.Monad.State (gets)
 import Control.Monad.Except (throwError)
 import qualified Data.HashMap.Strict as HM
 import Data.List (find, isInfixOf)
-import Data.Maybe (fromMaybe)
+
 import Rune.AST.Nodes (Expression, Type(..), Parameter(..), paramType)
-import Rune.IR.IRHelpers 
-  ( registerCall, 
-    newTemp, 
-    astTypeToIRType, 
-    irTypeToASTType,
-    isFloatType
+import Rune.IR.IRHelpers
+  ( registerCall
+  , newTemp
+  , astTypeToIRType
+  , irTypeToASTType
+  , isFloatType
   )
 import Rune.Semantics.Helper
+  ( hasVariadicParam
+  , isVariadicParam
+  , unwrapRef
+  , isTypeCompatible
+  , isRefParam
+  )
 import Rune.IR.Nodes (GenState(..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
 --
--- callbacks to avoid circular dependencies
+-- datatypes
 --
 
-type GenExprCallback = Expression -> IRGen ([IRInstruction], IROperand, IRType)
+type FunctionCallInfo = (String, (Type, [Parameter]))
+
+data CallStrategy
+  = StandardCall
+  | VariadicUnroll [FunctionCallInfo] FunctionCallInfo
 
 --
 -- public
 --
 
-genCall :: GenExprCallback -> String -> [Expression] -> IRGen ([IRInstruction], IROperand, IRType)
+-- | genCall: generate IR for a function call (with overload + variadic support)
+genCall :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> String -> [Expression] -> IRGen ([IRInstruction], IROperand, IRType)
 genCall genExpr funcName args = do
   fs <- gets gsFuncStack
-  
-  -- Find all overloads matching this base name
+
   let allFuncs      = HM.toList fs
       matchingFuncs = filter (\(name, _) -> matchesBaseName funcName name) allFuncs
       variadicMatch = find (\(_, (_, params)) -> hasVariadicParam params) matchingFuncs
 
-  -- Decide if we should unroll or use standard call
-  if shouldUnroll funcName args matchingFuncs variadicMatch
-    then genUnrolledCall genExpr funcName matchingFuncs (fromMaybe (error "Logic error") variadicMatch) args
-    else genStandardCall genExpr funcName args
+      strategy = selectCallStrategy funcName args matchingFuncs variadicMatch
+
+  case strategy of
+    StandardCall -> genStandardCall genExpr funcName args
+    VariadicUnroll matchedFuncs variadicOverload ->
+      genUnrolledCall genExpr funcName matchedFuncs variadicOverload args
 
 --
--- Logic for Variadic Unrolling (e.g., dispatching multiple args to single-arg overloads)
+-- call strategy data & selection
 --
 
-genUnrolledCall :: GenExprCallback -> String -> [(String, (Type, [Parameter]))] -> (String, (Type, [Parameter])) -> [Expression] -> IRGen ([IRInstruction], IROperand, IRType)
+selectCallStrategy :: String -> [Expression] -> [FunctionCallInfo] -> Maybe FunctionCallInfo -> CallStrategy
+selectCallStrategy name args matchingFuncs variadicOverload =
+  if shouldUnroll name args matchingFuncs variadicOverload
+    then case variadicOverload of
+           Just v  -> VariadicUnroll matchingFuncs v
+           Nothing -> StandardCall -- should never happen due to shouldUnroll check
+    else StandardCall
+
+
+shouldUnroll :: String -> [Expression] -> [FunctionCallInfo] -> Maybe FunctionCallInfo -> Bool
+shouldUnroll _ args matchingFuncs variadicOverload =
+  case variadicOverload of
+    Just _ ->
+      let singleArgOverloads = filter (\(_, (_, params)) -> length params == 1 && not (hasVariadicParam params)) matchingFuncs
+          should = not (null singleArgOverloads) && length matchingFuncs > 1
+      in should && length args > maxNonVariadicParams matchingFuncs
+    Nothing -> False
+
+
+maxNonVariadicParams :: [FunctionCallInfo] -> Int
+maxNonVariadicParams funcs =
+  maximum (0 : [ length params | (_, (_, params)) <- funcs, not (hasVariadicParam params) ])
+
+
+matchesBaseName :: String -> String -> Bool
+matchesBaseName base full =
+  base == full ||
+  extractBaseName full == base ||
+  ("_" ++ base ++ "_") `isInfixOf` ("_" ++ full ++ "_")
+
+
+-- extract base name between underscores if present (Struct_method style)
+extractBaseName :: String -> String
+extractBaseName name =
+  case break (== '_') name of
+    (_, "") -> name
+    (_, rest) ->
+      case break (== '_') (drop 1 rest) of
+        (baseName, _) -> baseName
+
+--
+-- unrolled variadic calls (dispatch variadic args to single-arg overloads)
+--
+-- ouais les fonctions sont bad longues
+--
+
+genUnrolledCall
+  :: (Expression -> IRGen ([IRInstruction], IROperand, IRType))
+  -> String
+  -> [FunctionCallInfo]
+  -> FunctionCallInfo
+  -> [Expression]
+  -> IRGen ([IRInstruction], IROperand, IRType)
 genUnrolledCall genExpr funcName matchingFuncs (_, (retType, params)) args = do
-  -- Variadic call that needs unrolling
-  let normalParams   = takeWhile (not . isVariadicParam . paramType) params
-      numNormalArgs  = length normalParams
-      variadicArgs   = drop numNormalArgs args
-  
-  -- Generate all variadic arguments
+  let normalParams  = takeWhile (not . isVariadicParam . paramType) params
+      numNormalArgs = length normalParams
+      variadicArgs  = drop numNormalArgs args
+
+  -- generate IR for each variadic argument
   variadicArgsData <- mapM genExpr variadicArgs
-  
+
+  -- for each variadic argument, call the appropriate single-arg overload (or fallback)
   let irRetType = astTypeToIRType retType
-  
-  -- For each variadic argument, find the right overload based on type and call it
-  (allInstrs, resultOps) <- mapAndUnzipM (genOverloadedCall genExpr funcName matchingFuncs irRetType) variadicArgsData
-  
-  -- Accumulate results
+  (allInstrsList, resultOps) <- mapAndUnzipM (genOverloadedCall genExpr funcName matchingFuncs irRetType) variadicArgsData
+
+  -- if no variadic args were provided, that's an error in this unroll path
   case resultOps of
     [] -> throwError "No variadic arguments provided"
-    [single] -> pure (concat allInstrs, single, irRetType)
+    [single] -> pure (concat allInstrsList, single, irRetType)
     _ -> do
       (accInstrs, finalResult) <- accumulateResults irRetType resultOps
-      pure (concat allInstrs ++ accInstrs, finalResult, irRetType)
+      pure (concat allInstrsList ++ accInstrs, finalResult, irRetType)
+
+
+-- find best matching overload for a single variadic argument and emit a call for it
+genOverloadedCall
+  :: (Expression -> IRGen ([IRInstruction], IROperand, IRType))
+  -> String
+  -> [FunctionCallInfo]
+  -> IRType
+  -> ([IRInstruction], IROperand, IRType)
+  -> IRGen ([IRInstruction], IROperand)
+genOverloadedCall _ baseName overloads defaultRetType (argInstrs, argOp, argType) = do
+
+  -- consider only single-parameter non-variadic overloads as dispatch targets
+  let candidates :: [(String, Type, Parameter)]
+      candidates = [ (name, ret, p) | (name, (ret, [p])) <- overloads, not (hasVariadicParam [p]) ]
+
+      argASTType = irTypeToASTType argType
+
+      -- search policy: exact unwrap-ref match first, then compatible match
+      bestMatch = findBestOverload argASTType candidates
+
+  findBestMatch bestMatch
+
+    where
+
+    findBestMatch :: Maybe (String, Type, Parameter) -> IRGen ([IRInstruction], IROperand)
+
+    -- found a matching overload
+    findBestMatch (Just (matchedName, retType, p)) = do
+      let irRetType = astTypeToIRType retType
+          (finalInstrs, finalOp) = prepareParamArg (paramType p) argInstrs argOp argType
+      
+      registerCall matchedName
+      retTemp <- newTemp "t" irRetType
+      let callInstr = IRCALL retTemp matchedName [finalOp] (Just irRetType)
+      pure (finalInstrs ++ [callInstr], IRTemp retTemp irRetType)
+
+    -- fallback: call base name with the argument as-is
+    findBestMatch Nothing = do
+      let (argInstrs', argOp') = prepareArg (argInstrs, argOp, argType)
+      registerCall baseName
+      retTemp <- newTemp "t" defaultRetType
+      let callInstr = IRCALL retTemp baseName [argOp'] (Just defaultRetType)
+      pure (argInstrs' ++ [callInstr], IRTemp retTemp defaultRetType)
+
+
+-- find best overload candidate given an argument type:
+-- 1) exact match on unwrapRef(paramType) == argType
+-- 2) compatible match using isTypeCompatible
+findBestOverload :: Type -> [(String, Type, Parameter)] -> Maybe (String, Type, Parameter)
+findBestOverload argType candidates =
+  find (exactMatch argType) candidates <|> find (compatibleMatch argType) candidates
+  where
+    exactMatch a (_, _, p) = unwrapRef (paramType p) == a
+    compatibleMatch a (_, _, p) = isTypeCompatible (unwrapRef (paramType p)) a
+
+
+-- combine multiple results into one (e.g., add them together)
+accumulateResults :: IRType -> [IROperand] -> IRGen ([IRInstruction], IROperand)
+accumulateResults _ [] = throwError "No results to accumulate"
+accumulateResults _ [single] = pure ([], single)
+accumulateResults irRetType (first:rest) = go first rest []
+  where
+    go acc [] instrs = pure (instrs, acc)
+    go acc (next:remaining) instrs = do
+      resultTemp <- newTemp "t" irRetType
+      let addInstr = IRADD_OP resultTemp acc next irRetType
+      go (IRTemp resultTemp irRetType) remaining (instrs ++ [addInstr])
 
 --
--- Logic for Standard Function Calls
+-- standard call path
 --
 
-genStandardCall :: GenExprCallback -> String -> [Expression] -> IRGen ([IRInstruction], IROperand, IRType)
+genStandardCall :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> String -> [Expression] -> IRGen ([IRInstruction], IROperand, IRType)
 genStandardCall genExpr funcName args = do
   fs <- gets gsFuncStack
   let funcSignature = HM.lookup funcName fs
-  
+
   argsData <- case funcSignature of
     Just (_, params)
       | length params == length args ->
           zipWithM (genArgWithContext genExpr) args (map paramType params)
+
       | hasVariadicParam params -> do
-          -- Handle variadic args: normal args + remaining args for variadic param
+          -- handle variadic: normal args + remaining variadic args
           let normalParams = takeWhile (not . isVariadicParam . paramType) params
               numNormalArgs = length normalParams
               (normalArgs, variadicArgs) = splitAt numNormalArgs args
+
           normalArgsData <- zipWithM (genArgWithContext genExpr) normalArgs (map paramType normalParams)
           variadicArgsData <- mapM genExpr variadicArgs
           pure $ normalArgsData ++ variadicArgsData
+
     _ -> mapM genExpr args
 
   let (instrs, ops) = unzip $ map prepareArg argsData
@@ -117,98 +251,20 @@ genStandardCall genExpr funcName args = do
   pure (allInstrs <> [callInstr], IRTemp retTemp retType, retType)
 
 --
--- Sub-helpers for Overload Resolution & Type Matching
+-- argument preparation and helpers
 --
 
--- Find the best matching overload for an argument based on its type
-genOverloadedCall :: GenExprCallback -> String -> [(String, (Type, [Parameter]))] -> IRType -> ([IRInstruction], IROperand, IRType) -> IRGen ([IRInstruction], IROperand)
-genOverloadedCall _ baseName overloads defaultRetType (argInstrs, argOp, argType) = do
-  -- Find best matching overload for this argument type
-  -- We strictly look for single-argument non-variadic functions
-  let candidates = [ (name, ret, p) | (name, (ret, [p])) <- overloads, not (hasVariadicParam [p]) ]
-      argASTType = irTypeToASTType argType
-
-      -- Find exact match first (unwrapping refs), then fallback to compatible
-      exactMatch      = find (\(_, _, p) -> unwrapRef (paramType p) == argASTType) candidates
-      compatibleMatch = find (\(_, _, p) -> isTypeCompatible (unwrapRef (paramType p)) argASTType) candidates
-      bestMatch       = exactMatch <|> compatibleMatch
-
-  case bestMatch of
-    Just (matchedName, retType, p) -> do
-      let irRetType = astTypeToIRType retType
-          (finalInstrs, finalOp) = prepareParamArg (paramType p) argInstrs argOp argType
-
-      registerCall matchedName
-      retTemp <- newTemp "t" irRetType
-      let callInstr = IRCALL retTemp matchedName [finalOp] (Just irRetType)
-      pure (finalInstrs ++ [callInstr], IRTemp retTemp irRetType)
-
-    Nothing -> do
-      -- Fallback: use the base name (might be extern like printf)
-      let (argInstrs', argOp') = prepareArg (argInstrs, argOp, argType)
-      registerCall baseName
-      retTemp <- newTemp "t" defaultRetType
-      let callInstr = IRCALL retTemp baseName [argOp'] (Just defaultRetType)
-      pure (argInstrs' ++ [callInstr], IRTemp retTemp defaultRetType)
-
-accumulateResults :: IRType -> [IROperand] -> IRGen ([IRInstruction], IROperand)
-accumulateResults _ [] = throwError "No results to accumulate"
-accumulateResults _ [single] = pure ([], single)
-accumulateResults irRetType (first:rest) = go first rest []
-  where
-    go acc [] instrs = pure (instrs, acc)
-    go acc (next:remaining) instrs = do
-      resultTemp <- newTemp "t" irRetType
-      let addInstr = IRADD_OP resultTemp acc next irRetType
-      go (IRTemp resultTemp irRetType) remaining (instrs ++ [addInstr])
-
---
--- Decision Helpers
---
-
-shouldUnroll :: String -> [Expression] -> [(String, (Type, [Parameter]))] -> Maybe (String, (Type, [Parameter])) -> Bool
-shouldUnroll _ args matchingFuncs variadicOverload =
-    case variadicOverload of
-        Just (_, (_, _)) -> 
-            -- Count non-variadic single-arg overloads (these are the dispatch targets)
-            let singleArgOverloads = filter (\(_, (_, params)) -> length params == 1 && not (hasVariadicParam params)) matchingFuncs
-                -- Only unroll if we have dispatch targets AND we have more args than any non-variadic overload can handle
-                should = not (null singleArgOverloads) && length matchingFuncs > 1
-            in should && length args > maxNonVariadicParams matchingFuncs
-        Nothing -> False
-
-maxNonVariadicParams :: [(String, (Type, [Parameter]))] -> Int
-maxNonVariadicParams funcs = 
-  maximum (0 : [length params | (_, (_, params)) <- funcs, not (hasVariadicParam params)])
-
-matchesBaseName :: String -> String -> Bool
-matchesBaseName base full = 
-  base == full || 
-  extractBaseName full == base ||
-  ("_" ++ base ++ "_") `isInfixOf` ("_" ++ full ++ "_")
-
-extractBaseName :: String -> String
-extractBaseName name = 
-  case break (== '_') name of
-    (_, "") -> name
-    (_, rest) -> case break (== '_') (drop 1 rest) of
-                   (baseName, _) -> baseName
-
---
--- Argument Preparation Helpers
---
-
-genArgWithContext :: GenExprCallback -> Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
+-- generate argument while taking into account the expected AST type
+genArgWithContext :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
 genArgWithContext genExpr expr expectedType = do
   (instrs, op, inferredType) <- genExpr expr
   let targetType = astTypeToIRType expectedType
-  
   if inferredType /= targetType && needsInference op inferredType targetType
     then do
       temp <- newTemp "arg" targetType
       let assign = IRASSIGN temp op targetType
       pure (instrs <> [assign], IRTemp temp targetType, targetType)
-    else 
+    else
       pure (instrs, op, inferredType)
   where
     needsInference (IRConstInt _) _ _  = True
@@ -217,24 +273,28 @@ genArgWithContext genExpr expr expectedType = do
     needsInference (IRGlobal _ _) infT targT = isFloatType infT && isFloatType targT
     needsInference _ _ _ = False
 
+-- prepare argument for the final call (address-taking for structs/ptrs)
 prepareArg :: ([IRInstruction], IROperand, IRType) -> ([IRInstruction], IROperand)
 prepareArg (i, IRTemp n t, IRStruct _) = (i <> [IRADDR ("p_" <> n) n (IRPtr t)], IRTemp ("p_" <> n) (IRPtr t))
 prepareArg (i, IRTemp n t, IRPtr (IRStruct _)) = (i <> [IRADDR ("p_" <> n) n (IRPtr t)], IRTemp ("p_" <> n) (IRPtr t))
 prepareArg (i, op, _) = (i, op)
 
--- Handles Reference types by taking address
+-- prepare a parameter argument, handling reference parameter types (taking addresses) or passing as-is
 prepareParamArg :: Type -> [IRInstruction] -> IROperand -> IRType -> ([IRInstruction], IROperand)
 prepareParamArg pType argInstrs argOp argType =
   if isRefParam pType
     then case argOp of
-      IRGlobal name _ -> 
-        let addrTemp = "addr_" <> name -- simplified for clarity, use newTemp for safety if needed
+      IRGlobal name _ ->
+        let addrTemp = "addr_" <> name -- note: using deterministic temps here for readability; production could use newTemp
         in (argInstrs ++ [IRADDR addrTemp name (IRPtr argType)], IRTemp addrTemp (IRPtr argType))
-      IRTemp name _ -> 
+
+      IRTemp name _ ->
         let addrTemp = "addr_" <> name
         in (argInstrs ++ [IRADDR addrTemp name (IRPtr argType)], IRTemp addrTemp (IRPtr argType))
-      _ -> -- Constants
-        let constTemp = "c_tmp" 
+
+      _ -> -- constants and others: materialize to temp then take address
+        let constTemp = "c_tmp"
             addrTemp = "addr_tmp"
         in (argInstrs ++ [IRASSIGN constTemp argOp argType, IRADDR addrTemp constTemp (IRPtr argType)], IRTemp addrTemp (IRPtr argType))
+
     else prepareArg (argInstrs, argOp, argType)
