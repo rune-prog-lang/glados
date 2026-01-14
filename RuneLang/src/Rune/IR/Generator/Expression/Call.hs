@@ -12,11 +12,12 @@ module Rune.IR.Generator.Expression.Call (genCall) where
 #endif
 
 import Control.Applicative ((<|>))
-import Control.Monad (zipWithM)
+import Control.Monad (zipWithM, mapAndUnzipM)
 import Control.Monad.State (gets)
 import Control.Monad.Except (throwError)
 import qualified Data.HashMap.Strict as HM
 import Data.List (find, isInfixOf)
+import Data.Maybe (fromMaybe)
 import Rune.AST.Nodes (Expression, Type(..), Parameter(..), paramType)
 import Rune.IR.IRHelpers 
   ( registerCall, 
@@ -49,7 +50,7 @@ genCall genExpr funcName args = do
 
   -- Decide if we should unroll or use standard call
   if shouldUnroll funcName args matchingFuncs variadicMatch
-    then genUnrolledCall genExpr funcName matchingFuncs (maybe (error "Logic error") id variadicMatch) args
+    then genUnrolledCall genExpr funcName matchingFuncs (fromMaybe (error "Logic error") variadicMatch) args
     else genStandardCall genExpr funcName args
 
 --
@@ -69,7 +70,7 @@ genUnrolledCall genExpr funcName matchingFuncs (_, (retType, params)) args = do
   let irRetType = astTypeToIRTypeWithArrays retType
   
   -- For each variadic argument, find the right overload based on type and call it
-  (allInstrs, resultOps) <- unzip <$> mapM (genOverloadedCall genExpr funcName matchingFuncs irRetType) variadicArgsData
+  (allInstrs, resultOps) <- mapAndUnzipM (genOverloadedCall genExpr funcName matchingFuncs irRetType) variadicArgsData
   
   -- Accumulate results
   case resultOps of
