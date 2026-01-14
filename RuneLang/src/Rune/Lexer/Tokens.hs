@@ -13,7 +13,6 @@ data TokenKind
   | KwElse
   | KwFor
   | KwTo
-  | KwOverride
   | KwIn
   | KwLoop
   | KwStop

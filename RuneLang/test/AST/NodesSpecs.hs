@@ -87,11 +87,11 @@ testParameterAndField =
   testGroup
     "Parameter and Field Accessors"
     [ testCase "Parameter accessors" $
-        let p = Parameter {paramName = "x", paramType = TypeI32}
+        let p = Parameter {paramName = "x", paramType = TypeI32, paramDefault = Nothing}
          in do
               paramName p @?= "x"
               paramType p @?= TypeI32
-              show p @?= "Parameter {paramName = \"x\", paramType = i32}",
+              show p @?= "Parameter {paramName = \"x\", paramType = i32, paramDefault = Nothing}",
       testCase "Field accessors" $
         let f = Field {fieldName = "y", fieldType = TypeF64}
          in do
@@ -137,21 +137,7 @@ testTopLevelDefAccessors =
          in do
               structName def @?= "Vec2"
               structFields def @?= []
-              structMethods def @?= [],
-      testCase "DefOverride accessors" $
-        let def =
-              DefOverride
-                { overrideName = "toString",
-                  overrideParams = [],
-                  overrideReturnType = TypeString,
-                  overrideBody = dummyBlock,
-                  overrideIsExport = False
-                }
-         in do
-              overrideName def @?= "toString"
-              overrideParams def @?= []
-              overrideReturnType def @?= TypeString
-              overrideBody def @?= dummyBlock
+              structMethods def @?= []
     ]
 
 testStatementAccessors :: TestTree

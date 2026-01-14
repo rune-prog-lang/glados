@@ -7,7 +7,6 @@ module Rune.AST.Printer
     visitTopLevel,
     visitFunction,
     visitStruct,
-    visitOverride,
     visitStatement,
     visitVarDecl,
     visitAssignment,
@@ -74,7 +73,6 @@ visitProgram (Program name defs) = do
 visitTopLevel :: TopLevelDef -> Printer ()
 visitTopLevel d@DefFunction {} = visitFunction d
 visitTopLevel d@DefStruct {} = visitStruct d
-visitTopLevel d@DefOverride {} = visitOverride d
 visitTopLevel d@DefSomewhere {} = visitSomewhere d
 
 visitFunction :: TopLevelDef -> Printer ()
@@ -99,17 +97,6 @@ visitStruct (DefStruct name fields methods) = do
     emitField (Field n t) = newLine >> emit (n <> ": " <> showType t)
 visitStruct _ = return ()
 
-visitOverride :: TopLevelDef -> Printer ()
-visitOverride (DefOverride name params retType body isExport) = do
-  emit $ (if isExport then "export " else "") <> "DefOverride " <> name
-  indent
-  emitBlock "Parameters:" (mapM_ emitParam params)
-  newLine
-  emit $ "ReturnType: " <> showType retType
-  emitBlock "Body:" (visitBody body)
-  dedent
-visitOverride _ = return ()
-
 visitSomewhere :: TopLevelDef -> Printer ()
 visitSomewhere (DefSomewhere sigs) = do
   emit "DefSomewhere"
@@ -119,7 +106,7 @@ visitSomewhere (DefSomewhere sigs) = do
   where
     emitSomewhereDecl (DeclFuncSig (FunctionSignature name paramTypes retType isOverride)) = do
       newLine
-      emit $ (if isOverride then "override " else "") <> name <> "("
+      emit $ name <> "("
       emit $ unwords (map showType paramTypes)
       emit $ ") -> " <> showType retType
     emitSomewhereDecl (DeclDefs def) = do
@@ -319,7 +306,12 @@ dedent :: Printer ()
 dedent = modify (\s -> s {psIndent = psIndent s - 1})
 
 emitParam :: Parameter -> Printer ()
-emitParam p = newLine >> emit (paramName p <> ": " <> showType (paramType p))
+emitParam p = do
+  newLine
+  emit (paramName p <> ": " <> showType (paramType p))
+  case paramDefault p of
+    Just defaultExpr -> emit (" = " <> show defaultExpr)
+    Nothing -> pure ()
 
 showType :: Type -> String
 showType TypeI8 = "i8"
