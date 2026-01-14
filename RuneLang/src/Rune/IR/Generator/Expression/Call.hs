@@ -11,13 +11,21 @@ where
 module Rune.IR.Generator.Expression.Call (genCall) where
 #endif
 
+import Control.Applicative ((<|>))
 import Control.Monad (zipWithM)
 import Control.Monad.State (gets)
 import Control.Monad.Except (throwError)
 import qualified Data.HashMap.Strict as HM
-import Data.List (find)
+import Data.List (find, isInfixOf)
 import Rune.AST.Nodes (Expression, Type(..), Parameter(..), paramType)
-import Rune.IR.IRHelpers (registerCall, newTemp, astTypeToIRType, isFloatType)
+import Rune.IR.IRHelpers 
+  ( registerCall, 
+    newTemp, 
+    astTypeToIRType, 
+    irTypeToASTType,
+    isFloatType
+  )
+import Rune.Semantics.Helper (isTypeCompatible)
 import Rune.IR.Nodes (GenState(..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
 --
@@ -47,7 +55,7 @@ genCall genExpr funcName args = do
         length params == 1 && not (hasVariadicParam params)) matchingFuncs
       
       -- Only unroll if we have dispatch targets (single-arg overloads to call)
-      shouldUnroll = length singleArgOverloads > 0 && length matchingFuncs > 1
+      shouldUnroll = not (null singleArgOverloads) && length matchingFuncs > 1
   
   -- If we have more args than any non-variadic overload can handle AND there's a variadic overload
   -- AND we have single-arg overloads to dispatch to, then we unroll
@@ -114,12 +122,7 @@ genCall genExpr funcName args = do
     matchesBaseName base full = 
       base == full || 
       extractBaseName full == base ||
-      ("_" ++ base ++ "_") `isInfixOf'` ("_" ++ full ++ "_")
-      where
-        isInfixOf' needle haystack = any (needle `isPrefixOf'`) (tails' haystack)
-        isPrefixOf' prefix str = take (length prefix) str == prefix
-        tails' [] = [[]]
-        tails' xs@(_:rest) = xs : tails' rest
+      ("_" ++ base ++ "_") `isInfixOf` ("_" ++ full ++ "_")
     
     extractBaseName :: String -> String
     extractBaseName name = 
@@ -145,38 +148,35 @@ genCall genExpr funcName args = do
     genOverloadedCall :: GenExprCallback -> String -> [(String, (Type, [Parameter]))] -> IRType -> ([IRInstruction], IROperand, IRType) -> IRGen ([IRInstruction], IROperand)
     genOverloadedCall _ baseName overloads defaultRetType (argInstrs, argOp, argType) = do
       -- Find best matching overload for this argument type
-      let singleArgOverloads = filter (\(_, (_, params)) -> 
-            length params == 1 && not (hasVariadicParam params)) overloads
+      -- We strictly look for single-argument non-variadic functions
+      -- Pattern match `[p]` ensures length is 1, avoiding unsafe head
+      let candidates = [ (name, ret, p) | (name, (ret, [p])) <- overloads, not (hasVariadicParam [p]) ]
           
           -- Convert IRType to Type for matching
           argASTType = irTypeToASTType argType
           
-          -- Extract inner type from TypeRef for matching
-          unwrapRef :: Type -> Type
-          unwrapRef (TypeRef t) = t
-          unwrapRef t = t
-          
-          -- Check if param is a reference
-          isRefParam :: Type -> Bool
           isRefParam (TypeRef _) = True
           isRefParam _ = False
           
+          unwrapRef (TypeRef t) = t
+          unwrapRef t = t
+          
           -- Find exact match first (unwrapping refs)
-          exactMatch = find (\(_, (_, params)) -> 
-            let pType = unwrapRef (paramType (head' params))
-            in pType == argASTType) singleArgOverloads
+          exactMatch = find (\(_, _, p) -> 
+            let pType = unwrapRef (paramType p)
+            in pType == argASTType) candidates
           
-          -- Find compatible match
-          compatibleMatch = find (\(_, (_, params)) -> 
-            let pType = unwrapRef (paramType (head' params))
-            in isTypeCompatible' pType argASTType) singleArgOverloads
+          -- Find compatible match using Semantic helper
+          compatibleMatch = find (\(_, _, p) -> 
+            let pType = unwrapRef (paramType p)
+            in isTypeCompatible pType argASTType) candidates
           
-          bestMatch = exactMatch `orElse` compatibleMatch
+          bestMatch = exactMatch <|> compatibleMatch
       
       case bestMatch of
-        Just (matchedName, (retType, params)) -> do
+        Just (matchedName, retType, p) -> do
           let irRetType = astTypeToIRType retType
-              paramType' = paramType (head' params)
+              paramType' = paramType p
               needsRef = isRefParam paramType'
           
           -- If the parameter is a reference type, we need to pass the address
@@ -213,62 +213,6 @@ genCall genExpr funcName args = do
           retTemp <- newTemp "t" defaultRetType
           let callInstr = IRCALL retTemp baseName [argOp'] (Just defaultRetType)
           pure (argInstrs' ++ [callInstr], IRTemp retTemp defaultRetType)
-    
-    head' :: [a] -> a
-    head' (x:_) = x
-    head' [] = error "head': empty list"
-    
-    orElse :: Maybe a -> Maybe a -> Maybe a
-    orElse (Just x) _ = Just x
-    orElse Nothing y = y
-    
-    irTypeToASTType :: IRType -> Type
-    irTypeToASTType IRI8 = TypeI8
-    irTypeToASTType IRI16 = TypeI16
-    irTypeToASTType IRI32 = TypeI32
-    irTypeToASTType IRI64 = TypeI64
-    irTypeToASTType IRF32 = TypeF32
-    irTypeToASTType IRF64 = TypeF64
-    irTypeToASTType IRBool = TypeBool
-    irTypeToASTType IRU8 = TypeU8
-    irTypeToASTType IRU16 = TypeU16
-    irTypeToASTType IRU32 = TypeU32
-    irTypeToASTType IRU64 = TypeU64
-    irTypeToASTType IRChar = TypeChar
-    irTypeToASTType IRNull = TypeNull
-    irTypeToASTType (IRPtr IRChar) = TypeString
-    irTypeToASTType (IRPtr t) = TypePtr (irTypeToASTType t)
-    irTypeToASTType (IRRef t) = TypeRef (irTypeToASTType t)
-    irTypeToASTType (IRStruct s) = TypeCustom s
-    irTypeToASTType (IRArray t _) = TypeArray (irTypeToASTType t)
-    irTypeToASTType (IRVariadic t) = TypeVariadic (irTypeToASTType t)
-    
-    isTypeCompatible' :: Type -> Type -> Bool
-    isTypeCompatible' TypeAny _ = True
-    isTypeCompatible' _ TypeAny = True
-    isTypeCompatible' (TypeRef a) b = isTypeCompatible' a b
-    isTypeCompatible' a (TypeRef b) = isTypeCompatible' a b
-    isTypeCompatible' (TypePtr TypeAny) _ = True
-    isTypeCompatible' _ (TypePtr TypeAny) = True
-    isTypeCompatible' TypeString (TypePtr TypeChar) = True
-    isTypeCompatible' (TypePtr TypeChar) TypeString = True
-    isTypeCompatible' a b = a == b || (isIntType a && isIntType b) || (isFloatType' a && isFloatType' b)
-    
-    isIntType :: Type -> Bool
-    isIntType TypeI8 = True
-    isIntType TypeI16 = True
-    isIntType TypeI32 = True
-    isIntType TypeI64 = True
-    isIntType TypeU8 = True
-    isIntType TypeU16 = True
-    isIntType TypeU32 = True
-    isIntType TypeU64 = True
-    isIntType _ = False
-    
-    isFloatType' :: Type -> Bool
-    isFloatType' TypeF32 = True
-    isFloatType' TypeF64 = True
-    isFloatType' _ = False
     
     accumulateResults :: IRType -> [IROperand] -> IRGen ([IRInstruction], IROperand)
     accumulateResults _ [] = throwError "No results to accumulate"
