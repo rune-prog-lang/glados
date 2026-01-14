@@ -179,11 +179,11 @@ data FunctionSignature = FunctionSignature
   }
   deriving (Show, Eq)
 
--- | structure signature for forward declaration
+-- | StructureSignature for forward declaration
 data StructureSignature = StructureSignature
-  { sigName :: String,
-    sigAttributes :: [(String, Type)],
-    sigMethods :: [FunctionSignature]
+  { sigName :: String
+  , sigAttributes :: [(String, Type)]
+  , sigMethods :: [FunctionSignature]
   }
   deriving (Show, Eq)
 
