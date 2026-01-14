@@ -327,6 +327,8 @@ showType TypeNull = "null"
 showType (TypeCustom s) = s
 showType (TypeArray t) = "[" <> showType t <> "]"
 showType (TypePtr t) = "*" <> showType t
+showType (TypeRef t) = "&" <> showType t
+showType (TypeVariadic t) = "..." <> showType t
 
 showBinaryOp :: BinaryOp -> String
 showBinaryOp Add = "+"
