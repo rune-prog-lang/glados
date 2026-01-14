@@ -30,15 +30,25 @@ preprocessUseStatements _ content = do
         Nothing -> processLines rest (line : acc) includedFiles
     
     parseUseLine :: String -> Maybe String
-    parseUseLine line
-      | "use " `isPrefixOf` line && ";" `isSuffixOf` line =
-          let withoutUse = drop 4 line
-              withoutSemicolon = take (length withoutUse - 1) withoutUse
-          in Just (strip withoutSemicolon)
-      | otherwise = Nothing
+    parseUseLine line = 
+      case words (strip line) of
+        ["use", filename] | ";" `isSuffixOf` filename -> 
+          Just (strip (init filename))  -- Remove the semicolon
+        "use" : rest | not (null rest) ->
+          let combined = unwords rest
+          in if ";" `isSuffixOf` combined
+             then Just (strip (init combined))
+             else Nothing
+        _ -> Nothing
     
     strip :: String -> String
     strip = dropWhile isSpace . dropWhileEnd isSpace
+    
+    dropWhileEnd :: (a -> Bool) -> [a] -> [a]
+    dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x:xs) []
+    
+    isSpace :: Char -> Bool
+    isSpace c = c `elem` " \t\n\r"
     
     safeRead :: FilePath -> IO (Either String String)
     safeRead fp = (try (readFile fp) :: IO (Either IOException String)) <&> first (("Failed to read input file: " <>) . show)
