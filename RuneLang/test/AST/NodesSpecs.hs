@@ -45,19 +45,21 @@ testTypes =
   testGroup
     "Type"
     [ testCase "All Type constructors and Show" $
-        let types =
+            types =
               [ TypeI8, TypeI16, TypeI32, TypeI64,
                 TypeF32, TypeF64, TypeBool,
                 TypeU8, TypeU16, TypeU32, TypeU64,
                 TypeChar, TypeString, TypeAny, TypeNull,
-                TypeCustom "MyStruct"
+                TypeCustom "MyStruct",
+                TypeArray TypeI32, TypePtr TypeI32, TypeRef TypeI32, TypeVariadic TypeI32
               ]
             expectedStrs =
               [ "i8", "i16", "i32", "i64",
                 "f32", "f64", "bool",
                 "u8", "u16", "u32", "u64",
                 "char", "str", "any", "null",
-                "MyStruct"
+                "MyStruct",
+                "arri32", "ptr_i32", "ref_i32", "...i32"
               ]
          in map show types @?= expectedStrs,
       testCase "Eq/Ord derived instances" $
@@ -69,8 +71,8 @@ testBinaryOps =
   testGroup
     "BinaryOp"
     [ testCase "Constructors and Show" $
-        let ops = [Add, Sub, Mul, Div, Mod, Eq, Neq, Lt, Lte, Gt, Gte, And, Or]
-         in length ops @?= 13
+        let ops = [Add, Sub, Mul, Div, Mod, Eq, Neq, Lt, Lte, Gt, Gte, And, Or, BitAnd]
+         in length ops @?= 14
     ]
 
 testUnaryOps :: TestTree
@@ -78,8 +80,8 @@ testUnaryOps =
   testGroup
     "UnaryOp"
     [ testCase "Constructors and Show" $
-        let ops = [Negate, Not, PropagateError, PrefixInc, PrefixDec, PostfixInc, PostfixDec]
-         in length ops @?= 7
+        let ops = [Negate, Not, BitNot, PropagateError, PrefixInc, PrefixDec, PostfixInc, PostfixDec]
+         in length ops @?= 8
     ]
 
 testParameterAndField :: TestTree
@@ -234,9 +236,10 @@ testExpressionAccessors =
                 ExprLitChar dummyPos 'c',
                 ExprLitBool dummyPos True,
                 ExprLitNull dummyPos,
-                ExprVar dummyPos "x"
+                ExprVar dummyPos "x",
+                ExprSizeof dummyPos (Left TypeI32)
               ]
-         in length exprs @?= 9,
+         in length exprs @?= 10,
       testCase "ExprIndex accessors" $
         let expr = ExprIndex {exprPos = dummyPos, indexTarget = ExprVar dummyPos "arr", indexValue = dummyExpr}
          in do
@@ -264,6 +267,7 @@ testGetExprPos =
         getExprPos (ExprLitNull dummyPos) @?= dummyPos
         getExprPos (ExprVar dummyPos "v") @?= dummyPos
         getExprPos (ExprLitArray dummyPos []) @?= dummyPos
+        getExprPos (ExprSizeof dummyPos (Left TypeI32)) @?= dummyPos
     ]
 
 testGetStmtPos :: TestTree
