@@ -32,6 +32,16 @@ funcStack1 = HM.fromList
 stack1 :: Stack
 stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32)], HM.empty)
 
+structStack1 :: HM.HashMap String TopLevelDef
+structStack1 = HM.fromList
+  [ ("Point", DefStruct "Point" 
+      [ Field "x" TypeF32
+      , Field "y" TypeF32
+      ] [])
+  , ("Empty", DefStruct "Empty" [] [])
+  , ("Fake", DefFunction "Fake" [] TypeNull [] False)
+  ]
+
 --
 -- public
 --
@@ -51,6 +61,8 @@ helperSemanticsTests =
     , semanticErrorAccessorsTests
     , typeCompatibleTests
     , specificityTests
+    , getFieldTypeTests
+    , fixSelfTypeTests
     ]
 
 --
@@ -352,7 +364,7 @@ errorFormattingTests = testGroup "Error Formatting Tests"
       formatSemanticError err @?= "[ERROR]: f.ru:1:2: error:\n  Expected: exp\n  Got: got\n  ... in ctx1\n  ... in ctx2"
   , testCase "error format for undefined variable" $ 
       (case checkMultipleType "undefinedVar" "app.ru" 20 8 Nothing TypeI32 of 
-          Right _ -> return ()  -- Success expected for undefined var with Nothing
+          Right _ -> return ()
           Left _ -> assertFailure "Should succeed for new variable")
   
   , testCase "error format for type mismatch includes both types" $ 
@@ -378,3 +390,59 @@ errorFormattingTests = testGroup "Error Formatting Tests"
       if needle `isInfixOf` haystack
         then return ()
         else assertFailure $ msg ++ ": expected to find '" ++ needle ++ "' in '" ++ haystack ++ "'"
+
+getFieldTypeTests :: TestTree
+getFieldTypeTests = testGroup "getFieldType Tests"
+  [ testCase "Success: Access existing field" $ 
+      getFieldType dummyPos structStack1 (TypeCustom "Point") "x" @?= Right TypeF32
+
+  , testCase "Error: Field does not exist in struct" $ 
+      case getFieldType dummyPos structStack1 (TypeCustom "Point") "z" of
+        Left err -> do
+          seExpected err @?= "field 'z' to exist in struct 'Point'"
+          seGot err @?= "undefined field"
+        Right _ -> assertFailure "Should have failed: undefined field"
+
+  , testCase "Error: Struct name not found in stack" $ 
+      case getFieldType dummyPos structStack1 (TypeCustom "Unknown") "x" of
+        Left err -> do
+          seExpected err @?= "struct 'Unknown' to exist"
+          seGot err @?= "undefined struct"
+        Right _ -> assertFailure "Should have failed: undefined struct"
+
+  , testCase "Error: Name exists but is not a struct" $ 
+      case getFieldType dummyPos structStack1 (TypeCustom "Fake") "x" of
+        Left err -> do
+          seExpected err @?= "struct 'Fake' to be a valid struct definition"
+          seGot err @?= "not a struct definition"
+        Right _ -> assertFailure "Should have failed: not a struct"
+
+  , testCase "Error: Field access on non-custom type (e.g. i32)" $ 
+      case getFieldType dummyPos structStack1 TypeI32 "x" of
+        Left err -> do
+          seExpected err @?= "field access to be valid on type i32"
+          seGot err @?= "cannot access field 'x' on type 'i32'"
+        Right _ -> assertFailure "Should have failed: invalid type"
+  ]
+
+fixSelfTypeTests :: TestTree
+fixSelfTypeTests = testGroup "fixSelfType Tests"
+  [ testCase "Success: Replaces self type" $ 
+      let params = [Parameter "self" TypeAny Nothing, Parameter "x" TypeI32 Nothing]
+          result = fixSelfType "Point" params
+      in case result of
+           (p:_) -> do
+             paramName p @?= "self"
+             paramType p @?= TypeCustom "Point"
+           [] -> assertFailure "Expected non-empty params list"
+
+  , testCase "No change: No parameters" $ 
+      fixSelfType "Point" [] @?= []
+
+  , testCase "No change: First parameter is not 'self'" $ 
+      let params = [Parameter "x" TypeI32 Nothing, Parameter "self" TypeAny Nothing]
+          result = fixSelfType "Point" params
+      in case result of
+           (p:_) -> paramType p @?= TypeI32
+           []    -> assertFailure "Expected non-empty params list"
+  ]
