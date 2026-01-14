@@ -19,6 +19,7 @@ data TokenKind
   | KwNext
   | KwSomewhere
   | KwExport
+  | KwExtern
   | KwAs
   | KwSizeof
   -- | primitive types
