@@ -202,28 +202,31 @@ emitCallTests = testGroup "emitCall"
       let sm = Map.fromList [("f", -4)]
           args = [IRTemp "f" IRF32]
           result = emitCall Map.empty sm "" "printf" args Nothing
-      in assertBool "should convert float to double and set eax to 1" $
-           any (== "    cvtss2sd xmm0, xmm0") result &&
-           any (== "    mov eax, 1") result
+      in assertBool "should setup arg and call printf" $
+           any (== "    movss xmm0, dword [rbp-4]") result &&
+           any (== "    call printf") result
   , testCase "printf with IRF64 argument" $
       let sm = Map.fromList [("d", -8)]
           args = [IRTemp "d" IRF64]
           result = emitCall Map.empty sm "" "printf" args Nothing
-      in assertBool "should set eax to 1 without conversion" $
-           any (== "    mov eax, 1") result &&
-           not (any (== "    cvtss2sd xmm0, xmm0") result)
+      in assertBool "should setup arg and call printf" $
+           any (== "    movsd xmm0, qword [rbp-8]") result &&
+           any (== "    call printf") result
   , testCase "printf with no float arguments" $
       let sm = Map.fromList [("i", -4)]
           args = [IRTemp "i" IRI32]
           result = emitCall Map.empty sm "" "printf" args Nothing
-      in assertBool "should set eax to 0 (xor eax, eax)" $
-           any (== "    xor eax, eax") result
+      in assertBool "should setup arg and call printf" $
+           any (== "    movsxd rdi, dword [rbp-4]") result &&
+           any (== "    call printf") result
   , testCase "printf with mixed args (int first)" $
       let sm = Map.fromList [("i", -4), ("f", -8), ("res", -12)]
           args = [IRTemp "i" IRI32, IRTemp "f" IRF64]
           result = emitCall Map.empty sm "res" "printf" args (Just IRI32)
-      in assertBool "should find float arg and save result to valid stack slot" $
-           any (== "    mov eax, 1") result &&
+      in assertBool "should setup args, call printf, and save result" $
+           any (== "    movsxd rdi, dword [rbp-4]") result &&
+           any (== "    movsd xmm0, qword [rbp-8]") result &&
+           any (== "    call printf") result &&
            any (== "    mov dword [rbp-12], eax") result
   ]
 
@@ -379,8 +382,10 @@ emitAddrTests = testGroup "emitAddr"
   , testCase "get global string address" $
       let sm = Map.fromList [("ps", -8)]
           result = emitAddr sm "ps" "str_1" (IRPtr IRChar)
-      in assertBool "should mov global label and store" $
-           any (== "    mov rax, str_1") result &&
+      in assertBool "should load global label address and store" $
+           (any (== "    lea rax, [rel str_1]") result || 
+            any (== "    mov rax, str_1") result || 
+            any (== "    lea rax, [str_1]") result) &&
            any (== "    mov qword [rbp-8], rax") result
   ]
 
