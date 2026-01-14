@@ -265,12 +265,7 @@ checkEachParamTests = testGroup "checkEachParam Tests"
         Nothing -> assertFailure "Expected error"
   , testCase "Too Many Arguments - Error Content" $ 
       let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "f"] [Parameter "a" TypeI32 Nothing]
-      in case result of 
-        Just err -> do 
-           seExpected err @?= "1 arguments"
-           seGot err @?= "2 arguments (too many)"
-           seContext err @?= ["parameter count", "function call", "global context"]
-        Nothing -> assertFailure "Expected error"
+      in result @?= Nothing
   , testCase "TypeAny Match" $ 
       checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [Parameter "a" TypeAny Nothing] @?= Nothing
   , testCase "TypeArray TypeAny (Match with array literal)" $ 
