@@ -221,7 +221,7 @@ preprocessUseStatements _ content = do
     isPrefixOf (x:xs) (y:ys) = x == y && isPrefixOf xs ys
     
     isSuffixOf :: Eq a => [a] -> [a] -> Bool
-    isSuffixOf xs ys = isPrefixOf (reverse xs) (reverse ys)
+    isSuffixOf xs ys = reverse xs `isPrefixOf` reverse ys
     
     dropWhileEnd :: (a -> Bool) -> [a] -> [a]
     dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x:xs) []
