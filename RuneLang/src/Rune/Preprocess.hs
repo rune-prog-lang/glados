@@ -5,7 +5,8 @@ module Rune.Preprocess
 import Control.Exception (IOException, try)
 import Data.Bifunctor (first)
 import Data.Functor ((<&>))
-import Data.List (isSuffixOf, isPrefixOf)
+import Data.List (isSuffixOf, isPrefixOf, dropWhileEnd)
+import Data.Char (isSpace)
 
 -- | Preprocess 'use' statements by expanding them inline
 preprocessUseStatements :: FilePath -> String -> IO (Either String String)
@@ -38,12 +39,6 @@ preprocessUseStatements _ content = do
     
     strip :: String -> String
     strip = dropWhile isSpace . dropWhileEnd isSpace
-    
-    dropWhileEnd :: (a -> Bool) -> [a] -> [a]
-    dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x:xs) []
-    
-    isSpace :: Char -> Bool
-    isSpace c = c `elem` " \t\n\r"
     
     safeRead :: FilePath -> IO (Either String String)
     safeRead fp = (try (readFile fp) :: IO (Either IOException String)) <&> first (("Failed to read input file: " <>) . show)
