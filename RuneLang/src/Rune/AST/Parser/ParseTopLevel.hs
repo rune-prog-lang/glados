@@ -199,10 +199,38 @@ parseSomewhereDecl :: Parser SomewhereDecl
 parseSomewhereDecl = do
   tok <- peek
   case T.tokenKind tok of
+    T.KwUse -> parseUseStatement
     T.KwDef -> DeclFuncSig <$> parseFunctionSignature
     T.KwOverride -> DeclFuncSig <$> parseFunctionSignature
     T.KwStruct -> DeclDefs <$> parseStruct
-    _ -> failParse $ "Expected function signature or struct definition, got: " ++ show tok
+    _ -> failParse $ "Expected use, function signature, or struct definition, got: " ++ show tok
+
+parseUseStatement :: Parser SomewhereDecl
+parseUseStatement = do
+  _ <- expect T.KwUse
+  fileName <- parseUseFileName
+  _ <- expect T.Semicolon
+  pure $ DeclUse fileName
+
+parseUseFileName :: Parser String
+parseUseFileName = do
+  tok <- peek
+  case T.tokenKind tok of
+    T.Identifier name -> do
+      advance
+      -- Check for .sw extension
+      dotTok <- peek
+      case T.tokenKind dotTok of
+        T.Dot -> do
+          advance
+          extTok <- peek
+          case T.tokenKind extTok of
+            T.Identifier "sw" -> do
+              advance
+              pure $ name ++ ".sw"
+            _ -> failParse "Expected 'sw' file extension"
+        _ -> failParse "Expected .sw file extension"
+    _ -> failParse "Expected filename"
 
 parseFunctionSignatures :: Parser [FunctionSignature]
 parseFunctionSignatures = do
