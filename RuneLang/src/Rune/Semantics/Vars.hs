@@ -67,7 +67,8 @@ data SemState = SemState
 type SemM a = StateT SemState (Either String) a
 
 -- | Extract all DeclDefs from somewhere blocks and return them as separate top-level definitions
--- Also return cleaned somewhere blocks with only signatures
+-- Also return cleaned somewhere blocks with only signatures  
+-- Note: DeclUse statements should have been preprocessed away by this point
 extractAndCleanSomewhereDefls :: [TopLevelDef] -> ([TopLevelDef], [TopLevelDef])
 extractAndCleanSomewhereDefls defs = 
   let (extracted, cleaned) = unzip $ map processTopLevel defs
@@ -82,12 +83,16 @@ extractAndCleanSomewhereDefls defs =
     partitionSomewhereDecls :: [SomewhereDecl] -> ([TopLevelDef], [SomewhereDecl])
     partitionSomewhereDecls decls =
       let extractedDefs = [def | DeclDefs def <- decls]
-          remainingDecls = [decl | decl <- decls, not (isDeclDefs decl)]
+          remainingDecls = [decl | decl <- decls, not (isDeclDefs decl) && not (isDeclUse decl)]
       in (extractedDefs, remainingDecls)
     
     isDeclDefs :: SomewhereDecl -> Bool
     isDeclDefs (DeclDefs _) = True
     isDeclDefs _ = False
+    
+    isDeclUse :: SomewhereDecl -> Bool
+    isDeclUse (DeclUse _) = True
+    isDeclUse _ = False
 
 --
 -- public
@@ -98,7 +103,7 @@ verifVars (Program n defs) = do
   let (templatesList, concreteDefs) = List.partition isGeneric defs
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
       
-      -- Extract all full definitions from somewhere blocks and flatten them
+      -- Extract all full definitions from somewhere blocks and flatten them  
       (flattenedDefs, cleanedDefs) = extractAndCleanSomewhereDefls concreteDefs
       allConcreteDefs = flattenedDefs ++ cleanedDefs
 
@@ -119,9 +124,6 @@ verifVars (Program n defs) = do
   trace ( 
       printf "initial: %s\nfinal: %s\n" (show $ stStructs initialState) (show $ stStructs finalState) <>
       printf "initial: %s\nfinal: %s\n" (show $ stFuncs initialState) (show $ stFuncs finalState)
-      -- printf "defs: %s\nallDefs: %s\n" (show defs) (show allDefs)
-      -- <> printf "stStructs: %s\n" (show $ stStructs finalState)
-      -- <> "\n\n" <> prettyPrint p
     )(
       pure (Program n allDefs, finalFuncStack)
     )
