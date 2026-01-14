@@ -190,7 +190,8 @@ processWithPreprocessing fp content = do
 
 -- | Preprocess 'use' statements by expanding them inline
 preprocessUseStatements :: FilePath -> String -> IO (Either String String)
-preprocessUseStatements basePath content = do
+-- preprocessUseStatements basePath content = do
+preprocessUseStatements _ content = do
   -- Simple preprocessing: scan for "use filename.sw;" patterns and replace with file contents
   -- This is a basic implementation - a full preprocessor would handle this more robustly
   processLines (lines content) []
