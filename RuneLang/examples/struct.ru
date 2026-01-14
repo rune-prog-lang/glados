@@ -3,15 +3,19 @@ struct Vec2f
     private x: f32;
     private y: f32;
 
+    public static count: i32;
+
     public def new() -> Vec2f
     {
         show("Default constructor called\n");
+        Vec2f.count += 1;
         Vec2f { x: 0.0, y: 0.0 }
     }
 
     public def new(x: f32, y: f32) -> Vec2f
     {
         show("Parameterized constructor called\n");
+        Vec2f.count += 1;
         Vec2f { x: x, y: y }
     }
 
@@ -65,6 +69,7 @@ def main() -> null
     v1 = Vec2f.new();
     v2 = Vec2f.new(3.0, 4.0);
 
+    show(Vec2f.count);
     show("v1: ", v1);
     show("v2: ", v2);
 }

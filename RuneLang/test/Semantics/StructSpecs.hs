@@ -95,14 +95,14 @@ simpleProgram =
     "simple"
     [ DefStruct
         "Point"
-        [ Field "x" TypeI32 Public
-        , Field "y" TypeI32 Public
+        [ Field "x" TypeI32 Public False
+        , Field "y" TypeI32 Public False
         ]
         [],
       DefStruct
         "Vec2f"
-        [ Field "x" TypeF32 Public
-        , Field "y" TypeF32 Public
+        [ Field "x" TypeF32 Public False
+        , Field "y" TypeF32 Public False
         ]
         []
     ]
@@ -113,7 +113,7 @@ anyFieldProgram =
     "any-field"
     [ DefStruct
         "BadStruct"
-        [ Field "data" TypeAny Public
+        [ Field "data" TypeAny Public False
         ]
         []
     ]
@@ -124,7 +124,7 @@ nullFieldProgram =
     "null-field"
     [ DefStruct
         "BadStruct"
-        [ Field "data" TypeNull Public
+        [ Field "data" TypeNull Public False
         ]
         []
     ]
@@ -135,7 +135,7 @@ unknownTypeProgram =
     "unknown-type"
     [ DefStruct
         "Container"
-        [ Field "item" (TypeCustom "UnknownStruct") Public
+        [ Field "item" (TypeCustom "UnknownStruct") Public False
         ]
         []
     ]
@@ -146,8 +146,8 @@ selfRefProgram =
     "self-ref"
     [ DefStruct
         "Node"
-        [ Field "value" TypeI32 Public
-        , Field "next" (TypeCustom "Node") Public
+        [ Field "value" TypeI32 Public False
+        , Field "next" (TypeCustom "Node") Public False
         ]
         []
     ]
@@ -156,8 +156,8 @@ duplicateStructProgram :: Program
 duplicateStructProgram =
   Program
     "duplicate-struct"
-    [ DefStruct "Point" [Field "x" TypeI32 Public] [],
-      DefStruct "Point" [Field "y" TypeF32 Public] []
+    [ DefStruct "Point" [Field "x" TypeI32 Public False] [],
+      DefStruct "Point" [Field "y" TypeF32 Public False] []
     ]
 
 duplicateFieldProgram :: Program
@@ -166,8 +166,8 @@ duplicateFieldProgram =
     "duplicate-field"
     [ DefStruct
         "BadStruct"
-        [ Field "value" TypeI32 Public
-        , Field "value" TypeF32 Public
+        [ Field "value" TypeI32 Public False
+        , Field "value" TypeF32 Public False
         ]
         []
     ]

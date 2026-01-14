@@ -34,9 +34,7 @@ varsSemanticsTests =
     , alreadyInstantiatedTests
     , registerInstantiationTests
     , resolveCallTests
-    , isStaticMethodTests
-    , checkMethodParamsTests
-    , checkStaticMethodCallTests
+    , applyInferenceToParamsTests
     , canAccessMemberTests
     , isSelfAccessTests
     , verifFieldAccessTests
@@ -45,9 +43,11 @@ varsSemanticsTests =
     , findFieldTests
     , raiseVisibilityErrorTests
     , checkFieldVisibilityTests
-    , verifStaticMethodCallTests
-    , verifInstanceMethodCallTests
+    , verifStaticCallTests
+    , verifInstanceCallTests
     , checkMethodVisibilityTests
+    , injectDefaultArgsTests
+    , isStaticMethodTests
     ]
 
 --
@@ -140,13 +140,13 @@ isGenericTests =
   testGroup "isGeneric"
     [ testGroup "Success Cases"
       [ testCase "returns True for function with TypeAny parameter" $
-          isGeneric (DefFunction "f" [Parameter "x" TypeAny Nothing] TypeI32 [] False Public) @?= True
+          isGeneric (DefFunction "f" [Parameter "x" TypeAny Nothing] TypeI32 [] False Public False) @?= True
       , testCase "returns True for function with TypeAny return" $
-          isGeneric (DefFunction "f" [] TypeAny [] False Public) @?= True
+          isGeneric (DefFunction "f" [] TypeAny [] False Public False) @?= True
       , testCase "returns True for function with TypeArray TypeAny" $
-          isGeneric (DefFunction "f" [Parameter "x" (TypeArray TypeAny) Nothing] TypeI32 [] False Public) @?= True
+          isGeneric (DefFunction "f" [Parameter "x" (TypeArray TypeAny) Nothing] TypeI32 [] False Public False) @?= True
       , testCase "returns False for concrete function" $
-          isGeneric (DefFunction "f" [Parameter "x" TypeI32 Nothing] TypeI32 [] False Public) @?= False
+          isGeneric (DefFunction "f" [Parameter "x" TypeI32 Nothing] TypeI32 [] False Public False) @?= False
       , testCase "returns False for struct" $
           isGeneric (DefStruct "S" [] []) @?= False
       ]
@@ -184,7 +184,7 @@ getDefNameTests =
   testGroup "getDefName"
     [ testGroup "Success Cases"
       [ testCase "returns function name" $
-          getDefName (DefFunction "myFunc" [] TypeNull [] False Public) @?= "myFunc"
+          getDefName (DefFunction "myFunc" [] TypeNull [] False Public False) @?= "myFunc"
       , testCase "returns struct name" $
           getDefName (DefStruct "MyStruct" [] []) @?= "MyStruct"
       , testCase "returns empty string for DefSomewhere" $
@@ -201,8 +201,8 @@ mangleFuncStackTests =
   testGroup "mangleFuncStack"
     [ testCase "returns FuncStack unchanged (identity function)" $ do
         let fs = HM.fromList
-              [ ("func1", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public))
-              , ("func2", ((TypeNull, []), Public))
+              [ ("func1", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public, False))
+              , ("func2", ((TypeNull, []), Public, False))
               ]
         let result = mangleFuncStack fs
         result @?= fs
@@ -219,12 +219,12 @@ resolveFinalNameTests =
   testGroup "resolveFinalName"
     [ testGroup "Success Cases"
       [ testCase "returns baseName when exact match exists in FuncStack" $ do
-          let fs = HM.fromList [("myFunc", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public))]
+          let fs = HM.fromList [("myFunc", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public, False))]
               state = mockSemState fs HM.empty Nothing
               result = runSemMForTest (resolveFinalName "myFunc" TypeI32 [TypeI32]) state
           result @?= Right "myFunc"
       , testCase "returns mangled name when signature differs" $ do
-          let fs = HM.fromList [("myFunc", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public))]
+          let fs = HM.fromList [("myFunc", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public, False))]
               state = mockSemState fs HM.empty Nothing
               result = runSemMForTest (resolveFinalName "myFunc" TypeNull [TypeString]) state
           case result of
@@ -246,14 +246,14 @@ verifTopLevelTests =
   testGroup "verifTopLevel"
     [ testGroup "Success Cases"
       [ testCase "verifies function definition" $ do
-          let func = DefFunction "f" [] TypeNull [] False Public
+          let func = DefFunction "f" [] TypeNull [] False Public False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifTopLevel func) state
           case result of
-            Right (DefFunction name _ _ _ _ _) -> name @?= "f"
+            Right (DefFunction name _ _ _ _ _ _) -> name @?= "f"
             _ -> assertFailure "Expected DefFunction"
       , testCase "verifies struct definition" $ do
-          let struct = DefStruct "S" [Field "x" TypeI32 Public] []
+          let struct = DefStruct "S" [Field "x" TypeI32 Public False] []
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifTopLevel struct) state
           case result of
@@ -329,7 +329,7 @@ verifScopeTests =
             Right [StmtExpr _ _] -> return ()
             _ -> assertFailure "Expected expression statement"
       , testCase "verifies function call expression" $ do
-          let fs = HM.fromList [("print", ((TypeNull, [Parameter "s" TypeString Nothing]), Public))]
+          let fs = HM.fromList [("print", ((TypeNull, [Parameter "s" TypeString Nothing]), Public, False))]
               vs = HM.empty
               stmt = StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "print") [ExprLitString dummyPos "test"])
               state = mockSemState fs HM.empty Nothing
@@ -490,7 +490,7 @@ verifScopeTests =
             Right [StmtAssignment {}] -> return ()
             _ -> assertFailure "Expected assignment"
       , testCase "verifies assignment to field access" $ do
-          let fields = [Field "val" TypeI32 Public]
+          let fields = [Field "val" TypeI32 Public False]
               ss = HM.fromList [("S", DefStruct "S" fields [])]
               vs = HM.fromList [("obj", TypeCustom "S")]
               stmt = StmtAssignment dummyPos (ExprAccess dummyPos (ExprVar dummyPos "obj") "val") (ExprLitInt dummyPos 99)
@@ -635,7 +635,7 @@ verifExprWithContextTests =
             _ -> assertFailure "Expected ExprLitString"
       , testCase "verifies struct initialization" $ do
           let vs = HM.empty
-              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" [Field "x" TypeI32 Public] [])]
+              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" [Field "x" TypeI32 Public False] [])]
               state = mockSemState HM.empty ss Nothing
               expr = ExprStructInit dummyPos "MyStruct" [("x", ExprLitInt dummyPos 10)]
               result = runSemMForTest (verifExprWithContext Nothing vs expr) state
@@ -678,26 +678,26 @@ verifMethodTests =
   testGroup "verifMethod"
     [ testGroup "Success Cases"
       [ testCase "verifies instance method with self" $ do
-          let method = DefFunction "myMethod" [Parameter "self" (TypeCustom "MyStruct") Nothing] TypeNull [] False Public
-              fs = HM.fromList [("MyStruct_myMethod", ((TypeNull, [Parameter "self" (TypeCustom "MyStruct") Nothing]), Public))]
+          let method = DefFunction "myMethod" [Parameter "self" (TypeCustom "MyStruct") Nothing] TypeNull [] False Public False
+              fs = HM.fromList [("MyStruct_myMethod", ((TypeNull, [Parameter "self" (TypeCustom "MyStruct") Nothing]), Public, False))]
               state = mockSemState fs HM.empty Nothing
               result = runSemMForTest (verifMethod "MyStruct" method) state
           case result of
-            Right (DefFunction name _ _ _ _ _) -> assertBool "name should contain struct prefix" ("MyStruct_" `isInfixOf` name)
+            Right (DefFunction name _ _ _ _ _ _) -> assertBool "name should contain struct prefix" ("MyStruct_" `isInfixOf` name)
             _ -> assertFailure "Expected DefFunction"
       , testCase "verifies static method (new)" $ do
-          let method = DefFunction "new" [] (TypeCustom "MyStruct") [] False Public
-              fs = HM.fromList [("MyStruct_new", ((TypeCustom "MyStruct", []), Public))]
+          let method = DefFunction "new" [] (TypeCustom "MyStruct") [] False Public False
+              fs = HM.fromList [("MyStruct_new", ((TypeCustom "MyStruct", []), Public, False))]
               state = mockSemState fs HM.empty Nothing
               result = runSemMForTest (verifMethod "MyStruct" method) state
           case result of
-            Right (DefFunction name params _ _ _ _) -> do
+            Right (DefFunction name params _ _ _ _ _) -> do
               assertBool "name should be MyStruct_new" ("MyStruct_new" `isInfixOf` name)
               assertBool "should not add self parameter" (null params)
             _ -> assertFailure "Expected DefFunction"
       , testCase "sets and unsets currentStruct context" $ do
-          let method = DefFunction "method" [Parameter "self" TypeAny Nothing] TypeNull [] False Public
-              fs = HM.fromList [("S_method", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Public))]
+          let method = DefFunction "method" [Parameter "self" TypeAny Nothing] TypeNull [] False Public False
+              fs = HM.fromList [("S_method", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Public, False))]
               state = mockSemState fs HM.empty Nothing
               result = runSemMForTest (verifMethod "S" method) state
           case result of
@@ -706,14 +706,14 @@ verifMethodTests =
       ]
     , testGroup "Failure Cases"
       [ testCase "rejects method without self parameter" $ do
-          let method = DefFunction "bad" [] TypeNull [] False Public
+          let method = DefFunction "bad" [] TypeNull [] False Public False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifMethod "MyStruct" method) state
           case result of
             Left err -> assertBool "should mention self parameter" ("must have at least one parameter" `isInfixOf` err)
             Right _ -> assertFailure "Expected error"
       , testCase "rejects method with wrong first parameter name" $ do
-          let method = DefFunction "bad" [Parameter "notself" TypeAny Nothing] TypeNull [] False Public
+          let method = DefFunction "bad" [Parameter "notself" TypeAny Nothing] TypeNull [] False Public False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifMethod "MyStruct" method) state
           case result of
@@ -731,7 +731,7 @@ tryInstantiateTemplateTests =
   testGroup "tryInstantiateTemplate"
     [ testGroup "Success Cases"
       [ testCase "instantiates template with concrete types" $ do
-          let templateDef = DefFunction "id" [Parameter "x" TypeAny Nothing] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False Public
+          let templateDef = DefFunction "id" [Parameter "x" TypeAny Nothing] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False Public False
               args = [ExprLitInt dummyPos 42]
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (tryInstantiateTemplate templateDef "id" args [TypeI32] (Just TypeI32)) state
@@ -739,7 +739,7 @@ tryInstantiateTemplateTests =
             Right (ExprVar _ name) -> assertBool "should be mangled name" (name /= "id" || name == "id")
             _ -> assertFailure "Expected ExprVar"
       , testCase "uses context return type when provided" $ do
-          let templateDef = DefFunction "get" [] TypeAny [] False Public
+          let templateDef = DefFunction "get" [] TypeAny [] False Public False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (tryInstantiateTemplate templateDef "get" [] [] (Just TypeString)) state
           case result of
@@ -808,14 +808,14 @@ registerInstantiationTests =
   testGroup "registerInstantiation"
     [ testGroup "Success Cases"
       [ testCase "registers new instantiation" $ do
-          let def = DefFunction "instantiated" [] TypeI32 [] False Public
+          let def = DefFunction "instantiated" [] TypeI32 [] False Public False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (registerInstantiation "i32_instantiated" def TypeI32 []) state
           case result of
             Right _ -> return ()
             Left err -> assertFailure err
       , testCase "adds function to FuncStack" $ do
-          let def = DefFunction "inst" [] TypeString [] False Public
+          let def = DefFunction "inst" [] TypeString [] False Public False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (registerInstantiation "string_inst" def TypeString []) state
           case result of
@@ -833,7 +833,7 @@ resolveCallTests =
   testGroup "resolveCall"
     [ testGroup "Success Cases"
       [ testCase "resolves exact function match" $ do
-          let fs = HM.fromList [("func", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public))]
+          let fs = HM.fromList [("func", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public, False))]
               ss = HM.empty
               stack = (fs, HM.empty, ss)
               state = mockSemState fs ss Nothing
@@ -855,92 +855,21 @@ resolveCallTests =
     ]
 
 -- ============================================================================
--- isStaticMethod Tests
+-- applyInferenceToParams Tests
 -- ============================================================================
 
-isStaticMethodTests :: TestTree
-isStaticMethodTests =
-  testGroup "isStaticMethod"
+applyInferenceToParamsTests :: TestTree
+applyInferenceToParamsTests =
+  testGroup "applyInferenceToParams"
     [ testGroup "Success Cases"
-      [ testCase "returns True for 'new'" $
-          isStaticMethod "new" @?= True
-      , testCase "returns False for regular methods" $
-          isStaticMethod "myMethod" @?= False
-      , testCase "returns False for 'self'" $
-          isStaticMethod "self" @?= False
-      , testCase "returns False for empty string" $
-          isStaticMethod "" @?= False
-      ]
-    ]
-
--- ============================================================================
--- checkMethodParams Tests
--- ============================================================================
-
-checkMethodParamsTests :: TestTree
-checkMethodParamsTests =
-  testGroup "checkMethodParams"
-    [ testGroup "Success Cases"
-      [ testCase "accepts static method without self" $ do
-          let state = mockSemState HM.empty HM.empty Nothing
-              result = runSemMForTest (checkMethodParams "new" []) state
-          result @?= Right ()
-      , testCase "accepts instance method with self" $ do
-          let state = mockSemState HM.empty HM.empty Nothing
-              result = runSemMForTest (checkMethodParams "myMethod" [Parameter "self" TypeAny Nothing]) state
-          result @?= Right ()
-      ]
-    , testGroup "Failure Cases"
-      [ testCase "rejects instance method without parameters" $ do
-          let state = mockSemState HM.empty HM.empty Nothing
-              result = runSemMForTest (checkMethodParams "myMethod" []) state
-          case result of
-            Left err -> assertBool "should mention self" ("must have at least one parameter" `isInfixOf` err)
-            Right _ -> assertFailure "Expected error"
-      , testCase "rejects instance method with wrong first parameter" $ do
-          let state = mockSemState HM.empty HM.empty Nothing
-              result = runSemMForTest (checkMethodParams "myMethod" [Parameter "wrong" TypeAny Nothing]) state
-          case result of
-            Left err -> assertBool "should mention self" ("First parameter" `isInfixOf` err)
-            Right _ -> assertFailure "Expected error"
-      ]
-    ]
-
--- ============================================================================
--- checkStaticMethodCall Tests
--- ============================================================================
-
-checkStaticMethodCallTests :: TestTree
-checkStaticMethodCallTests =
-  testGroup "checkStaticMethodCall"
-    [ testGroup "Success Cases"
-      [ testCase "allows static method 'new'" $ do
-          let state = mockSemState HM.empty HM.empty Nothing
-              result = runSemMForTest (checkStaticMethodCall "Vec2f" "new" "test.ru" 1 1) state
-          result @?= Right ()
-      ]
-    , testGroup "Failure Cases"
-      [ testCase "rejects non-static method 'add'" $ do
-          let state = mockSemState HM.empty HM.empty Nothing
-              result = runSemMForTest (checkStaticMethodCall "Vec2f" "add" "test.ru" 1 1) state
-          case result of
-            Left err -> do
-              assertBool "should mention static call" ("static call" `isInfixOf` err)
-              assertBool "should mention method name" ("Vec2f.add" `isInfixOf` err)
-              assertBool "should mention self parameter" ("requires 'self' parameter" `isInfixOf` err)
-            Right _ -> assertFailure "Expected error"
-      , testCase "rejects non-static method 'get_x'" $ do
-          let state = mockSemState HM.empty HM.empty Nothing
-              result = runSemMForTest (checkStaticMethodCall "Point" "get_x" "test.ru" 10 5) state
-          case result of
-            Left err -> assertBool "should mention not static" ("not static" `isInfixOf` err)
-            Right _ -> assertFailure "Expected error"
-      , testCase "rejects empty method name" $ do
-          let state = mockSemState HM.empty HM.empty Nothing
-              result = runSemMForTest (checkStaticMethodCall "MyStruct" "" "test.ru" 1 1) state
-          case result of
-            Left err -> assertBool "should fail for empty method" (not (null err))
-            Right _ -> assertFailure "Expected error"
+      [ testCase "does not modify non-generic functions" $ do
+          let func = DefFunction "f" [Parameter "x" TypeI32 Nothing] TypeI32 [] False Public False
+              result = applyInferenceToParams func
+          result @?= func
+      , testCase "does not modify structs" $ do
+          let struct = DefStruct "S" [Field "x" TypeI32 Public False] []
+              result = applyInferenceToParams struct
+          result @?= struct
       ]
     ]
 
@@ -1007,7 +936,7 @@ verifFieldAccessTests =
   testGroup "verifFieldAccess"
     [ testGroup "Success Cases"
       [ testCase "verifies public field access" $ do
-          let fields = [Field "x" TypeI32 Public]
+          let fields = [Field "x" TypeI32 Public False]
               ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [])]
               vs = HM.fromList [("obj", TypeCustom "MyStruct")]
               state = mockSemState HM.empty ss Nothing
@@ -1018,7 +947,7 @@ verifFieldAccessTests =
             Right other -> assertFailure $ "Expected ExprAccess, got: " ++ show other
             Left err -> assertFailure err
       , testCase "verifies private field access via self" $ do
-          let fields = [Field "x" TypeI32 Private]
+          let fields = [Field "x" TypeI32 Private False]
               ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [])]
               vs = HM.fromList [("self", TypeCustom "MyStruct")]
               state = mockSemState HM.empty ss (Just "MyStruct")
@@ -1031,7 +960,7 @@ verifFieldAccessTests =
       ]
     , testGroup "Failure Cases"
       [ testCase "rejects private field access from outside" $ do
-          let fields = [Field "x" TypeI32 Private]
+          let fields = [Field "x" TypeI32 Private False]
               ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [])]
               vs = HM.fromList [("obj", TypeCustom "MyStruct")]
               state = mockSemState HM.empty ss Nothing
@@ -1049,7 +978,7 @@ verifFieldAccessTests =
             Left err -> assertBool "should mention type error" ("does not have fields" `isInfixOf` err)
             Right _ -> assertFailure "Expected error"
       , testCase "rejects nonexistent field" $ do
-          let fields = [Field "x" TypeI32 Public]
+          let fields = [Field "x" TypeI32 Public False]
               ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [])]
               vs = HM.fromList [("obj", TypeCustom "MyStruct")]
               state = mockSemState HM.empty ss Nothing
@@ -1070,7 +999,7 @@ verifStructFieldAccessTests =
   testGroup "verifStructFieldAccess"
     [ testGroup "Success Cases"
       [ testCase "verifies struct field access" $ do
-          let fields = [Field "x" TypeI32 Public]
+          let fields = [Field "x" TypeI32 Public False]
               ss = HM.fromList [("S", DefStruct "S" fields [])]
               state = mockSemState HM.empty ss Nothing
               target = ExprVar dummyPos "obj"
@@ -1100,7 +1029,7 @@ lookupStructFieldsTests =
   testGroup "lookupStructFields"
     [ testGroup "Success Cases"
       [ testCase "returns fields for existing struct" $ do
-          let fields = [Field "x" TypeI32 Public, Field "y" TypeString Public]
+          let fields = [Field "x" TypeI32 Public False, Field "y" TypeString Public False]
               ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [])]
               state = mockSemState HM.empty ss Nothing
               result = runSemMForTest (lookupStructFields ss "MyStruct" "test.ru" 1 1) state
@@ -1127,16 +1056,16 @@ findFieldTests =
   testGroup "findField"
     [ testGroup "Success Cases"
       [ testCase "finds existing field" $ do
-          let fields = [Field "x" TypeI32 Public, Field "y" TypeString Public]
+          let fields = [Field "x" TypeI32 Public False, Field "y" TypeString Public False]
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (findField fields "y" "MyStruct" "test.ru" 1 1) state
           case result of
-            Right (Field "y" TypeString Public) -> return ()
+            Right (Field "y" TypeString Public False) -> return ()
             _ -> assertFailure "Expected to find field y"
       ]
     , testGroup "Failure Cases"
       [ testCase "fails for nonexistent field" $ do
-          let fields = [Field "x" TypeI32 Public]
+          let fields = [Field "x" TypeI32 Public False]
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (findField fields "z" "MyStruct" "test.ru" 1 1) state
           case result of
@@ -1201,69 +1130,63 @@ checkFieldVisibilityTests =
       ]
     ]
 
+
+
 -- ============================================================================
--- verifStaticMethodCall Tests
+-- verifStaticCall Tests
 -- ============================================================================
 
-verifStaticMethodCallTests :: TestTree
-verifStaticMethodCallTests =
-  testGroup "verifStaticMethodCall"
+verifStaticCallTests :: TestTree
+verifStaticCallTests =
+  testGroup "verifStaticCall"
     [ testGroup "Success Cases"
-      [ testCase "verifies static method call" $ do
-          let fs = HM.fromList [("MyStruct_new", ((TypeCustom "MyStruct", []), Public))]
+      [ testCase "verifies static method call with matching signature" $ do
+          let fs = HM.fromList [("MyStruct_new", ((TypeCustom "MyStruct", []), Public, True))]
               state = mockSemState fs HM.empty Nothing
-              result = runSemMForTest (verifStaticMethodCall dummyPos dummyPos "MyStruct" "new" [] Nothing HM.empty) state
+              result = runSemMForTest (verifStaticCall dummyPos dummyPos "MyStruct" "new" [] Nothing HM.empty) state
           case result of
             Right (ExprCall {}) -> return ()
             Right other -> assertFailure $ "Expected ExprCall, got: " ++ show other
             Left err -> assertFailure err
       ]
     , testGroup "Failure Cases"
-      [ testCase "rejects private static method from outside" $ do
-          let fs = HM.fromList [("MyStruct_privateMethod", ((TypeNull, []), Private))]
+      [ testCase "rejects calling non-static method as static" $ do
+          let fs = HM.fromList [("MyStruct_method", ((TypeNull, [Parameter "self" TypeAny Nothing]), Public, False))]
               state = mockSemState fs HM.empty Nothing
-              result = runSemMForTest (verifStaticMethodCall dummyPos dummyPos "MyStruct" "privateMethod" [] Nothing HM.empty) state
+              dummyArg = ExprLitInt dummyPos 42
+              result = runSemMForTest (verifStaticCall dummyPos dummyPos "MyStruct" "method" [dummyArg] Nothing HM.empty) state
           case result of
-            Left err -> assertBool "should mention visibility" ("private" `isInfixOf` err)
+            Left err -> assertBool ("Error was: " ++ err) ("not static" `isInfixOf` err || "use an instance" `isInfixOf` err)
             Right _ -> assertFailure "Expected error"
       ]
     ]
 
 -- ============================================================================
--- verifInstanceMethodCall Tests
+-- verifInstanceCall Tests
 -- ============================================================================
 
-verifInstanceMethodCallTests :: TestTree
-verifInstanceMethodCallTests =
-  testGroup "verifInstanceMethodCall"
+verifInstanceCallTests :: TestTree
+verifInstanceCallTests =
+  testGroup "verifInstanceCall"
     [ testGroup "Success Cases"
-      [ testCase "verifies public instance method call" $ do
-          let fs = HM.fromList [("Vec2f_print", ((TypeNull, [Parameter "self" (TypeCustom "Vec2f") Nothing]), Public))]
+      [ testCase "verifies instance method call" $ do
+          let fs = HM.fromList [("Vec2f_print", ((TypeNull, [Parameter "self" (TypeCustom "Vec2f") Nothing]), Public, False))]
               vs = HM.fromList [("v", TypeCustom "Vec2f")]
               state = mockSemState fs HM.empty Nothing
-              result = runSemMForTest (verifInstanceMethodCall dummyPos dummyPos "v" "print" [] Nothing vs) state
-          case result of
-            Right (ExprCall {}) -> return ()
-            Right other -> assertFailure $ "Expected ExprCall, got: " ++ show other
-            Left err -> assertFailure err
-      , testCase "verifies method call on self" $ do
-          let fs = HM.fromList [("S_method", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Private))]
-              vs = HM.fromList [("self", TypeCustom "S")]
-              state = mockSemState fs HM.empty (Just "S")
-              result = runSemMForTest (verifInstanceMethodCall dummyPos dummyPos "self" "method" [] Nothing vs) state
+              result = runSemMForTest (verifInstanceCall dummyPos dummyPos "v" "print" [] Nothing vs) state
           case result of
             Right (ExprCall {}) -> return ()
             Right other -> assertFailure $ "Expected ExprCall, got: " ++ show other
             Left err -> assertFailure err
       ]
     , testGroup "Failure Cases"
-      [ testCase "rejects private method call from outside" $ do
-          let fs = HM.fromList [("S_privateMethod", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Private))]
-              vs = HM.fromList [("obj", TypeCustom "S")]
+      [ testCase "rejects calling static method as instance method" $ do
+          let fs = HM.fromList [("Point_new", ((TypeCustom "Point", [Parameter "dummy" TypeAny Nothing]), Public, True))]
+              vs = HM.fromList [("p", TypeCustom "Point")]
               state = mockSemState fs HM.empty Nothing
-              result = runSemMForTest (verifInstanceMethodCall dummyPos dummyPos "obj" "privateMethod" [] Nothing vs) state
+              result = runSemMForTest (verifInstanceCall dummyPos dummyPos "p" "new" [] Nothing vs) state
           case result of
-            Left err -> assertBool "should mention visibility" ("private" `isInfixOf` err)
+            Left err -> assertBool ("Error was: " ++ err) ("is static" `isInfixOf` err || "call it with" `isInfixOf` err)
             Right _ -> assertFailure "Expected error"
       ]
     ]
@@ -1277,12 +1200,12 @@ checkMethodVisibilityTests =
   testGroup "checkMethodVisibility"
     [ testGroup "Success Cases"
       [ testCase "allows public method access" $ do
-          let fs = HM.fromList [("S_method", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Public))]
+          let fs = HM.fromList [("S_method", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Public, False))]
               state = mockSemState fs HM.empty Nothing
               result = runSemMForTest (checkMethodVisibility fs "S_method" Nothing "S" False "method" "test.ru" 1 1) state
           result @?= Right ()
       , testCase "allows private method access via self" $ do
-          let fs = HM.fromList [("S_privateMethod", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Private))]
+          let fs = HM.fromList [("S_privateMethod", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Private, False))]
               state = mockSemState fs HM.empty (Just "S")
               result = runSemMForTest (checkMethodVisibility fs "S_privateMethod" (Just "S") "S" True "privateMethod" "test.ru" 1 1) state
           result @?= Right ()
@@ -1293,19 +1216,72 @@ checkMethodVisibilityTests =
       ]
     , testGroup "Failure Cases"
       [ testCase "rejects private method from outside struct" $ do
-          let fs = HM.fromList [("S_privateMethod", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Private))]
+          let fs = HM.fromList [("S_privateMethod", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Private, False))]
               state = mockSemState fs HM.empty Nothing
               result = runSemMForTest (checkMethodVisibility fs "S_privateMethod" Nothing "S" False "privateMethod" "test.ru" 1 1) state
           case result of
             Left err -> assertBool "should mention private" ("private" `isInfixOf` err)
             Right _ -> assertFailure "Expected error"
       , testCase "rejects private method on other instance (not self)" $ do
-          let fs = HM.fromList [("S_privateMethod", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Private))]
+          let fs = HM.fromList [("S_privateMethod", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Private, False))]
               state = mockSemState fs HM.empty (Just "S")
               result = runSemMForTest (checkMethodVisibility fs "S_privateMethod" (Just "S") "S" False "privateMethod" "test.ru" 1 1) state
           case result of
             Left err -> assertBool "should mention visibility" ("private" `isInfixOf` err)
             Right _ -> assertFailure "Expected error"
+      ]
+    ]
+
+-- ============================================================================
+-- injectDefaultArgs Tests
+-- ============================================================================
+
+injectDefaultArgsTests :: TestTree
+injectDefaultArgsTests =
+  testGroup "injectDefaultArgs"
+    [ testGroup "Success Cases"
+      [ testCase "returns args unchanged when all provided" $ do
+          let fs = HM.fromList [("func", ((TypeI32, [Parameter "x" TypeI32 Nothing, Parameter "y" TypeI32 (Just (ExprLitInt dummyPos 0))]), Public, False))]
+              args = [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2]
+              state = mockSemState fs HM.empty Nothing
+              result = runSemMForTest (injectDefaultArgs fs "func" args HM.empty) state
+          case result of
+            Right resultArgs -> length resultArgs @?= 2
+            Left err -> assertFailure err
+      , testCase "injects default values for missing args" $ do
+          let fs = HM.fromList [("func", ((TypeI32, [Parameter "x" TypeI32 Nothing, Parameter "y" TypeI32 (Just (ExprLitInt dummyPos 42))]), Public, False))]
+              args = [ExprLitInt dummyPos 1]
+              state = mockSemState fs HM.empty Nothing
+              result = runSemMForTest (injectDefaultArgs fs "func" args HM.empty) state
+          case result of
+            Right resultArgs -> length resultArgs @?= 2
+            Left err -> assertFailure err
+      , testCase "returns args unchanged when function not in FuncStack" $ do
+          let state = mockSemState HM.empty HM.empty Nothing
+              args = [ExprLitInt dummyPos 1]
+              result = runSemMForTest (injectDefaultArgs HM.empty "notFound" args HM.empty) state
+          case result of
+            Right resultArgs -> resultArgs @?= args
+            Left err -> assertFailure err
+      ]
+    ]
+
+-- ============================================================================
+-- isStaticMethod Tests
+-- ============================================================================
+
+isStaticMethodTests :: TestTree
+isStaticMethodTests =
+  testGroup "isStaticMethod"
+    [ testGroup "Success Cases"
+      [ testCase "returns True for method marked as static" $
+          isStaticMethod "anyMethod" True @?= True
+      , testCase "returns True for 'new' even if not marked static" $
+          isStaticMethod "new" False @?= True
+      , testCase "returns False for instance method" $
+          isStaticMethod "print" False @?= False
+      , testCase "returns False for non-new instance methods" $
+          isStaticMethod "get_x" False @?= False
       ]
     ]
 
@@ -1321,32 +1297,32 @@ emptyProgram = Program "empty" []
 
 simpleFunctionProgram :: Program
 simpleFunctionProgram = Program "simple"
-  [DefFunction "main" [] TypeNull [] False Public]
+  [DefFunction "main" [] TypeNull [] False Public False]
 
 structWithMethodsProgram :: Program
 structWithMethodsProgram = Program "struct-methods"
-  [DefStruct "S" [Field "x" TypeI32 Public]
-    [DefFunction "get" [Parameter "self" TypeAny Nothing] TypeI32 [] False Public]]
+  [DefStruct "S" [Field "x" TypeI32 Public False]
+    [DefFunction "get" [Parameter "self" TypeAny Nothing] TypeI32 [] False Public False]]
 
 multipleFunctionsProgram :: Program
 multipleFunctionsProgram = Program "multi"
-  [DefFunction "f1" [] TypeNull [] False Public,
-   DefFunction "f2" [] TypeNull [] False Public]
+  [DefFunction "f1" [] TypeNull [] False Public False,
+   DefFunction "f2" [] TypeNull [] False Public False]
 
 verifVarsReturnsStackProgram :: Program
 verifVarsReturnsStackProgram = Program "stack"
-  [DefFunction "test" [] TypeI32 [] False Public]
+  [DefFunction "test" [] TypeI32 [] False Public False]
 
 typeMismatchProgram :: Program
 typeMismatchProgram = Program "type-mismatch"
   [DefFunction "f" [] TypeNull
     [StmtExpr dummyPos (ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitString dummyPos "bad"))]
-    False Public]
+    False Public False]
 
 duplicateFunctionProgram :: Program
 duplicateFunctionProgram = Program "duplicate"
-  [DefFunction "dup" [] TypeNull [] False Public,
-   DefFunction "dup" [] TypeNull [] False Public]
+  [DefFunction "dup" [] TypeNull [] False Public False,
+   DefFunction "dup" [] TypeNull [] False Public False]
 
 --
 -- Control Flow Programs
@@ -1357,7 +1333,7 @@ undefinedVarProgram :: Program
 undefinedVarProgram = Program "undef-var"
   [DefFunction "f" [] TypeI32
     [StmtReturn dummyPos (Just (ExprVar dummyPos "notDefined"))]
-    False Public]
+    False Public False]
 
 --
 -- Additional programs for better coverage
@@ -1368,129 +1344,129 @@ castExprProgram :: Program
 castExprProgram = Program "cast-expr"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "x" Nothing (ExprCast dummyPos (ExprLitInt dummyPos 42) TypeF32)]
-    False Public]
+    False Public False]
 
 indexExprProgram :: Program
 indexExprProgram = Program "index-expr"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "arr" (Just (TypeArray TypeI32)) (ExprLitArray dummyPos [ExprLitInt dummyPos 1]),
      StmtExpr dummyPos (ExprIndex dummyPos (ExprVar dummyPos "arr") (ExprLitInt dummyPos 0))]
-    False Public]
+    False Public False]
 
 protectedFieldProgram :: Program
 protectedFieldProgram = Program "protected-field"
-  [DefStruct "MyStruct" [Field "x" TypeI32 Protected] []]
+  [DefStruct "MyStruct" [Field "x" TypeI32 Protected False] []]
 
 nestedStructProgram :: Program
 nestedStructProgram = Program "nested-struct"
-  [DefStruct "Inner" [Field "val" TypeI32 Public] [],
-   DefStruct "Outer" [Field "inner" (TypeCustom "Inner") Public] []]
+  [DefStruct "Inner" [Field "val" TypeI32 Public False] [],
+   DefStruct "Outer" [Field "inner" (TypeCustom "Inner") Public False] []]
 
 genericArrayProgram :: Program
 genericArrayProgram = Program "generic-array"
-  [DefFunction "id" [Parameter "x" (TypeArray TypeAny) Nothing] (TypeArray TypeAny) [] False Public]
+  [DefFunction "id" [Parameter "x" (TypeArray TypeAny) Nothing] (TypeArray TypeAny) [] False Public False]
 
 -- Error case programs for better coverage
 invalidCallProgram :: Program
 invalidCallProgram = Program "invalid-call"
   [DefFunction "main" [] TypeNull
     [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "nonexistent") [])]
-    False Public]
+    False Public False]
 
 invalidIndexProgram :: Program
 invalidIndexProgram = Program "invalid-index"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "x" Nothing (ExprLitInt dummyPos 42),
      StmtExpr dummyPos (ExprIndex dummyPos (ExprVar dummyPos "x") (ExprLitInt dummyPos 0))]
-    False Public]
+    False Public False]
 
 unaryOpErrorProgram :: Program
 unaryOpErrorProgram = Program "unary-error"
   [DefFunction "main" [] TypeNull
     [StmtExpr dummyPos (ExprUnary dummyPos Negate (ExprLitString dummyPos "bad"))]
-    False Public]
+    False Public False]
 
 assignmentErrorProgram :: Program
 assignmentErrorProgram = Program "assignment-error"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 42),
      StmtAssignment dummyPos (ExprVar dummyPos "x") (ExprLitString dummyPos "wrong type")]
-    False Public]
+    False Public False]
 
 -- Method call programs for coverage
 staticMethodCallProgram :: Program
 staticMethodCallProgram = Program "static-method"
-  [DefStruct "Point" [Field "x" TypeI32 Public, Field "y" TypeI32 Public]
+  [DefStruct "Point" [Field "x" TypeI32 Public False, Field "y" TypeI32 Public False]
     [DefFunction "new" [] (TypeCustom "Point") 
       [StmtReturn dummyPos (Just (ExprStructInit dummyPos "Point" [("x", ExprLitInt dummyPos 0), ("y", ExprLitInt dummyPos 0)]))]
-      False Public],
+      False Public False],
    DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "p" Nothing (ExprCall dummyPos (ExprAccess dummyPos (ExprVar dummyPos "Point") "new") [])]
-    False Public]
+    False Public False]
 
 instanceMethodCallProgram :: Program
 instanceMethodCallProgram = Program "instance-method"
-  [DefStruct "Counter" [Field "count" TypeI32 Public]
+  [DefStruct "Counter" [Field "count" TypeI32 Public False]
     [DefFunction "increment" [Parameter "self" (TypeCustom "Counter") Nothing] TypeNull
       [StmtAssignment dummyPos (ExprAccess dummyPos (ExprVar dummyPos "self") "count")
         (ExprBinary dummyPos Add (ExprAccess dummyPos (ExprVar dummyPos "self") "count") (ExprLitInt dummyPos 1))]
-      False Public],
+      False Public False],
    DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "c" Nothing (ExprStructInit dummyPos "Counter" [("count", ExprLitInt dummyPos 0)]),
      StmtExpr dummyPos (ExprCall dummyPos (ExprAccess dummyPos (ExprVar dummyPos "c") "increment") [])]
-    False Public]
+    False Public False]
 
 invalidCallTargetProgram :: Program
 invalidCallTargetProgram = Program "invalid-call-target"
   [DefFunction "main" [] TypeNull
     [StmtExpr dummyPos (ExprCall dummyPos (ExprLitInt dummyPos 42) [])]
-    False Public]
+    False Public False]
 
 structInitProgram :: Program
 structInitProgram = Program "struct-init"
-  [DefStruct "Vec2" [Field "x" TypeF32 Public, Field "y" TypeF32 Public] [],
+  [DefStruct "Vec2" [Field "x" TypeF32 Public False, Field "y" TypeF32 Public False] [],
    DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "v" Nothing (ExprStructInit dummyPos "Vec2" [("x", ExprLitFloat dummyPos 1.0), ("y", ExprLitFloat dummyPos 2.0)])]
-    False Public]
+    False Public False]
 
 arrayLiteralProgram :: Program
 arrayLiteralProgram = Program "array-literal"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "nums" Nothing (ExprLitArray dummyPos [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2, ExprLitInt dummyPos 3])]
-    False Public]
+    False Public False]
 
 binaryOpProgramFloat :: Program
 binaryOpProgramFloat = Program "binary-float"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "result" Nothing (ExprBinary dummyPos Mul (ExprLitFloat dummyPos 3.14) (ExprLitFloat dummyPos 2.0))]
-    False Public]
+    False Public False]
 
 comparisonOpProgram :: Program
 comparisonOpProgram = Program "comparison"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "isEqual" Nothing (ExprBinary dummyPos Eq (ExprLitInt dummyPos 5) (ExprLitInt dummyPos 5)),
      StmtVarDecl dummyPos "isGreater" Nothing (ExprBinary dummyPos Gt (ExprLitInt dummyPos 10) (ExprLitInt dummyPos 5))]
-    False Public]
+    False Public False]
 
 unaryNotProgram :: Program
 unaryNotProgram = Program "unary-not"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "flag" Nothing (ExprUnary dummyPos Not (ExprLitBool dummyPos True))]
-    False Public]
+    False Public False]
 
 forLoopProgram :: Program
 forLoopProgram = Program "for-loop"
   [DefFunction "main" [] TypeNull
     [StmtFor dummyPos "i" (Just TypeI32) (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10)
       [StmtExpr dummyPos (ExprVar dummyPos "i")]]
-    False Public]
+    False Public False]
 
 foreachLoopProgram :: Program
 foreachLoopProgram = Program "foreach-loop"
   [DefFunction "main" [] TypeNull
     [StmtForEach dummyPos "ch" (Just TypeChar) (ExprLitString dummyPos "hello")
       [StmtExpr dummyPos (ExprVar dummyPos "ch")]]
-    False Public]
+    False Public False]
 
 ifElseProgram :: Program
 ifElseProgram = Program "if-else"
@@ -1498,10 +1474,10 @@ ifElseProgram = Program "if-else"
     [StmtIf dummyPos (ExprLitBool dummyPos True)
       [StmtReturn dummyPos Nothing]
       (Just [StmtReturn dummyPos Nothing])]
-    False Public]
+    False Public False]
 
 loopProgram :: Program
 loopProgram = Program "loop"
   [DefFunction "main" [] TypeNull
     [StmtLoop dummyPos [StmtReturn dummyPos Nothing]]
-    False Public]
+    False Public False]

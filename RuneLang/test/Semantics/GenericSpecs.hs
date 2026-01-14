@@ -28,13 +28,13 @@ genericInstantiateTests :: TestTree
 genericInstantiateTests = testGroup "instantiate function"
     [ testCase "Instantiate DefFunction with TypeAny params" $
         let 
-          def = DefFunction "foo" [Parameter "x" TypeAny Nothing] TypeAny [] False Public
+          def = DefFunction "foo" [Parameter "x" TypeAny Nothing] TypeAny [] False Public False
           args = [TypeI32]
           ret = TypeI32
           expectedName = mangleName "foo" ret args
           instantiated = instantiate def args ret
         in case instantiated of
-            DefFunction n [Parameter "x" t _] r _ _ _ -> do
+            DefFunction n [Parameter "x" t _] r _ _ _ _ -> do
                 n @?= expectedName
                 t @?= TypeI32
                 r @?= TypeI32
@@ -42,13 +42,13 @@ genericInstantiateTests = testGroup "instantiate function"
 
     , testCase "Instantiate DefFunction with TypeAny params (was override)" $
         let 
-          def = DefFunction "bar" [Parameter "y" TypeAny Nothing] TypeAny [] False Public
+          def = DefFunction "bar" [Parameter "y" TypeAny Nothing] TypeAny [] False Public False
           args = [TypeF32]
           ret = TypeNull
           expectedName = mangleName "bar" ret args
           instantiated = instantiate def args ret
         in case instantiated of
-            DefFunction n [Parameter "y" t _] r _ _ _ -> do
+            DefFunction n [Parameter "y" t _] r _ _ _ _ -> do
                 n @?= expectedName
                 t @?= TypeF32
                 r @?= TypeNull
@@ -56,13 +56,13 @@ genericInstantiateTests = testGroup "instantiate function"
 
     , testCase "Instantiate preserves non-TypeAny params" $
         let 
-          def = DefFunction "baz" [Parameter "a" TypeI32 Nothing, Parameter "b" TypeAny Nothing] TypeAny [] False Public
+          def = DefFunction "baz" [Parameter "a" TypeI32 Nothing, Parameter "b" TypeAny Nothing] TypeAny [] False Public False
           args = [TypeI32, TypeString]
           ret = TypeString
           expectedName = mangleName "baz" ret args
           instantiated = instantiate def args ret
         in case instantiated of
-            DefFunction n [Parameter "a" t1 _, Parameter "b" t2 _] r _ _ _ -> do
+            DefFunction n [Parameter "a" t1 _, Parameter "b" t2 _] r _ _ _ _ -> do
                 n @?= expectedName
                 t1 @?= TypeI32
                 t2 @?= TypeString

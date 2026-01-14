@@ -37,10 +37,10 @@ findFuncTests = testGroup "findFunc"
     testCase "later definitions override earlier entries" $
       let stack = either error id (findFunc shadowProgram)
        in do
-         HM.lookup "dup" stack @?= Just ((TypeI32, [Parameter "value" TypeI32 Nothing]), Public)
-         HM.lookup "bool_dup_bool" stack @?= Just ((TypeBool, [Parameter "value" TypeBool Nothing]), Public),
+         HM.lookup "dup" stack @?= Just ((TypeI32, [Parameter "value" TypeI32 Nothing]), Public, False)
+         HM.lookup "bool_dup_bool" stack @?= Just ((TypeBool, [Parameter "value" TypeBool Nothing]), Public, False),
     testCase "struct methods are also collected" $
-      findFunc structMethodProgram @?= (Right $ HM.fromList [("show",((TypeNull,[Parameter "value" TypeAny Nothing]), Public)),("error",((TypeNull,[Parameter "msg" TypeAny Nothing]), Public)),("Vec_len",((TypeI32,[Parameter "self" (TypeCustom "Vec") Nothing]), Public))]),
+      findFunc structMethodProgram @?= (Right $ HM.fromList [("show",((TypeNull,[Parameter "value" TypeAny Nothing]), Public, False)),("error",((TypeNull,[Parameter "msg" TypeAny Nothing]), Public, False)),("Vec_len",((TypeI32,[Parameter "self" (TypeCustom "Vec") Nothing]), Public, False))]),
     testCase "creates overrides for different signatures" $
       case findFunc duplicateFunctionProgram of
         Right stack -> do
@@ -50,8 +50,8 @@ findFuncTests = testGroup "findFunc"
     testCase "accepts function definition with array of any type" $
       let stack = either error id (findFunc arrayOverrideProgram)
        in do
-         HM.lookup "show" stack @?= Just ((TypeNull, [Parameter "value" TypeAny Nothing]), Public)
-         HM.lookup "null_show_arrany" stack @?= Just ((TypeNull, [Parameter "arr" (TypeArray TypeAny) Nothing]), Public)
+         HM.lookup "show" stack @?= Just ((TypeNull, [Parameter "value" TypeAny Nothing]), Public, False)
+         HM.lookup "null_show_arrany" stack @?= Just ((TypeNull, [Parameter "arr" (TypeArray TypeAny) Nothing]), Public, False)
   ]
 
 --
@@ -61,30 +61,30 @@ findFuncTests = testGroup "findFunc"
 findDefsTests :: TestTree
 findDefsTests = testGroup "findDefs"
   [ testCase "inserts new function definition" $
-      case findDefs HM.empty (DefFunction "add" [Parameter "a" TypeI32 Nothing, Parameter "b" TypeI32 Nothing] TypeI32 [] False Public) of
+      case findDefs HM.empty (DefFunction "add" [Parameter "a" TypeI32 Nothing, Parameter "b" TypeI32 Nothing] TypeI32 [] False Public False) of
         Right stack -> do
           case HM.lookup "add" stack of
-            Just ((TypeI32, params), _) -> do
+            Just ((TypeI32, params), _, _) -> do
               length params @?= 2
               map paramType params @?= [TypeI32, TypeI32]
             _ -> assertFailure "Expected function 'add' in stack"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "rejects duplicate function with same signature" $
-      case findDefs (HM.singleton "add" ((TypeI32, [Parameter "a" TypeI32 Nothing, Parameter "b" TypeI32 Nothing]), Public)) (DefFunction "add" [Parameter "a" TypeI32 Nothing, Parameter "b" TypeI32 Nothing] TypeI32 [] False Public) of
+      case findDefs (HM.singleton "add" ((TypeI32, [Parameter "a" TypeI32 Nothing, Parameter "b" TypeI32 Nothing]), Public, False)) (DefFunction "add" [Parameter "a" TypeI32 Nothing, Parameter "b" TypeI32 Nothing] TypeI32 [] False Public False) of
         Left err -> "FuncAlreadyExist:" `isInfixOf` err @? "Expected FuncAlreadyExist error"
         Right _ -> assertFailure "Expected error for duplicate signature",
     testCase "appends override to existing function" $
-      case findDefs (HM.singleton "show" ((TypeNull, [Parameter "value" TypeAny Nothing]), Public)) (DefFunction "show" [Parameter "x" TypeI32 Nothing] TypeNull [] False Public) of
+      case findDefs (HM.singleton "show" ((TypeNull, [Parameter "value" TypeAny Nothing]), Public, False)) (DefFunction "show" [Parameter "x" TypeI32 Nothing] TypeNull [] False Public False) of
         Right stack -> do
           case HM.lookup "show" stack of
-            Just ((TypeNull, params), _) -> do
+            Just ((TypeNull, params), _, _) -> do
               length params @?= 1
               case params of
                 (p:_) -> paramType p @?= TypeAny
                 [] -> assertFailure "Expected at least one parameter"
             _ -> assertFailure "Expected function 'show' in stack"
           case HM.lookup "null_show_i32" stack of
-            Just ((TypeNull, params), _) -> do
+            Just ((TypeNull, params), _, _) -> do
               length params @?= 1
               case params of
                 (p:_) -> paramType p @?= TypeI32
@@ -95,7 +95,7 @@ findDefsTests = testGroup "findDefs"
       case findDefs HM.empty (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull]) of
         Right stack -> do
           case HM.lookup "print" stack of
-            Just ((TypeNull, params), _) -> do
+            Just ((TypeNull, params), _, _) -> do
               length params @?= 1
               case params of
                 (p:_) -> paramType p @?= TypeString
@@ -103,14 +103,14 @@ findDefsTests = testGroup "findDefs"
             _ -> assertFailure "Expected function 'print' in stack"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "processes DefSomewhere with override signature" $
-      case findDefs (HM.singleton "print" ((TypeNull, [Parameter "value" TypeAny Nothing]), Public)) (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull]) of
+      case findDefs (HM.singleton "print" ((TypeNull, [Parameter "value" TypeAny Nothing]), Public, False)) (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull]) of
         Right stack -> do
           case HM.lookup "print" stack of
-            Just ((TypeNull, params), _) -> length params @?= 1
+            Just ((TypeNull, params), _, _) -> length params @?= 1
             _ -> assertFailure "Expected function 'print' in stack"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "rejects struct with duplicate method names" $
-      case findDefs HM.empty (DefStruct "Vec" [] [DefFunction "len" [Parameter "self" TypeAny Nothing] TypeI32 [] False Public, DefFunction "len" [Parameter "self" TypeAny Nothing] TypeI32 [] False Public]) of
+      case findDefs HM.empty (DefStruct "Vec" [] [DefFunction "len" [Parameter "self" TypeAny Nothing] TypeI32 [] False Public False, DefFunction "len" [Parameter "self" TypeAny Nothing] TypeI32 [] False Public False]) of
         Left err -> "FuncAlreadyExist:" `isInfixOf` err @? "Expected FuncAlreadyExist error"
         Right _ -> assertFailure "Expected error for duplicate method in struct"
   ]
@@ -122,10 +122,10 @@ findDefsTests = testGroup "findDefs"
 transformStructMethodsTests :: TestTree
 transformStructMethodsTests = testGroup "transformStructMethods"
   [ testCase "prefixes method names with struct name" $
-      let methods = [DefFunction "len" [Parameter "self" TypeAny Nothing] TypeI32 [] False Public]
+      let methods = [DefFunction "len" [Parameter "self" TypeAny Nothing] TypeI32 [] False Public False]
           transformed = transformStructMethods "Vec" methods
        in case transformed of
-            [DefFunction name _ _ _ _ _] -> name @?= "Vec_len"
+            [DefFunction name _ _ _ _ _ _] -> name @?= "Vec_len"
             _ -> assertFailure "Expected single DefFunction in result"
   ]
 
@@ -157,21 +157,24 @@ mixedProgram =
         TypeNull
         []
         False
-        Public,
+        Public
+        False,
       DefFunction
         "foo"
         [Parameter "value" TypeI32 Nothing, Parameter "flag" TypeBool Nothing]
         TypeBool
         []
         False
-        Public,
+        Public
+        False,
       DefFunction
         "printer"
         [Parameter "val" TypeI32 Nothing]
         TypeNull
         []
         False
-        Public,
+        Public
+        False,
       DefStruct
         "Vec"
         []
@@ -188,7 +191,8 @@ shadowProgram =
         TypeI32
         []
         False
-        Public,
+        Public
+        False,
       DefFunction
         "dup"
         [Parameter "value" TypeBool Nothing]
@@ -196,6 +200,7 @@ shadowProgram =
         []
         False
         Public
+        False
     ]
 
 structMethodProgram :: Program
@@ -212,6 +217,7 @@ structMethodProgram =
             []
             False
             Public
+            False
         ]
     ]
 
@@ -219,13 +225,13 @@ duplicateFunctionProgram :: Program
 duplicateFunctionProgram =
   Program
     "duplicate-func"
-    [ DefFunction "foo" [Parameter "x" TypeI32 Nothing] TypeI32 [] False Public,
-      DefFunction "foo" [Parameter "y" TypeF32 Nothing] TypeF32 [] False Public
+    [ DefFunction "foo" [Parameter "x" TypeI32 Nothing] TypeI32 [] False Public False,
+      DefFunction "foo" [Parameter "y" TypeF32 Nothing] TypeF32 [] False Public False
     ]
 
 arrayOverrideProgram :: Program
 arrayOverrideProgram =
   Program
     "array-override"
-    [ DefFunction "show" [Parameter "arr" (TypeArray TypeAny) Nothing] TypeNull [] False Public
+    [ DefFunction "show" [Parameter "arr" (TypeArray TypeAny) Nothing] TypeNull [] False Public False
     ]

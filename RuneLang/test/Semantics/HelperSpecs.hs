@@ -16,17 +16,17 @@ import TestHelpers (dummyPos)
 
 funcStack1 :: FuncStack
 funcStack1 = HM.fromList
-  [ ("i32_foo_i32_f32", ((TypeI32, [Parameter "a" TypeI32 Nothing, Parameter "b" TypeF32 Nothing]), Public))
-  , ("i32_overloaded_i32", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public))
-  , ("f32_overloaded_f32", ((TypeF32, [Parameter "x" TypeF32 Nothing]), Public))
-  , ("i32_overloaded_i64", ((TypeI32, [Parameter "x" TypeI64 Nothing]), Public))
-  , ("any_arg", ((TypeNull, [Parameter "x" TypeAny Nothing]), Public))
-  , ("show", ((TypeNull, [Parameter "x" TypeAny Nothing]), Public))
-  , ("null_show_arrany", ((TypeNull, [Parameter "arr" (TypeArray TypeAny) Nothing]), Public))
-  , ("empty_sigs", ((TypeNull, []), Public))
-  , ("str_deep_overload_str", ((TypeString, [Parameter "x" TypeString Nothing]), Public))
-  , ("bool_deep_overload_bool", ((TypeBool, [Parameter "x" TypeBool Nothing]), Public))
-  , ("i32_deep_overload_i32", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public))
+  [ ("i32_foo_i32_f32", ((TypeI32, [Parameter "a" TypeI32 Nothing, Parameter "b" TypeF32 Nothing]), Public, False))
+  , ("i32_overloaded_i32", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public, False))
+  , ("f32_overloaded_f32", ((TypeF32, [Parameter "x" TypeF32 Nothing]), Public, False))
+  , ("i32_overloaded_i64", ((TypeI32, [Parameter "x" TypeI64 Nothing]), Public, False))
+  , ("any_arg", ((TypeNull, [Parameter "x" TypeAny Nothing]), Public, False))
+  , ("show", ((TypeNull, [Parameter "x" TypeAny Nothing]), Public, False))
+  , ("null_show_arrany", ((TypeNull, [Parameter "arr" (TypeArray TypeAny) Nothing]), Public, False))
+  , ("empty_sigs", ((TypeNull, []), Public, False))
+  , ("str_deep_overload_str", ((TypeString, [Parameter "x" TypeString Nothing]), Public, False))
+  , ("bool_deep_overload_bool", ((TypeBool, [Parameter "x" TypeBool Nothing]), Public, False))
+  , ("i32_deep_overload_i32", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public, False))
   ]
 
 stack1 :: Stack
@@ -82,16 +82,16 @@ typeCompatibleTests = testGroup "isTypeCompatible additional branches"
 specificityTests :: TestTree
 specificityTests = testGroup "Signature specificity"
   [ testCase "picks more specific signature (concrete over Any)" $ 
-      let fs = HM.fromList [("i64_f_i32", ((TypeI64, [Parameter "x" TypeI32 Nothing]), Public)), ("i32_f_any", ((TypeI32, [Parameter "x" TypeAny Nothing]), Public))]
+      let fs = HM.fromList [("i64_f_i32", ((TypeI64, [Parameter "x" TypeI32 Nothing]), Public, False)), ("i32_f_any", ((TypeI32, [Parameter "x" TypeAny Nothing]), Public, False))]
       in selectSignature fs "f" [TypeI32] @?= Just TypeI64
   , testCase "picks more specific signature (concrete over Any) - branch 2" $ 
-      let fs = HM.fromList [("i32_f_any", ((TypeI32, [Parameter "x" TypeAny Nothing]), Public)), ("i64_f_i32", ((TypeI64, [Parameter "x" TypeI32 Nothing]), Public))]
+      let fs = HM.fromList [("i32_f_any", ((TypeI32, [Parameter "x" TypeAny Nothing]), Public, False)), ("i64_f_i32", ((TypeI64, [Parameter "x" TypeI32 Nothing]), Public, False))]
       in selectSignature fs "f" [TypeI32] @?= Just TypeI64
   , testCase "picks more specific signature (concrete array over Any array)" $ 
-      let fs = HM.fromList [("i32_f_arrany", ((TypeI32, [Parameter "x" (TypeArray TypeAny) Nothing]), Public)), ("i64_f_arri32", ((TypeI64, [Parameter "x" (TypeArray TypeI32) Nothing]), Public))]
+      let fs = HM.fromList [("i32_f_arrany", ((TypeI32, [Parameter "x" (TypeArray TypeAny) Nothing]), Public, False)), ("i64_f_arri32", ((TypeI64, [Parameter "x" (TypeArray TypeI32) Nothing]), Public, False))]
       in selectSignature fs "f" [TypeArray TypeI32] @?= Just TypeI64
   , testCase "handles nested arrays specificity" $ 
-      let fs = HM.fromList [("i32_f_arrarrany", ((TypeI32, [Parameter "x" (TypeArray (TypeArray TypeAny)) Nothing]), Public)), ("i64_f_arrarri32", ((TypeI64, [Parameter "x" (TypeArray (TypeArray TypeI32)) Nothing]), Public))]
+      let fs = HM.fromList [("i32_f_arrarrany", ((TypeI32, [Parameter "x" (TypeArray (TypeArray TypeAny)) Nothing]), Public, False)), ("i64_f_arrarri32", ((TypeI64, [Parameter "x" (TypeArray (TypeArray TypeI32)) Nothing]), Public, False))]
       in selectSignature fs "f" [TypeArray (TypeArray TypeI32)] @?= Just TypeI64
   ]
 

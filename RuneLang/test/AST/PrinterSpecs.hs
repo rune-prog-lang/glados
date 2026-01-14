@@ -196,17 +196,17 @@ statementPrinterTests =
 topLevelPrinterTests :: TestTree
 topLevelPrinterTests = testGroup "TopLevel Printer Tests"
   [ testCase "Function" $
-      let def = DefFunction "f" [] TypeNull [] False Public
+      let def = DefFunction "f" [] TypeNull [] False Public False
       in assertEqual "Function" "public DefFunction f\n  Parameters:\n  ReturnType: null\n  Body:" (runPrinter $ visitTopLevel def)
   , testCase "Struct" $
-      let def = DefStruct "S" [Field "x" TypeI32 Public] []
+      let def = DefStruct "S" [Field "x" TypeI32 Public False] []
       in assertEqual "Struct" "DefStruct S\n  Fields:\n    public x: i32\n  Methods:" (runPrinter $ visitTopLevel def)
   
   , testCase "visitFunction (Ignore other types)" $
       assertEqual "Ignore Struct" "" (runPrinter $ visitFunction (DefStruct "S" [] []))
   
   , testCase "visitStruct (Ignore other types)" $
-      assertEqual "Ignore Function" "" (runPrinter $ visitStruct (DefFunction "f" [] TypeNull [] False Public))
+      assertEqual "Ignore Function" "" (runPrinter $ visitStruct (DefFunction "f" [] TypeNull [] False Public False))
   ]
 
 programPrinterTests :: TestTree
@@ -214,6 +214,6 @@ programPrinterTests = testGroup "Program Printer Tests"
   [ testCase "Empty" $
       assertEqual "Empty" "Program: p" (prettyPrint (Program "p" []))
   , testCase "With Content" $
-      let def = DefFunction "f" [] TypeNull [] False Public
+      let def = DefFunction "f" [] TypeNull [] False Public False
       in assertEqual "Content" "Program: p\n  public DefFunction f\n    Parameters:\n    ReturnType: null\n    Body:" (prettyPrint (Program "p" [def]))
   ]

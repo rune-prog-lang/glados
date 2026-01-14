@@ -112,11 +112,17 @@ exprType _ (ExprLitBool _ _)        = Right TypeBool
 exprType _ (ExprStructInit _ st _)  = Right $ TypeCustom st
 exprType _ (ExprLitNull _)          = Right TypeNull
 exprType s (ExprAccess pos target field) = do
-  targetType <- exprType s target
   let ss = case s of (_, _, ss') -> ss'
-  case getFieldType pos ss targetType field of
-    Right t -> Right t
-    Left err -> Left (formatSemanticError err)
+  case target of
+    ExprVar _ sName | HM.member sName ss ->
+      case getFieldType pos ss (TypeCustom sName) field of
+        Right t -> Right t
+        Left err -> Left (formatSemanticError err)
+    _ -> do
+      targetType <- exprType s target
+      case getFieldType pos ss targetType field of
+        Right t -> Right t
+        Left err -> Left (formatSemanticError err)
 
 exprType _ (ExprCast _ _ t)         = Right t
 
