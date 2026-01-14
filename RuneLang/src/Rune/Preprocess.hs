@@ -44,11 +44,5 @@ preprocessUseStatements _ content = do
     strip :: String -> String
     strip = dropWhile isSpace . dropWhileEnd isSpace
     
-    dropWhileEnd :: (a -> Bool) -> [a] -> [a]
-    dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x:xs) []
-    
-    isSpace :: Char -> Bool
-    isSpace c = c `elem` " \t\n\r"
-    
     safeRead :: FilePath -> IO (Either String String)
     safeRead fp = (try (readFile fp) :: IO (Either IOException String)) <&> first (("Failed to read input file: " <>) . show)
