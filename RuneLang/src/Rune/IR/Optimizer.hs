@@ -21,6 +21,16 @@ module Rune.IR.Optimizer
     operandType,
     OptState(..),
     OptM,
+    getReachable,
+    singleInstrOpt,
+    countUses,
+    getOperands,
+    eliminateDeadCode,
+    peepholeOptimize,
+    tryPeephole,
+    jumpThreading,
+    canThreadJump,
+    threadJump,
 #endif
   )
 where
