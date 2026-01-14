@@ -122,7 +122,10 @@ visitSomewhere (DefSomewhere sigs) = do
       emit $ (if isOverride then "override " else "") <> name <> "("
       emit $ unwords (map showType paramTypes)
       emit $ ") -> " <> showType retType
-    emitSomewhereDecl (DeclDefs def) = visitTopLevel def
+    emitSomewhereDecl (DeclDefs def) = do
+      newLine
+      emit "Full Definition: "
+      visitTopLevel def
     emitSomewhereDecl _ = return ()  -- Handle other SomewhereDecl cases
 visitSomewhere _ = return ()
 
