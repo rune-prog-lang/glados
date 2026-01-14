@@ -189,20 +189,22 @@ processWithPreprocessing fp content = do
 preprocessUseStatements :: FilePath -> String -> IO (Either String String)
 -- preprocessUseStatements basePath content = do
 preprocessUseStatements _ content = do
-  -- Simple preprocessing: scan for "use filename.sw;" patterns and replace with file contents
-  -- This is a basic implementation - a full preprocessor would handle this more robustly
-  processLines (lines content) []
+  -- Preprocessing with duplicate prevention: track included files and skip duplicates
+  processLines (lines content) [] []
   where
-    processLines :: [String] -> [String] -> IO (Either String String)
-    processLines [] acc = pure $ Right $ unlines (reverse acc)
-    processLines (line:rest) acc = 
+    processLines :: [String] -> [String] -> [String] -> IO (Either String String)
+    processLines [] acc _ = pure $ Right $ unlines (reverse acc)
+    processLines (line:rest) acc includedFiles = 
       case parseUseLine (strip line) of
-        Just fileName -> do
-          result <- safeRead fileName
-          case result of
-            Left err -> pure $ Left $ "Failed to read " ++ fileName ++ ": " ++ err
-            Right fileContent -> processLines rest (reverse (lines fileContent) ++ acc)
-        Nothing -> processLines rest (line : acc)
+        Just fileName -> 
+          if fileName `elem` includedFiles
+            then processLines rest acc includedFiles  -- Skip duplicate, don't include the use line
+            else do
+              result <- safeRead fileName
+              case result of
+                Left err -> pure $ Left $ "Failed to read " ++ fileName ++ ": " ++ err
+                Right fileContent -> processLines rest (reverse (lines fileContent) ++ acc) (fileName : includedFiles)
+        Nothing -> processLines rest (line : acc) includedFiles
     
     parseUseLine :: String -> Maybe String
     parseUseLine line
