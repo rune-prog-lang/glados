@@ -178,7 +178,8 @@ data Field = Field {fieldName :: String, fieldType :: Type}
 data FunctionSignature = FunctionSignature
   { sigName :: String,
     sigParams :: [Type],
-    sigReturnType :: Type
+    sigReturnType :: Type,
+    sigIsExtern :: Bool
   }
   deriving (Show, Eq)
 
