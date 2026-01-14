@@ -3,10 +3,23 @@
 
 #if defined(TESTING_EXPORT)
 module Rune.IR.Generator.Expression.Call
-  ( genCall
-  , prepareArg
-  , genArgWithContext
-  )
+( genCall,
+  selectCallStrategy,
+  shouldUnroll,
+  maxNonVariadicParams,
+  matchesBaseName,
+  extractBaseName,
+  genUnrolledCall,
+  genOverloadedCall,
+  findBestOverload,
+  accumulateResults,
+  genStandardCall,
+  genArgWithContext,
+  prepareArg,
+  prepareParamArg,
+  FunctionCallInfo,
+  CallStrategy (..),
+)
 where
 #else
 module Rune.IR.Generator.Expression.Call (genCall) where
@@ -45,6 +58,8 @@ type FunctionCallInfo = (String, (Type, [Parameter]))
 data CallStrategy
   = StandardCall
   | VariadicUnroll [FunctionCallInfo] FunctionCallInfo
+
+  deriving (Show, Eq)
 
 --
 -- public
