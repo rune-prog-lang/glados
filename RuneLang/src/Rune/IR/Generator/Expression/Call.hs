@@ -123,6 +123,7 @@ extractBaseName name =
     (_, "") -> name
     (_, rest) ->
       case break (== '_') (drop 1 rest) of
+        ("", "") -> name
         (baseName, _) -> baseName
 
 --
