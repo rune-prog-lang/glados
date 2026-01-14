@@ -29,7 +29,6 @@ import Rune.AST.Nodes
   , Parameter (..)
   , TopLevelDef (..)
   , Type (..)
-  , SomewhereDecl (..)
   )
 import Rune.IR.Generator.GenStatement (genStatement)
 import Rune.IR.IRHelpers (astTypeToIRType, registerVar)
@@ -51,7 +50,7 @@ genTopLevel :: TopLevelDef -> IRGen [IRTopLevel]
 genTopLevel def@DefFunction {} = genFunction def
 genTopLevel ovr@DefOverride {} = genOverride ovr
 genTopLevel str@DefStruct {} = genStruct str
-genTopLevel swh@DefSomewhere {} = genSomewhere swh
+genTopLevel (DefSomewhere _) = pure []  -- Signatures only, no IR generation needed
 
 --
 -- private
@@ -102,15 +101,6 @@ genStructMethod _ (DefFunction methName params retType body _) =
 genStructMethod _ (DefOverride methName params retType body _) =
   genFunction (DefFunction methName params retType body False)
 genStructMethod _ _ = pure []
-
--- | include in the generation everything in the somewhere
-genSomewhere :: TopLevelDef -> IRGen [IRTopLevel]
-genSomewhere (DefSomewhere decls) = do
-  results <- mapM genSomewhereDecl decls
-  pure $ concat results
-  where
-    genSomewhereDecl (DeclDefs def) = genTopLevel def
-    genSomewhereDecl _ = pure []  -- Other SomewhereDecl types don't generate IR
 
 --
 -- helpers
