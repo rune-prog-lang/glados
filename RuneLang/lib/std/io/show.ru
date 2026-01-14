@@ -1,7 +1,7 @@
 somewhere
 {
-    def printf(format: string, args: ...any) -> i32;
-    def putchar(c: char) -> i32;
+    extern def printf(format: string, args: ...any) -> i32;
+    extern def putchar(c: char) -> i32;
 }
 
 /**
