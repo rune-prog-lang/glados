@@ -19,6 +19,7 @@ data TokenKind
   | KwNext
   | KwSomewhere
   | KwExport
+  | KwExtern
   | KwAs
   | KwSizeof
   | KwPublic
@@ -87,6 +88,7 @@ data TokenKind
   | Semicolon -- ;
   | Colon -- :
   | Dot -- .
+  | Elipsis -- ...
   | LBracket -- [
   | RBracket -- ]
   | EOF

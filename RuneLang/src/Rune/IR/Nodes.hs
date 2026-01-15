@@ -38,7 +38,8 @@ data GenState = GenState
     gsCalledFuncs :: Set String,
     gsStringMap :: Map String String,
     gsFloatMap :: Map (Double, IRType) String,
-    gsFuncStack :: FuncStack
+    gsFuncStack :: FuncStack,
+    gsVariadicPacks :: Map String [IROperand]
   }
   deriving (Show, Eq)
 
@@ -63,8 +64,10 @@ data IRType
   | IRBool
   | IRNull
   | IRPtr IRType
+  | IRRef IRType
   | IRStruct String
   | IRArray IRType Int
+  | IRVariadic IRType
   deriving (Show, Eq, Ord)
 
 data IRBinaryOp
