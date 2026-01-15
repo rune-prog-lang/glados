@@ -104,7 +104,7 @@ visitSomewhere (DefSomewhere sigs) = do
   emitBlock "Signatures:" (mapM_ emitSomewhereDecl sigs)
   dedent
   where
-    emitSomewhereDecl (DeclFuncSig (FunctionSignature { sigFuncName = name, sigParams = paramTypes, sigReturnType = retType })) = do
+    emitSomewhereDecl (DeclFuncSig (FunctionSignature { sigFuncName = name, sigParams = paramTypes, sigReturnType = retType, sigIsExtern = isExtern })) = do
       newLine
       when isExtern $ emit "extern "
       emit $ name <> "("

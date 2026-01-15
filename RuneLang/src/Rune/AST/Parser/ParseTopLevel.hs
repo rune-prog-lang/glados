@@ -245,7 +245,7 @@ parseFunctionSignature = do
   paramTypes <- between (expect T.LParen) (expect T.RParen) (sepBy parseParamTypeInSignature (expect T.Comma))
   retType <- parseReturnType
   _ <- expect T.Semicolon
-  pure $ FunctionSignature { sigFuncName = name, sigParams = paramTypes, sigReturnType = retType }
+  pure $ FunctionSignature { sigFuncName = name, sigParams = paramTypes, sigReturnType = retType, sigIsExtern = isExtern }
 
 parseParamTypeInSignature :: Parser Type
 parseParamTypeInSignature =

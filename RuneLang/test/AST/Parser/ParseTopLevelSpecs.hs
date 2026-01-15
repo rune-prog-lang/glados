@@ -156,15 +156,15 @@ testParseFunctionSignatures = testGroup "parseFunctionSignatures"
   [ testCase "isEnd True"  $ assertS "empty" parseFunctionSignatures [tok T.RBrace] []
   , testCase "isEnd False" $ assertS "list"  parseFunctionSignatures 
       [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon, tok T.RBrace] 
-      [FunctionSignature { sigFuncName = "f", sigParams = [], sigReturnType = TypeNull }]
+      [FunctionSignature { sigFuncName = "f", sigParams = [], sigReturnType = TypeNull, sigIsExtern = False }]
   ]
 
 testParseFunctionSignature :: TestTree
 testParseFunctionSignature = testGroup "parseFunctionSignature"
-  [ testCase "def" $ assertS "def" parseFunctionSignature [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] (FunctionSignature { sigFuncName = "f", sigParams = [], sigReturnType = TypeNull })
+  [ testCase "def" $ assertS "def" parseFunctionSignature [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] (FunctionSignature { sigFuncName = "f", sigParams = [], sigReturnType = TypeNull, sigIsExtern = False })
   , testCase "Comma coverage" $ assertS "params" parseFunctionSignature 
       [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.TypeI32, tok T.Comma, tok T.TypeF32, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] 
-      (FunctionSignature { sigFuncName = "f", sigParams = [TypeI32, TypeF32], sigReturnType = TypeNull })
+      (FunctionSignature { sigFuncName = "f", sigParams = [TypeI32, TypeF32], sigReturnType = TypeNull, sigIsExtern = False })
   ]
 
 testParseParamTypeInSignature :: TestTree
@@ -182,7 +182,7 @@ testParseSomewhereDecl = testGroup "parseSomewhereDecl"
   , testCase "parse function signature" $
       assertS "function signature" parseSomewhereDecl
       [tok T.KwDef, tok (T.Identifier "test"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeI32, tok T.Semicolon]
-      (DeclFuncSig (FunctionSignature { sigFuncName = "test", sigParams = [], sigReturnType = TypeI32 }))
+      (DeclFuncSig (FunctionSignature { sigFuncName = "test", sigParams = [], sigReturnType = TypeI32, sigIsExtern = False }))
   , testCase "parse struct definition" $
       assertS "struct definition" parseSomewhereDecl
       [tok T.KwStruct, tok (T.Identifier "Test"), tok T.LBrace, tok T.RBrace]
@@ -197,10 +197,10 @@ testParseSomewhereDecl = testGroup "parseSomewhereDecl"
 testStructureSignature :: TestTree
 testStructureSignature = testGroup "StructureSignature"
   [ testCase "create StructureSignature" $ do
-      let sig = StructureSignature { sigStructName = "TestStruct", sigAttributes = [("field1", TypeI32), ("field2", TypeF32)], sigMethods = [FunctionSignature { sigFuncName = "method1", sigParams = [TypeI32], sigReturnType = TypeNull }] }
+      let sig = StructureSignature { sigStructName = "TestStruct", sigAttributes = [("field1", TypeI32), ("field2", TypeF32)], sigMethods = [FunctionSignature { sigFuncName = "method1", sigParams = [TypeI32], sigReturnType = TypeNull, sigIsExtern = False }] }
       assertEqual "name should match" "TestStruct" (sigStructName sig)
       assertEqual "attributes should match" [("field1", TypeI32), ("field2", TypeF32)] (sigAttributes sig) 
-      assertEqual "methods should match" [FunctionSignature { sigFuncName = "method1", sigParams = [TypeI32], sigReturnType = TypeNull }] (sigMethods sig)
+      assertEqual "methods should match" [FunctionSignature { sigFuncName = "method1", sigParams = [TypeI32], sigReturnType = TypeNull, sigIsExtern = False }] (sigMethods sig)
   , testCase "empty StructureSignature" $ do
       let sig = StructureSignature { sigStructName = "Empty", sigAttributes = [], sigMethods = [] }
       assertEqual "name should match" "Empty" (sigStructName sig)
@@ -213,7 +213,7 @@ testStructureSignature = testGroup "StructureSignature"
       assertEqual "identical signatures should be equal" sig1 sig2
       assertBool "different signatures should not be equal" (sig1 /= sig3)
   , testCase "StructureSignature show instance" $ do
-      let sig = StructureSignature { sigStructName = "ShowTest", sigAttributes = [("a", TypeI32)], sigMethods = [FunctionSignature { sigFuncName = "f", sigParams = [], sigReturnType = TypeNull }] }
+      let sig = StructureSignature { sigStructName = "ShowTest", sigAttributes = [("a", TypeI32)], sigMethods = [FunctionSignature { sigFuncName = "f", sigParams = [], sigReturnType = TypeNull, sigIsExtern = False }] }
       let shown = show sig
       assertBool "should contain struct name" ("ShowTest" `isInfixOf` shown)
       assertBool "should contain field info" ("i32" `isInfixOf` shown)
