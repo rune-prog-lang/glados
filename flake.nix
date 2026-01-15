@@ -24,6 +24,7 @@
            gcc
            gnumake
            valgrind
+           python3
          ];
          shellHook = ''
            export PKG_CONFIG_PATH=${pkgs.lib.makeLibraryPath [
