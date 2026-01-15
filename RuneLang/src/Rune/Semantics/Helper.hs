@@ -229,8 +229,14 @@ exprType _ (ExprStructInit _ s _)  = Right $ TypeCustom s
 exprType _ (ExprCast _ _ t)        = Right t
 exprType _ (ExprSizeof _ _)        = Right TypeU64
 
-exprType s (ExprUnary _ _ e) =
-  exprType s e
+exprType s (ExprUnary _ op e) = case op of
+  Deref -> exprType s e >>= \case
+    TypePtr t -> Right t
+    t -> Left $ "Cannot dereference non-pointer type: " ++ show t
+  Reference -> do
+    t <- exprType s e
+    Right $ TypePtr t
+  _ -> exprType s e
 
 exprType s (ExprBinary _ op a b) = do
   ta <- exprType s a
