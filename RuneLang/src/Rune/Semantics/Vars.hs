@@ -128,14 +128,8 @@ mangleFuncStack fs = fs
 
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
 verifTopLevel (DefFunction name params r_t body isExport) = do
-  fs <- gets stFuncs
   let paramTypes = map paramType params
-      finalName = case HM.lookup name fs of
-        Just (exRet, exArgs) ->
-            if exRet == r_t && map paramType exArgs == paramTypes
-            then name
-            else mangleName name r_t paramTypes
-        Nothing -> name
+      finalName = if name == "main" then name else mangleName name r_t paramTypes
 
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body' <- verifScope vs body
