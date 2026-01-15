@@ -38,7 +38,9 @@ keywordMap =
     (KwPublic, "public"),
     (KwProtected, "protected"),
     (KwPrivate, "private"),
-    (KwStatic, "static")
+    (KwStatic, "static"),
+    (KwAbstract, "abstract"),
+    (KwExtends, "extends")
   ]
 
 keywordParsers :: [Parser (Int -> Int -> Token)]

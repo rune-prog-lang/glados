@@ -17,7 +17,7 @@ abstract struct Shape
         Shape.count
     }
 
-    public abstract def get_area(self) -> f32;
+    public abstract def get_area(self) -> f32 {}
 
     public def move(self, dx: f32, dy: f32) -> null
     {

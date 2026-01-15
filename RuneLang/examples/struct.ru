@@ -5,7 +5,7 @@ somewhere
     def show(v: i32) -> i32;
 }
 
-struct Vec2f
+abstract struct Vec2f
 {
     private x: f32 = 0.0;
     private y: f32 = 1.0;
@@ -68,10 +68,4 @@ def show(prefix: string, v: Vec2f) -> null
 
 def main() -> null
 {
-    a: i32 = 10;
-    show(a);
-    a: i32 = 11;
-    show(a);
-
-    show(Vec2f.count);
 }

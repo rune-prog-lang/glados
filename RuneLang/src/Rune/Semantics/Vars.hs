@@ -129,13 +129,13 @@ mkErrorReturn (SourcePos file line col) expected got =
   formatSemanticError $ SemanticError file line col expected got ["function body", "control flow"]
 
 isGeneric :: TopLevelDef -> Bool
-isGeneric (DefFunction _ params ret _ _ _ _) = hasAny ret || any (hasAny . paramType) params
+isGeneric (DefFunction _ params ret _ _ _ _ _) = hasAny ret || any (hasAny . paramType) params
 isGeneric _ = False
 
 -- | Apply type inference to function parameters from default values
 applyInferenceToParams :: TopLevelDef -> TopLevelDef
-applyInferenceToParams (DefFunction name params ret body isExport visibility isStatic) =
-  DefFunction name (map inferParamType params) ret body isExport visibility isStatic
+applyInferenceToParams (DefFunction name params ret body isExport visibility isStatic isAbstract) =
+  DefFunction name (map inferParamType params) ret body isExport visibility isStatic isAbstract
 applyInferenceToParams def = def
 
 
@@ -146,8 +146,8 @@ hasAny _ = False
 
 
 getDefName :: TopLevelDef -> String
-getDefName (DefFunction n _ _ _ _ _ _) = n
-getDefName (DefStruct n _ _) = n
+getDefName (DefFunction n _ _ _ _ _ _ _) = n
+getDefName (DefStruct n _ _ _) = n
 getDefName (DefSomewhere {}) = ""
 
 mangleFuncStack :: FuncStack -> FuncStack
@@ -168,17 +168,17 @@ resolveFinalName baseName retType paramTypes = do
     Nothing -> baseName
 
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
-verifTopLevel (DefFunction name params r_t body isExport visibility isStatic) = do
+verifTopLevel (DefFunction name params r_t body isExport visibility isStatic isAbstract) = do
   let paramTypes = map paramType params
   finalName <- resolveFinalName name r_t paramTypes
 
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body' <- verifScope vs body
-  pure $ DefFunction finalName params r_t body' isExport visibility isStatic
+  pure $ DefFunction finalName params r_t body' isExport visibility isStatic isAbstract
 
-verifTopLevel (DefStruct name fields methods) = do
+verifTopLevel (DefStruct name fields methods isAbstract) = do
   methods' <- mapM (verifMethod name) methods
-  pure $ DefStruct name fields methods'
+  pure $ DefStruct name fields methods' isAbstract
 
 verifTopLevel def = pure def -- Somewhere
 
@@ -422,7 +422,7 @@ verifExprWithContext hint vs (ExprStructInit pos name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
   ss <- gets stStructs
   case HM.lookup name ss of
-    Just (DefStruct _ sFields _) -> do
+    Just (DefStruct _ sFields _ _) -> do
       let providedFieldNames = map fst fields'
           missingFields = [(fieldName f, fieldDefault f) | f <- sFields, not (fieldIsStatic f), fieldName f `notElem` providedFieldNames]
           defaultFields = [(fname, expr) | (fname, Just expr) <- missingFields]
@@ -482,7 +482,7 @@ verifInstanceCall cPos vPos target method args' hint vs = do
   pure $ ExprCall cPos callExpr allArgs
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
-verifMethod sName (DefFunction methodName params retType body isExport visibility isStatic) = do
+verifMethod sName (DefFunction methodName params retType body isExport visibility isStatic isAbstract) = do
   unless (isStaticMethod methodName isStatic) $
     case params of
       [] -> lift $ Left $ "Instance method '" ++ methodName ++ "' must have at least one parameter ('self')"
@@ -498,7 +498,7 @@ verifMethod sName (DefFunction methodName params retType body isExport visibilit
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
   body' <- verifScope vs body
   modify $ \st -> st {stCurrentStruct = Nothing}
-  pure $ DefFunction finalName params' retType body' isExport visibility isStatic
+  pure $ DefFunction finalName params' retType body' isExport visibility isStatic isAbstract
 verifMethod _ def = pure def
 
 --
@@ -646,7 +646,7 @@ lookupStructFields ss sName file line col =
       (printf "struct '%s'" sName)
       (printf "struct '%s' not found" sName)
       ["field access"]
-    Just (DefStruct _ fields _) -> pure fields
+    Just (DefStruct _ fields _ _) -> pure fields
     Just _ -> lift $ Left $ formatSemanticError $ SemanticError file line col
       (printf "struct '%s'" sName)
       (printf "'%s' is not a struct" sName)

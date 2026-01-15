@@ -37,7 +37,7 @@ findStruct (Program _ defs) =
     structs = [d | d@DefStruct{} <- defs]
 
     addStruct :: StructStack -> TopLevelDef -> Either String StructStack
-    addStruct acc def@(DefStruct name fields methods)
+    addStruct acc def@(DefStruct name fields methods isAbstract)
       | HM.member name acc =
           Left $ mkError pos
             (printf "struct '%s' to be unique" name)
@@ -46,7 +46,7 @@ findStruct (Program _ defs) =
           checkedFields  <- checkFields name pos acc fields
           checkedMethods <- checkMethods name pos methods
           Right $ HM.insert name
-            (DefStruct name checkedFields checkedMethods) acc
+            (DefStruct name checkedFields checkedMethods isAbstract) acc
       where
         pos :: SourcePos
         pos = getStructPos def

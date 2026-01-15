@@ -26,6 +26,8 @@ data TokenKind
   | KwProtected
   | KwPrivate
   | KwStatic
+  | KwAbstract
+  | KwExtends
   -- | primitive types
   | TypeI8
   | TypeI16

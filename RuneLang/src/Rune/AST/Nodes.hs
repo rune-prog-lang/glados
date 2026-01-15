@@ -134,7 +134,8 @@ data TopLevelDef
         funcBody :: Block,
         funcIsExport :: Bool,
         funcVisibility :: Visibility,
-        funcIsStatic :: Bool
+        funcIsStatic :: Bool,
+        funcIsAbstract :: Bool
       }
   | -- | struct definition
     -- struct Vec2f
@@ -151,7 +152,8 @@ data TopLevelDef
     DefStruct
       { structName :: String,
         structFields :: [Field],
-        structMethods :: [TopLevelDef]
+        structMethods :: [TopLevelDef],
+        structIsAbstract :: Bool
       }
   | -- | somewhere block (forward declarations)
     -- somewhere

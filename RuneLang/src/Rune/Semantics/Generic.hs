@@ -18,10 +18,10 @@ import Rune.Semantics.Helper (mangleName)
 --
 
 instantiate :: TopLevelDef -> [Type] -> Type -> TopLevelDef
-instantiate (DefFunction name params _ body isExport visibility isStatic) argTypes retType =
+instantiate (DefFunction name params _ body isExport visibility isStatic isAbstract) argTypes retType =
     let mangled = mangleName name retType argTypes
         newParams = zipWith replaceParam params argTypes
-    in DefFunction mangled newParams retType body isExport visibility isStatic
+    in DefFunction mangled newParams retType body isExport visibility isStatic isAbstract
 instantiate def _ _ = def
 
 --

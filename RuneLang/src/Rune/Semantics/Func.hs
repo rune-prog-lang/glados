@@ -42,7 +42,7 @@ findFunc (Program _ defs) = foldM findDefs HM.empty defs
 
 findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 
-findDefs s (DefFunction name params rType _ _ visibility isStatic) =
+findDefs s (DefFunction name params rType _ _ visibility isStatic _) =
     case HM.lookup name s of
         Nothing       -> Right $ HM.insert name sig s
         Just (existing, _, _) -> handleConflict existing
@@ -72,7 +72,7 @@ findDefs s (DefSomewhere sigs) = foldM addSig s sigs
                       then mangleFuncName name rType pTypes 
                       else name
 
-findDefs s (DefStruct name _ methods) = foldM findDefs s $ transformStructMethods name methods
+findDefs s (DefStruct name _ methods _) = foldM findDefs s $ transformStructMethods name methods
 
 -- | Infer parameter type from default value if type is TypeAny
 inferParamType :: Parameter -> Parameter
@@ -102,12 +102,12 @@ inferTypeFromExpr _ = TypeAny  -- For complex expressions, keep TypeAny
 transformStructMethods :: String -> [TopLevelDef] -> [TopLevelDef]
 transformStructMethods sName = map transform
   where
-    transform (DefFunction methodName params rType body isExport visibility isStatic) =
+    transform (DefFunction methodName params rType body isExport visibility isStatic isAbstract) =
       let baseName = sName ++ "_" ++ methodName
           -- paramsInferred = map inferParamType params
           -- params' = if isStaticMethod methodName then paramsInferred else fixSelfType sName paramsInferred
           params' = if isStatic then params else fixSelfType sName params
-      in DefFunction baseName params' rType body isExport visibility isStatic
+      in DefFunction baseName params' rType body isExport visibility isStatic isAbstract
     transform other = other
 
 mangleFuncName :: String -> Type -> [Type] -> String
