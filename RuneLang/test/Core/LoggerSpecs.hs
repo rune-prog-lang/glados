@@ -7,6 +7,7 @@ import Test.Tasty.HUnit
 import Logger
 import System.IO.Silently (capture_)
 import Control.Exception (try, SomeException)
+import System.Exit (ExitCode(ExitFailure))
 import Data.List (isInfixOf)
 
 --
@@ -40,8 +41,9 @@ testLogErrorMessage = do
 
 testLogErrorExitCode :: IO ()
 testLogErrorExitCode = do
-  result <- try (logError "Test exit") :: IO (Either SomeException ())
+  result <- try (logError "Test exit") :: IO (Either ExitCode ())
   case result of
-    Left ex -> show ex @?= "ExitFailure 84"
+    Left (ExitFailure code) -> code @?= 84
+    Left _ -> assertFailure "Expected ExitFailure, got different exit code"
     Right _ -> assertFailure "Expected exitWith exception"
 
