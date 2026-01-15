@@ -93,9 +93,9 @@ verifVars (Program n defs) = do
 --
 -- private
 --
-mkErrorReturn :: SourcePos -> String -> String -> String
-mkErrorReturn (SourcePos file line col) expected got =
-  formatSemanticError $ SemanticError file line col expected got ["function body", "control flow"]
+mkErrorReturn :: SourcePos -> String -> String -> [String] -> String
+mkErrorReturn (SourcePos file line col) expected got context =
+  formatSemanticError $ SemanticError file line col expected got context
 
 isGeneric :: TopLevelDef -> Bool
 isGeneric (DefFunction _ params ret _ _) = hasAny ret || any (hasAny . paramType) params
@@ -122,6 +122,25 @@ getDefName (DefSomewhere {}) = ""
 mangleFuncStack :: FuncStack -> FuncStack
 mangleFuncStack fs = fs
 
+hasExplicitReturn :: Block -> Bool
+hasExplicitReturn [] = False
+hasExplicitReturn (StmtReturn _ (Just _) : _) = True
+hasExplicitReturn (_ : stmts) = hasExplicitReturn stmts
+
+checkFnReturn :: SourcePos -> String -> Type -> Block -> SemM ()
+checkFnReturn _ _ TypeNull _ = pure ()
+checkFnReturn pos fnName _ [] = 
+  lift $ Left $ mkErrorReturn pos
+    (printf "explicit return statement of type %s" (show TypeNull))
+    (printf "no return statement in function '%s'" fnName)
+    ["function body", "return statement"]
+checkFnReturn pos fnName retType body =
+  unless (hasExplicitReturn body) $
+    lift $ Left $ mkErrorReturn pos
+      (printf "explicit return statement of type %s" (show retType))
+      (printf "no return statement in function '%s'" fnName)
+      ["function body", "return statement"]
+
 --
 -- verif
 --
@@ -136,7 +155,11 @@ verifTopLevel (DefFunction name params r_t body isExport) = do
             then name
             else mangleName name r_t paramTypes
         Nothing -> name
+      pos = case body of
+              (stmt:_) -> getStmtPos stmt
+              [] -> SourcePos "<unknownPos>" 0 0
 
+  checkFnReturn pos name r_t body
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body' <- verifScope vs body
   pure $ DefFunction finalName params r_t body' isExport
@@ -176,12 +199,12 @@ verifScope vs (StmtExpr pos e : stmts) = do
 verifScope vs (StmtReturn pos (Just e) : stmts) = do
   e'      <- verifExpr vs e
   if not (null stmts)
-    then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts))
+    then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts)) ["function body", "control flow"]
     else pure [StmtReturn pos (Just e')]
 
 verifScope _ (StmtReturn pos Nothing : stmts) = do
   if not (null stmts)
-    then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts))
+    then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts)) ["function body", "control flow"]
     else pure [StmtReturn pos (Just (ExprLitNull pos))]
 
 verifScope vs (StmtIf pos cond a (Just b) : stmts) = do
@@ -440,8 +463,12 @@ verifMethod sName (DefFunction methodName params retType body isExport) = do
             then baseName
             else mangleName baseName retType paramTypes
         Nothing -> baseName
+      pos = case body of
+              (stmt:_) -> getStmtPos stmt
+              [] -> SourcePos "<unknownPos>" 0 0
 
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
+  checkFnReturn pos baseName retType body
   body' <- verifScope vs body
   pure $ DefFunction finalName params' retType body' isExport
 

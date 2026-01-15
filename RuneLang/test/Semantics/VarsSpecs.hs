@@ -117,6 +117,16 @@ varsSemanticsTests =
         expectErr "fails generic with no arguments" genericNoArgsProgram "cannot be instantiated"
       ],
 
+    testGroup "Return Statement Validation"
+      [ expectOk "accepts TypeNull function without return" nullFunctionNoReturnProgram,
+        expectOk "accepts function with explicit return" functionWithReturnProgram,
+        expectErr "rejects i32 function without return" missingReturnI32Program "no return statement",
+        expectErr "rejects string function without return" missingReturnStringProgram "no return statement",
+        expectErr "rejects function with empty body and non-null return type" emptyBodyNonNullProgram "no return statement",
+        expectErr "rejects method without return" methodMissingReturnProgram "no return statement",
+        expectOk "accepts method with return" methodWithReturnProgram
+      ],
+
     testGroup "Utilities"
       [ testCase "mangleFuncStack handles overloads" testMangleFuncStack
       ]
@@ -514,6 +524,54 @@ genericNoArgsProgram :: Program
 genericNoArgsProgram = Program "gen-no-args"
   [DefFunction "id" [Parameter "x" TypeAny Nothing] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False,
    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "id") [])] False]
+
+--
+-- Return Statement Validation Programs
+--
+
+nullFunctionNoReturnProgram :: Program
+nullFunctionNoReturnProgram = Program "null-no-ret"
+  [DefFunction "f" [] TypeNull
+    [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 42)]
+    False]
+
+functionWithReturnProgram :: Program
+functionWithReturnProgram = Program "fn-with-ret"
+  [DefFunction "f" [] TypeI32
+    [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 42),
+     StmtReturn dummyPos (Just (ExprVar dummyPos "x"))]
+    False]
+
+missingReturnI32Program :: Program
+missingReturnI32Program = Program "missing-ret-i32"
+  [DefFunction "f" [] TypeI32
+    [StmtVarDecl dummyPos "a" (Just TypeI32) (ExprLitInt dummyPos 10),
+     StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "show") [ExprVar dummyPos "a"])]
+    False]
+
+missingReturnStringProgram :: Program
+missingReturnStringProgram = Program "missing-ret-string"
+  [DefFunction "f" [] TypeString
+    [StmtVarDecl dummyPos "s" (Just TypeString) (ExprLitString dummyPos "hello")]
+    False]
+
+emptyBodyNonNullProgram :: Program
+emptyBodyNonNullProgram = Program "empty-body-non-null"
+  [DefFunction "f" [] TypeI32 [] False]
+
+methodMissingReturnProgram :: Program
+methodMissingReturnProgram = Program "method-missing-ret"
+  [DefStruct "Point" [Field "x" TypeI32, Field "y" TypeI32]
+    [DefFunction "getX" [Parameter "self" (TypeCustom "Point") Nothing] TypeI32
+      [StmtVarDecl dummyPos "temp" (Just TypeI32) (ExprLitInt dummyPos 0)]
+      False]]
+
+methodWithReturnProgram :: Program
+methodWithReturnProgram = Program "method-with-ret"
+  [DefStruct "Point" [Field "x" TypeI32, Field "y" TypeI32]
+    [DefFunction "getX" [Parameter "self" (TypeCustom "Point") Nothing] TypeI32
+      [StmtReturn dummyPos (Just (ExprAccess dummyPos (ExprVar dummyPos "self") "x"))]
+      False]]
 
 --
 -- Utility Test
