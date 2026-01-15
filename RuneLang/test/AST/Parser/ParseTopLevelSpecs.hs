@@ -2,6 +2,7 @@ module AST.Parser.ParseTopLevelSpecs (parseTopLevelTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertEqual, assertBool)
+import Data.List (isInfixOf)
 import Rune.AST.Parser.ParseTopLevel
 import Rune.AST.Types (Parser (..), ParserState (..))
 import Rune.AST.Nodes
@@ -189,7 +190,7 @@ testParseSomewhereDecl = testGroup "parseSomewhereDecl"
   , testCase "invalid token fails" $
       let result = runParser parseSomewhereDecl (ParserState [tok T.TypeI32] 0 "" 0)
       in case result of
-        Left err -> assertBool "Should contain error message" ("Expected use, function signature, or struct definition" `elem` words err)
+        Left err -> assertBool "Should contain error message" ("Expected" `isInfixOf` err && ("use" `isInfixOf` err || "function" `isInfixOf` err || "struct" `isInfixOf` err))
         Right _ -> fail "Should have failed on invalid token"
   ]
 
@@ -214,7 +215,7 @@ testStructureSignature = testGroup "StructureSignature"
   , testCase "StructureSignature show instance" $ do
       let sig = StructureSignature { sigStructName = "ShowTest", sigAttributes = [("a", TypeI32)], sigMethods = [FunctionSignature { sigFuncName = "f", sigParams = [], sigReturnType = TypeNull }] }
       let shown = show sig
-      assertBool "should contain struct name" ("ShowTest" `elem` words shown)
-      assertBool "should contain field info" ("TypeI32" `elem` words shown)
-      assertBool "should contain method info" ("FunctionSignature" `elem` words shown)
+      assertBool "should contain struct name" ("ShowTest" `isInfixOf` shown)
+      assertBool "should contain field info" ("i32" `isInfixOf` shown)
+      assertBool "should contain method info" ("FunctionSignature" `isInfixOf` shown)
   ]

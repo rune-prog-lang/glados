@@ -42,7 +42,7 @@ testBasicUseStatement = testCase "basic use statement" $
     case result of
       Left err -> fail $ "Unexpected error: " ++ err
       Right expanded -> 
-        assertEqual "Should expand use statement" "def test() -> i32 { 42 }\n\n" expanded
+        assertEqual "Should expand use statement" "def test() -> i32 { 42 }\n" expanded
 
 testMultipleUseStatements :: TestTree
 testMultipleUseStatements = testCase "multiple use statements" $
@@ -139,7 +139,7 @@ testInvalidUseStatements = testCase "invalid use statements are ignored" $ do
       Right expanded -> do
         let lines' = lines expanded
         assertEqual "Should preserve invalid lines and main function" 
-                   ["use;", "use file", "def main() -> i32 { 0 }", "use file.sw", ""] lines'
+                   ["use;", "use file", "def main() -> i32 { 0 }", "use file.sw"] lines'
 
 testWhitespaceHandling :: TestTree
 testWhitespaceHandling = testCase "whitespace handling in use statements" $

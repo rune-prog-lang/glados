@@ -25,7 +25,14 @@ preprocessUseStatements includePaths content = do
               result <- findAndReadFile fileName includePaths
               case result of
                 Left err -> pure $ Left err
-                Right fileContent -> processLines rest (reverse (lines fileContent) ++ acc) (fileName : includedFiles)
+                Right fileContent -> do
+                  -- Recursively process the file content for nested use statements
+                  nestedResult <- processLines (lines fileContent) [] (fileName : includedFiles)
+                  case nestedResult of
+                    Left err -> pure $ Left err
+                    Right processedContent -> 
+                      let processedLines = lines processedContent
+                      in processLines rest (reverse processedLines ++ acc) (fileName : includedFiles)
         Nothing -> processLines rest (line : acc) includedFiles
     
     parseUseLine :: String -> Maybe String
