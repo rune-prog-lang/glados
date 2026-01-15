@@ -78,7 +78,7 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
--- import Debug.Trace (trace)
+import Debug.Trace (trace)
 
 --
 -- state monad
@@ -90,6 +90,7 @@ data SemState = SemState
   , stNewDefs       :: [TopLevelDef]           -- << new functions
   , stInstantiated  :: HM.HashMap String Bool  -- << cache of instantiated templates
   , stStructs       :: StructStack             -- << known structs
+  , stGlobals       :: VarStack                -- << global variables
   , stCurrentStruct :: Maybe String            -- << current struct context (for methods)
   }
 
@@ -99,7 +100,7 @@ type SemM a = StateT SemState (Either String) a
 -- public
 --
 
-verifVars :: Program -> Either String (Program, FuncStack)
+verifVars :: Program -> Either String (Program, FuncStack, VarStack)
 verifVars (Program n defs) = do
   -- Apply type inference to parameters before checking if generic
   let defsWithInferredTypes = map applyInferenceToParams defs
@@ -107,21 +108,22 @@ verifVars (Program n defs) = do
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
 
   fs <- findFunc (Program n concreteDefs)
-  ss <- findStruct (Program n concreteDefs)
+  (ss, globals) <- findStruct (Program n concreteDefs)
 
   let initialState = SemState
-        { stFuncs = fs
+        { stFuncs = trace (show globals) fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
         , stStructs = ss
+        , stGlobals = globals
         , stCurrentStruct = Nothing
         }
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
       finalFuncStack = mangleFuncStack $ stFuncs finalState
-  pure (Program n allDefs, finalFuncStack)
+  pure (Program n allDefs, finalFuncStack, stGlobals finalState)
 
 --
 -- private
@@ -190,7 +192,8 @@ verifScope :: VarStack -> Block -> SemM Block
 verifScope vs (StmtVarDecl pos v t e : stmts) = do
   fs      <- gets stFuncs
   ss      <- gets stStructs
-  let s   = (fs, vs, ss)
+  gs      <- gets stGlobals
+  let s   = (fs, vs, ss, gs)
       SourcePos file line col = pos
 
   e'      <- verifExprWithContext t vs e
@@ -237,7 +240,8 @@ verifScope vs (StmtIf pos cond a Nothing : stmts) = do
 verifScope vs (StmtFor pos v t (Just start) end body : stmts) = do
   fs      <- gets stFuncs
   ss      <- gets stStructs
-  let s   = (fs, vs, ss)
+  gs      <- gets stGlobals
+  let s   = (fs, vs, ss, gs)
       SourcePos file line col = pos
 
   start'  <- verifExpr vs start
@@ -266,7 +270,8 @@ verifScope vs (StmtFor pos v t Nothing end body : stmts) = do
 verifScope vs (StmtForEach pos v t iter body : stmts) = do
   fs      <- gets stFuncs
   ss      <- gets stStructs
-  let s   = (fs, vs, ss)
+  gs      <- gets stGlobals
+  let s   = (fs, vs, ss, gs)
       SourcePos file line col = pos
 
   iter'   <- verifExpr vs iter
@@ -295,7 +300,8 @@ verifScope vs (StmtLoop pos body : stmts) = do
 verifScope vs (StmtAssignment pos (ExprVar pv lv) rv : stmts) = do
   fs      <- gets stFuncs
   ss      <- gets stStructs
-  let s   = (fs, vs, ss)
+  gs      <- gets stGlobals
+  let s   = (fs, vs, ss, gs)
       SourcePos file line col = pos
 
   rv'     <- verifExpr vs rv
@@ -310,7 +316,8 @@ verifScope vs (StmtAssignment pos (ExprVar pv lv) rv : stmts) = do
 verifScope vs (StmtAssignment pos lhs rv : stmts) = do
   fs      <- gets stFuncs
   ss      <- gets stStructs
-  let s   = (fs, vs, ss)
+  gs      <- gets stGlobals
+  let s   = (fs, vs, ss, gs)
       SourcePos file line col = pos
 
   lhs'    <- verifExpr vs lhs
@@ -357,9 +364,10 @@ verifExprWithContext hint vs (ExprBinary pos op l r) = do
   l' <- verifExprWithContext hint vs l
   r' <- verifExprWithContext hint vs r
 
-  fs <- gets stFuncs
-  ss <- gets stStructs
-  let s   = (fs, vs, ss)
+  fs      <- gets stFuncs
+  ss      <- gets stStructs
+  gs      <- gets stGlobals
+  let s   = (fs, vs, ss, gs)
       SourcePos file line col = pos
 
   leftType  <- lift $ either
@@ -374,9 +382,10 @@ verifExprWithContext hint vs (ExprBinary pos op l r) = do
     Right _  -> pure $ ExprBinary pos op l' r'
 
 verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
-  fs <- gets stFuncs
-  ss <- gets stStructs
-  let s = (fs, vs, ss)
+  fs      <- gets stFuncs
+  ss      <- gets stStructs
+  gs      <- gets stGlobals
+  let s   = (fs, vs, ss, gs)
 
   args' <- mapM (verifExpr vs) args
   _ <- lift $ mapM (exprType s) args'
@@ -454,8 +463,9 @@ verifStaticCall :: SourcePos -> SourcePos -> String -> String -> [Expression] ->
 verifStaticCall cPos vPos target method args' hint vs = do
   fs <- gets stFuncs
   ss <- gets stStructs
+  gs <- gets stGlobals
   currentStruct <- gets stCurrentStruct
-  let s = (fs, vs, ss)
+  let s = (fs, vs, ss, gs)
       SourcePos file line col = cPos
   argTypes <- lift $ mapM (exprType s) args'
   let baseName = target ++ "_" ++ method
@@ -468,8 +478,9 @@ verifInstanceCall :: SourcePos -> SourcePos -> String -> String -> [Expression] 
 verifInstanceCall cPos vPos target method args' hint vs = do
   fs <- gets stFuncs
   ss <- gets stStructs
+  gs <- gets stGlobals
   currentStruct <- gets stCurrentStruct
-  let s = (fs, vs, ss)
+  let s = (fs, vs, ss, gs)
       SourcePos file line col = cPos
   argTypes <- lift $ mapM (exprType s) args'
   targetType <- lift $ exprType s (ExprVar vPos target)
@@ -612,8 +623,9 @@ verifFieldAccess :: SourcePos -> Expression -> String -> Maybe Type -> VarStack 
 verifFieldAccess pos target field hint vs = do
   fs <- gets stFuncs
   ss <- gets stStructs
+  gs <- gets stGlobals
   currentStruct <- gets stCurrentStruct
-  let s = (fs, vs, ss)
+  let s = (fs, vs, ss, gs)
       SourcePos file line col = pos
   target' <- verifExprWithContext hint vs target
   targetType <- lift $ either

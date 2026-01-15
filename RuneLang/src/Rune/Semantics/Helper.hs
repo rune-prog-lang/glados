@@ -48,7 +48,7 @@ formatSemanticError (SemanticError file line col expected got ctx) =
   in intercalate "\n" ([header, expectedLine, gotLine] <> contexts)
 
 checkParamType :: Stack -> (String, [Type]) -> String -> Int -> Int -> [Expression] -> Either SemanticError String
-checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
+checkParamType s@(fs, _, _, _) (fname, argTypes) file line col es =
   let mkError expected got = SemanticError file line col expected got ["function call", "global context"]
       -- Find candidates by exact match on mangled name
       exactMangled = HM.filterWithKey (\k ((ret, params), _, _) -> isRightFunction (fname, argTypes) k (ret, map paramType params)) fs
@@ -112,7 +112,7 @@ exprType _ (ExprLitBool _ _)        = Right TypeBool
 exprType _ (ExprStructInit _ st _)  = Right $ TypeCustom st
 exprType _ (ExprLitNull _)          = Right TypeNull
 exprType s (ExprAccess pos target field) = do
-  let ss = case s of (_, _, ss') -> ss'
+  let ss = case s of (_, _, ss', _) -> ss'
   case target of
     ExprVar _ sName | HM.member sName ss ->
       case getFieldType pos ss (TypeCustom sName) field of
@@ -132,9 +132,9 @@ exprType s (ExprBinary _ op a b)    = do
   iHTBinary op a' b'
 
 exprType s (ExprUnary _ _ expr)     = exprType s expr
-exprType (_, vs, _) (ExprVar _ name) = Right $ fromMaybe TypeAny (HM.lookup name vs)
+exprType (_, vs, _, _) (ExprVar _ name) = Right $ fromMaybe TypeAny (HM.lookup name vs)
 
-exprType s@(fs, _, _) (ExprCall _ (ExprVar _ fn) args) = do
+exprType s@(fs, _, _, _) (ExprCall _ (ExprVar _ fn) args) = do
   argTypes <- mapM (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
 

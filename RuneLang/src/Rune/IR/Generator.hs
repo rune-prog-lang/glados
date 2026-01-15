@@ -18,7 +18,7 @@ import qualified Data.Set as Set
 import Rune.AST.Nodes (Program (..))
 import Rune.IR.Generator.GenTopLevel (genTopLevel)
 import Rune.IR.Nodes (GenState (..), IRFunction (..), IRProgram (..), IRTopLevel (..))
-import Rune.Semantics.Type (FuncStack)
+import Rune.Semantics.Type (FuncStack, VarStack)
 
 -- NOTE: uncomment for debugging
 import Rune.AST.Printer (prettyPrint)
@@ -28,8 +28,8 @@ import Debug.Trace (trace)
 -- public
 --
 
-generateIR :: Program -> FuncStack -> Either String IRProgram
-generateIR (Program name defs) fs =
+generateIR :: Program -> FuncStack -> VarStack -> Either String IRProgram
+generateIR (Program name defs) fs _=
   -- NOTE: uncomment for debugging
   trace ("AST: " <> prettyPrint (Program name defs)) $
   let (result, finalState) = runState (runExceptT (mapM genTopLevel defs)) (initialState fs)
