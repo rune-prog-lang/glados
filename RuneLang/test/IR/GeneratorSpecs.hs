@@ -80,8 +80,8 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Generates program with struct" $
       let prog = Program "test"
             [ DefStruct "Point" 
-                [ Field "x" TypeI32 Public False
-                , Field "y" TypeI32 Public False
+                [ Field "x" TypeI32 Public False Nothing
+                , Field "y" TypeI32 Public False Nothing
                 ] 
                 []
             ]
@@ -94,7 +94,7 @@ testGenerateIR = testGroup "generateIR"
           case filter isStructDef (irProgramDefs irProg) of
             [IRStructDef name fields] -> do
               name @?= "Point"
-              fields @?= [("x", IRI32), ("y", IRI32)]
+              fields @?= [("x", IRI32, Nothing), ("y", IRI32, Nothing)]
             _ -> fail "Expected IRStructDef"
   
   , testCase "Externs appear before other definitions" $

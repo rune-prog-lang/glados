@@ -46,7 +46,7 @@ testGenTopLevel = testGroup "genTopLevel"
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Routes DefStruct to genStruct" $
-      let def = DefStruct "Point" [Field "x" TypeI32 Public False] []
+      let def = DefStruct "Point" [Field "x" TypeI32 Public False Nothing] []
           result = runGenUnsafe (genTopLevel def)
       in case result of
         [IRStructDef name _] -> name @?= "Point"
@@ -87,16 +87,16 @@ testGenFunction = testGroup "genFunction"
 testGenStruct :: TestTree
 testGenStruct = testGroup "genStruct"
   [ testCase "Generates struct with fields" $
-      let def = DefStruct "Point" [Field "x" TypeI32 Public False, Field "y" TypeI32 Public False] []
+      let def = DefStruct "Point" [Field "x" TypeI32 Public False Nothing, Field "y" TypeI32 Public False Nothing] []
           result = runGenUnsafe (genTopLevel def)
       in case result of
         [IRStructDef name fields] -> do
           name @?= "Point"
-          fields @?= [("x", IRI32), ("y", IRI32)]
+          fields @?= [("x", IRI32, Nothing), ("y", IRI32, Nothing)]
         _ -> assertBool "Expected IRStructDef" False
 
   , testCase "Generates struct with methods" $
-      let def = DefStruct "Vec2" [Field "x" TypeF32 Public False] 
+      let def = DefStruct "Vec2" [Field "x" TypeF32 Public False Nothing] 
                 [DefFunction "Vec2_magnitude" [Parameter "self" (TypeCustom "Vec2") Nothing] TypeF32 [] False Public False]
           result = runGenUnsafe (genTopLevel def)
       in do

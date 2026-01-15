@@ -261,16 +261,16 @@ testCollectVars = testGroup "collectVars"
 testAccumulateOffset :: TestTree
 testAccumulateOffset = testGroup "accumulateOffset"
   [ testCase "Aligns i32 to 4 bytes" $
-      let (offset, _) = accumulateOffset Map.empty (0, Map.empty) ("x", IRI32)
+      let (offset, _) = accumulateOffset Map.empty (0, Map.empty) ("x", IRI32, Nothing)
       in offset @?= 4
 
   , testCase "Aligns i64 to 8 bytes" $
-      let (offset, _) = accumulateOffset Map.empty (0, Map.empty) ("x", IRI64)
+      let (offset, _) = accumulateOffset Map.empty (0, Map.empty) ("x", IRI64, Nothing)
       in offset @?= 8
 
   , testCase "Handles alignment padding" $
-      let (offset1, map1) = accumulateOffset Map.empty (0, Map.empty) ("a", IRI8)
-          (offset2, _) = accumulateOffset Map.empty (offset1, map1) ("b", IRI32)
+      let (offset1, map1) = accumulateOffset Map.empty (0, Map.empty) ("a", IRI8, Nothing)
+          (offset2, _) = accumulateOffset Map.empty (offset1, map1) ("b", IRI32, Nothing)
       in offset2 @?= 8
   ]
 

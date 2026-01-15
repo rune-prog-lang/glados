@@ -104,7 +104,7 @@ testGenExpression = testGroup "genExpression"
 
   , testCase "Generates struct access" $
       let state = emptyState 
-            { gsStructs = Map.singleton "Point" [("x", IRI32)]
+            { gsStructs = Map.singleton "Point" [("x", IRI32, Nothing)]
             , gsSymTable = Map.singleton "p" (IRTemp "p" (IRStruct "Point"), IRStruct "Point") 
             }
           res = evalState (runExceptT (genExpression (ExprAccess dummyPos (ExprVar dummyPos "p") "x"))) state
@@ -114,7 +114,7 @@ testGenExpression = testGroup "genExpression"
 
   , testCase "Generates struct init" $
       let state = emptyState 
-            { gsStructs = Map.singleton "Point" [("x", IRI32)] }
+            { gsStructs = Map.singleton "Point" [("x", IRI32, Nothing)] }
           res = evalState (runExceptT (genExpression (ExprStructInit dummyPos "Point" [("x", ExprLitInt dummyPos 1)]))) state
       in case res of
            Right (_, _, typ) -> typ @?= IRStruct "Point"
@@ -152,7 +152,7 @@ testGenExpression = testGroup "genExpression"
 
   , testCase "Generates sizeof for struct type" $
       let state = emptyState 
-            { gsStructs = Map.singleton "Point" [("x", IRI32), ("y", IRI32)] }
+            { gsStructs = Map.singleton "Point" [("x", IRI32, Nothing), ("y", IRI32, Nothing)] }
           res = evalState (runExceptT (genExpression (ExprSizeof dummyPos (Left (TypeCustom "Point"))))) state
       in case res of
            Right (_, op, typ) -> do

@@ -199,7 +199,7 @@ topLevelPrinterTests = testGroup "TopLevel Printer Tests"
       let def = DefFunction "f" [] TypeNull [] False Public False
       in assertEqual "Function" "public DefFunction f\n  Parameters:\n  ReturnType: null\n  Body:" (runPrinter $ visitTopLevel def)
   , testCase "Struct" $
-      let def = DefStruct "S" [Field "x" TypeI32 Public False] []
+      let def = DefStruct "S" [Field "x" TypeI32 Public False Nothing] []
       in assertEqual "Struct" "DefStruct S\n  Fields:\n    public x: i32\n  Methods:" (runPrinter $ visitTopLevel def)
   
   , testCase "visitFunction (Ignore other types)" $

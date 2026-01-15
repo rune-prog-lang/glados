@@ -113,12 +113,12 @@ parameterTests = testGroup "Parameter Tests"
 fieldTests :: TestTree
 fieldTests = testGroup "Field Tests"
   [ testCase "Show Field" $
-      assertEqual "Show" "Field {fieldName = \"x\", fieldType = f32, fieldVisibility = public, fieldIsStatic = False}" (show (Field "x" TypeF32 Public False))
+      assertEqual "Show" "Field {fieldName = \"x\", fieldType = f32, fieldVisibility = public, fieldIsStatic = False, fieldDefault = Nothing}" (show (Field "x" TypeF32 Public False Nothing))
   , testCase "Eq Field" $ do
-      let f1 = Field "x" TypeF32 Public False
-      let f2 = Field "x" TypeF32 Public False
-      let f3 = Field "y" TypeF32 Public False
-      let f4 = Field "x" TypeI32 Public False
+      let f1 = Field "x" TypeF32 Public False Nothing
+      let f2 = Field "x" TypeF32 Public False Nothing
+      let f3 = Field "y" TypeF32 Public False Nothing
+      let f4 = Field "x" TypeI32 Public False Nothing
       assertBool "Equal" (f1 == f2)
       assertBool "Unequal name" (f1 /= f3)
       assertBool "Unequal type" (f1 /= f4)
@@ -153,7 +153,7 @@ topLevelDefTests = testGroup "TopLevelDef Tests"
   ]
   where
     param = Parameter "x" TypeI32 Nothing
-    field = Field "x" TypeI32 Public False
+    field = Field "x" TypeI32 Public False Nothing
     blockA = [StmtStop dummyPos]
     defFunc = DefFunction "foo" [param] TypeI32 blockA False Public False
     defStruct = DefStruct "Vec2f" [field] [defFunc]

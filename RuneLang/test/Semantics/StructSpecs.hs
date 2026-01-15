@@ -82,7 +82,15 @@ validateFieldTypeTests = testGroup "validateFieldType"
     testCase "rejects unknown struct types" $
       case findStruct unknownTypeProgram of
         Left err -> "unknown struct type" `isInfixOf` err @? "Expected unknown struct error"
-        Right _ -> assertFailure "Expected error for unknown struct type"
+        Right _ -> assertFailure "Expected error for unknown struct type",
+    testCase "accepts valid default value with matching type" $
+      case findStruct validDefaultProgram of
+        Right _ -> return ()
+        Left err -> assertFailure $ "Expected success for valid default, got error: " ++ err,
+    testCase "rejects invalid default value with mismatched type" $
+      case findStruct invalidDefaultProgram of
+        Left err -> "default value has type" `isInfixOf` err @? "Expected type mismatch error"
+        Right _ -> assertFailure "Expected error for mismatched default type"
   ]
 
 --
@@ -95,14 +103,14 @@ simpleProgram =
     "simple"
     [ DefStruct
         "Point"
-        [ Field "x" TypeI32 Public False
-        , Field "y" TypeI32 Public False
+        [ Field "x" TypeI32 Public False Nothing
+        , Field "y" TypeI32 Public False Nothing
         ]
         [],
       DefStruct
         "Vec2f"
-        [ Field "x" TypeF32 Public False
-        , Field "y" TypeF32 Public False
+        [ Field "x" TypeF32 Public False Nothing
+        , Field "y" TypeF32 Public False Nothing
         ]
         []
     ]
@@ -113,7 +121,7 @@ anyFieldProgram =
     "any-field"
     [ DefStruct
         "BadStruct"
-        [ Field "data" TypeAny Public False
+        [ Field "data" TypeAny Public False Nothing
         ]
         []
     ]
@@ -124,7 +132,7 @@ nullFieldProgram =
     "null-field"
     [ DefStruct
         "BadStruct"
-        [ Field "data" TypeNull Public False
+        [ Field "data" TypeNull Public False Nothing
         ]
         []
     ]
@@ -135,7 +143,7 @@ unknownTypeProgram =
     "unknown-type"
     [ DefStruct
         "Container"
-        [ Field "item" (TypeCustom "UnknownStruct") Public False
+        [ Field "item" (TypeCustom "UnknownStruct") Public False Nothing
         ]
         []
     ]
@@ -146,8 +154,8 @@ selfRefProgram =
     "self-ref"
     [ DefStruct
         "Node"
-        [ Field "value" TypeI32 Public False
-        , Field "next" (TypeCustom "Node") Public False
+        [ Field "value" TypeI32 Public False Nothing
+        , Field "next" (TypeCustom "Node") Public False Nothing
         ]
         []
     ]
@@ -156,8 +164,8 @@ duplicateStructProgram :: Program
 duplicateStructProgram =
   Program
     "duplicate-struct"
-    [ DefStruct "Point" [Field "x" TypeI32 Public False] [],
-      DefStruct "Point" [Field "y" TypeF32 Public False] []
+    [ DefStruct "Point" [Field "x" TypeI32 Public False Nothing] [],
+      DefStruct "Point" [Field "y" TypeF32 Public False Nothing] []
     ]
 
 duplicateFieldProgram :: Program
@@ -166,8 +174,32 @@ duplicateFieldProgram =
     "duplicate-field"
     [ DefStruct
         "BadStruct"
-        [ Field "value" TypeI32 Public False
-        , Field "value" TypeF32 Public False
+        [ Field "value" TypeI32 Public False Nothing
+        , Field "value" TypeF32 Public False Nothing
+        ]
+        []
+    ]
+
+validDefaultProgram :: Program
+validDefaultProgram =
+  Program
+    "valid-default"
+    [ DefStruct
+        "Config"
+        [ Field "timeout" TypeI32 Public False (Just (ExprLitInt (SourcePos "test" 0 0) 5000))
+        , Field "enabled" TypeBool Public False (Just (ExprLitBool (SourcePos "test" 0 0) True))
+        , Field "name" TypeString Public False (Just (ExprLitString (SourcePos "test" 0 0) "default"))
+        ]
+        []
+    ]
+
+invalidDefaultProgram :: Program
+invalidDefaultProgram =
+  Program
+    "invalid-default"
+    [ DefStruct
+        "BadConfig"
+        [ Field "timeout" TypeI32 Public False (Just (ExprLitString (SourcePos "test" 0 0) "not-an-int"))
         ]
         []
     ]

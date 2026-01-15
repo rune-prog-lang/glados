@@ -49,7 +49,7 @@ testAsmState = testGroup "AsmState"
       let output = ["test"]
           stackMap = Map.singleton "x" (-8)
           allocMap = Map.singleton "ptr" 16
-          structs = Map.singleton "Point" [("x", IRI32)]
+          structs = Map.singleton "Point" [("x", IRI32, Nothing)]
           externs = ["printf"]
           state = AsmState output stackMap allocMap structs externs
       in do
@@ -74,6 +74,6 @@ testTypeAliases = testGroup "Type Aliases"
 
   , testCase "Struct is list of fields" $
       let s :: Struct
-          s = [("x", IRI32), ("y", IRF32)]
+          s = [("x", IRI32, Nothing), ("y", IRF32, Nothing)]
       in length s @?= 2
   ]

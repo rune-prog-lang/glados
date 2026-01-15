@@ -33,7 +33,7 @@ testGenAccess :: TestTree
 testGenAccess = testGroup "genAccess"
   [ testCase "Generates field access for struct" $
       let state = emptyState 
-            { gsStructs = Map.singleton "Point" [("x", IRI32), ("y", IRI32)] }
+            { gsStructs = Map.singleton "Point" [("x", IRI32, Nothing), ("y", IRI32, Nothing)] }
           res = evalState (runExceptT (genAccess mockGenExpr (ExprVar dummyPos "p") "x")) state
       in case res of
            Right (_, _, typ) -> typ @?= IRI32
@@ -41,7 +41,7 @@ testGenAccess = testGroup "genAccess"
 
   , testCase "Looks up field type" $
       let state = emptyState 
-            { gsStructs = Map.singleton "Point" [("x", IRI32)] }
+            { gsStructs = Map.singleton "Point" [("x", IRI32, Nothing)] }
           res = evalState (runExceptT (lookupFieldType "Point" "x")) state
       in case res of
            Right typ -> typ @?= IRI32
@@ -52,7 +52,7 @@ testGenStructInit :: TestTree
 testGenStructInit = testGroup "genStructInit"
   [ testCase "Generates struct initialization" $
       let state = emptyState 
-            { gsStructs = Map.singleton "Point" [("x", IRI32), ("y", IRI32)] }
+            { gsStructs = Map.singleton "Point" [("x", IRI32, Nothing), ("y", IRI32, Nothing)] }
           res = evalState (runExceptT (genStructInit mockGenExpr "Point" [])) state
       in case res of
            Right (instrs, _, typ) -> do
@@ -63,7 +63,7 @@ testGenStructInit = testGroup "genStructInit"
 
   , testCase "Generates field initializations" $
       let state = emptyState 
-            { gsStructs = Map.singleton "Vec" [("val", IRI32)] }
+            { gsStructs = Map.singleton "Vec" [("val", IRI32, Nothing)] }
           res = evalState (runExceptT (genStructInit mockGenExpr "Vec" [("val", ExprLitInt dummyPos 42)])) state
       in case res of
            Right (instrs, _, _) -> do
@@ -98,7 +98,7 @@ testResolveStructPtr = testGroup "resolveStructPtr"
 testLookupFieldType :: TestTree
 testLookupFieldType = testGroup "lookupFieldType"
   [ testCase "Returns field type when struct and field exist" $
-      let state = emptyState { gsStructs = Map.singleton "S" [("f", IRI32)] }
+      let state = emptyState { gsStructs = Map.singleton "S" [("f", IRI32, Nothing)] }
           res = evalState (runExceptT (lookupFieldType "S" "f")) state
       in case res of
            Right t -> t @?= IRI32
@@ -111,7 +111,7 @@ testLookupFieldType = testGroup "lookupFieldType"
            Right _ -> assertBool "Should have failed" False
 
   , testCase "Returns Left when field is missing" $
-      let state = emptyState { gsStructs = Map.singleton "S" [("f", IRI32)] }
+      let state = emptyState { gsStructs = Map.singleton "S" [("f", IRI32, Nothing)] }
           res = evalState (runExceptT (lookupFieldType "S" "g")) state
       in case res of
            Left _ -> return ()

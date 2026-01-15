@@ -26,8 +26,8 @@ emptyState = GenState
     gsCurrentFunc = Nothing,
     gsSymTable = Map.empty,
     gsStructs = Map.fromList [
-      ("Point", [("x", IRI32), ("y", IRI32)]),
-      ("Vec", [("x", IRI32), ("y", IRI32)])
+      ("Point", [("x", IRI32, Nothing), ("y", IRI32, Nothing)]),
+      ("Vec", [("x", IRI32, Nothing), ("y", IRI32, Nothing)])
     ],
     gsLoopStack = [],
     gsCalledFuncs = Set.empty,

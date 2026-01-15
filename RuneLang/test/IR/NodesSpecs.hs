@@ -278,7 +278,7 @@ testIRTopLevel =
                   irFuncIsExport = False
                 }
          in IRFunctionDef func @?= IRFunctionDef func,
-      testCase "IRStructDef" $ IRStructDef "Vec2" [("x", IRF32)] @?= IRStructDef "Vec2" [("x", IRF32)],
+      testCase "IRStructDef" $ IRStructDef "Vec2" [("x", IRF32, Nothing)] @?= IRStructDef "Vec2" [("x", IRF32, Nothing)],
       testCase "IRExtern" $ IRExtern "my_libc_func" @?= IRExtern "my_libc_func",
       testCase "Deriving Show/Eq" $ show (IRGlobalDef "s1" (IRGlobalStringVal "")) @?= "IRGlobalDef \"s1\" (IRGlobalStringVal \"\")"
     ]

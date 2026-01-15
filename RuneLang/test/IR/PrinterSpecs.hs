@@ -148,7 +148,7 @@ testPrintTopLevel = testGroup "printtoplevel"
   , testCase "irglobalstring (with escaped chars)" $
       printTopLevel (IRGlobalDef "g_msg" (IRGlobalStringVal "hello\nworld\"")) @?= "GLOBAL g_msg: string = \"hello\\nworld\\\"\\0\""
   , testCase "irstructdef" $
-      let fields = [("x", IRI32), ("y", IRF32)]
+      let fields = [("x", IRI32, Nothing), ("y", IRF32, Nothing)]
       in printTopLevel (IRStructDef "point" fields) @?= "STRUCT point { x: i32, y: f32 }"
   , testCase "irfunctiondef" $
       let func = IRFunction "main" [("p", IRI32)] (Just IRI32) [IRRET Nothing] False
