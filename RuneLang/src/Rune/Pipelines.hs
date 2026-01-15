@@ -111,7 +111,9 @@ compileToAssembly inFile outFile libOpts =
 
 compileToObject :: FilePath -> FilePath -> LibraryOptions -> IO ()
 compileToObject inFile outFile libOpts = case takeExtension inFile of
-  ".ru"  -> runPipelineAction (includePaths libOpts) inFile $ \ir -> 
+  ".ru"   -> runPipelineAction (includePaths libOpts) inFile $ \ir -> 
+              compileAsmToObject (emitAssembly ir) outFile False
+  ".rune" -> runPipelineAction (includePaths libOpts) inFile $ \ir -> 
               compileAsmToObject (emitAssembly ir) outFile False
   ".asm" -> safeRead inFile >>= either logError (\c -> compileAsmToObject c outFile False)
   ext    -> logError $ "Unsupported file extension: " <> ext
@@ -119,7 +121,7 @@ compileToObject inFile outFile libOpts = case takeExtension inFile of
 compileMultiplePipeline :: [FilePath] -> FilePath -> LibraryOptions -> IO ()
 compileMultiplePipeline [] _ _ = logError "No input files provided."
 compileMultiplePipeline inFiles outFile libOpts = do
-  let (runeFiles, remainder) = partitionByExt ".ru" inFiles
+  let (runeFiles, remainder) = partition (\f -> takeExtension f `elem` [".ru", ".rune"]) inFiles
       (asmFiles, objectFiles) = partitionByExt ".asm" remainder
       isLib = isPIC libOpts
 

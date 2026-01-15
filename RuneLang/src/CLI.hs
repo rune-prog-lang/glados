@@ -54,11 +54,11 @@ data CompileRule
   deriving (Show, Eq)
 
 validExtensions :: CompileRule -> [String]
-validExtensions All         = [".ru", ".o"]
-validExtensions ToObj       = [".ru", ".asm"]
-validExtensions ToAsm       = [".ru"]
-validExtensions ToSharedLib = [".ru", ".o"]
-validExtensions ToStaticLib = [".ru", ".o"]
+validExtensions All         = [".ru", ".rune", ".o"]
+validExtensions ToObj       = [".ru", ".rune", ".asm"]
+validExtensions ToAsm       = [".ru", ".rune"]
+validExtensions ToSharedLib = [".ru", ".rune", ".o"]
+validExtensions ToStaticLib = [".ru", ".rune", ".o"]
 
 usage :: String
 usage = unlines
@@ -66,8 +66,8 @@ usage = unlines
   , ""
   , "Commands:"
   , "  help           Show this help message"
-  , "  build [file]   Compile the given source file"
-  , "  run   [file]   Show the IR of the given source file"
+  , "  build [file]   Compile the given source file (.ru, .rune, .asm)"
+  , "  run   [file]   Show the IR of the given source file (.ru, .rune)"
   , ""
   , "Options:"
   , "  -o, --output <file>   Specify the output file for compilation"
@@ -163,8 +163,8 @@ isValidInputFile rule = (`elem` validExtensions rule) . takeExtension
 
 isSourceFile :: FilePath -> Maybe FilePath -> LibraryOptions -> Action
 isSourceFile inFile outFile libOpts
-  | takeExtension inFile == ".ru" = CompileAll inFile outFile libOpts
-  | otherwise                     = CompileObjToExec inFile outFile libOpts
+  | takeExtension inFile `elem` [".ru", ".rune"] = CompileAll inFile outFile libOpts
+  | otherwise                                     = CompileObjToExec inFile outFile libOpts
 
 findInputFile :: [String] -> CompileRule -> Either String (FilePath, [String])
 findInputFile args rule = case break (isValidInputFile rule) args of
