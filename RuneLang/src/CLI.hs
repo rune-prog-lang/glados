@@ -40,9 +40,9 @@ data Action
   | CompileAll        FilePath (Maybe FilePath) LibraryOptions
   | CompileAllMany    [FilePath] (Maybe FilePath) LibraryOptions
   | CompileObjToExec  FilePath (Maybe FilePath) LibraryOptions
-  | CompileToObj      FilePath (Maybe FilePath)
-  | CreateAsm         FilePath (Maybe FilePath)
-  | Interpret         FilePath
+  | CompileToObj      FilePath (Maybe FilePath) LibraryOptions
+  | CreateAsm         FilePath (Maybe FilePath) LibraryOptions
+  | Interpret         FilePath LibraryOptions
   deriving (Show, Eq)
 
 data CompileRule
@@ -77,6 +77,7 @@ usage = unlines
   , "  -static-lib           Build a static library (.a)"
   , "  -L<path>              Add library search path"
   , "  -l<name>              Link with library"
+  , "  -I<path>              Add include search path for 'use' statements"
   ]
 
 parseArgs :: [String] -> Either String Action
@@ -91,9 +92,12 @@ parseCommand cmd
   | otherwise = const . Left $ "Invalid command: " ++ cmd ++ ". Use 'rune help'."
 
 parseRun :: [String] -> Either String Action
-parseRun [file] = Right $ Interpret file
-parseRun []     = Left "The 'run' command requires an input file."
-parseRun _      = Left "The 'run' command takes exactly one file argument."
+parseRun args = do
+  (libOpts, rest) <- parseLibraryOptions args
+  case rest of
+    [file] -> Right $ Interpret file libOpts
+    []     -> Left "The 'run' command requires an input file."
+    _      -> Left "The 'run' command takes exactly one file argument."
 
 parseBuild :: [String] -> Either String Action
 parseBuild args = do
@@ -108,11 +112,11 @@ parseByRule rule outFile libOpts args =
     All         -> parseMultiOrSingle rule outFile libOpts args
     ToSharedLib -> parseMultiOrSingle rule outFile (setShared libOpts) args
     ToStaticLib -> parseMultiOrSingle rule outFile (setStatic libOpts) args
-    ToObj       -> parseSingleFile rule outFile args CompileToObj
-    ToAsm       -> parseSingleFile rule outFile args CreateAsm
+    ToObj       -> parseSingleFile rule outFile libOpts args CompileToObj
+    ToAsm       -> parseSingleFile rule outFile libOpts args CreateAsm
   where
-    setShared _ = LibraryOptions True False [] []
-    setStatic _ = LibraryOptions False True [] []
+    setShared opts = opts { libShared = True, libStatic = False }
+    setStatic opts = opts { libShared = False, libStatic = True }
 
 parseMultiOrSingle :: CompileRule -> Maybe FilePath -> LibraryOptions -> [String] -> Either String Action
 parseMultiOrSingle rule outFile libOpts args = do
@@ -122,32 +126,32 @@ parseMultiOrSingle rule outFile libOpts args = do
     [single] -> isSourceFile single outFile libOpts
     multiple -> CompileAllMany multiple outFile libOpts
 
-parseSingleFile :: CompileRule -> Maybe FilePath -> [String] -> (FilePath -> Maybe FilePath -> Action) -> Either String Action
-parseSingleFile rule outFile args constructor = do
+parseSingleFile :: CompileRule -> Maybe FilePath -> LibraryOptions -> [String] -> (FilePath -> Maybe FilePath -> LibraryOptions -> Action) -> Either String Action
+parseSingleFile rule outFile libOpts args constructor = do
   (file, rest) <- findInputFile args rule
   validateNoExtraArgs rest
-  pure $ constructor file outFile
+  pure $ constructor file outFile libOpts
 
 runCLI :: Action -> IO ()
 runCLI ShowUsage = putStr usage
-runCLI (Interpret inFile) = interpretPipeline inFile
+runCLI (Interpret inFile libOpts) = interpretPipeline inFile libOpts
 runCLI (CompileAll inFile maybeOutFile libOpts) =
-  compilePipeline inFile (computeOutput libOpts maybeOutFile "a.out") (FullCompile libOpts)
+  compilePipeline inFile (computeOutput libOpts maybeOutFile "a.out") (FullCompile libOpts) libOpts
 runCLI (CompileAllMany inFiles maybeOutFile libOpts) =
   compileMultiplePipeline inFiles (computeOutput libOpts maybeOutFile "a.out") libOpts
-runCLI (CompileToObj inFile maybeOutFile) =
-  compilePipeline inFile (computeDefaultOutput inFile maybeOutFile ".o") ToObject
-runCLI (CreateAsm inFile maybeOutFile) =
-  compilePipeline inFile (computeDefaultOutput inFile maybeOutFile ".asm") ToAssembly
+runCLI (CompileToObj inFile maybeOutFile libOpts) =
+  compilePipeline inFile (computeDefaultOutput inFile maybeOutFile ".o") ToObject libOpts
+runCLI (CreateAsm inFile maybeOutFile libOpts) =
+  compilePipeline inFile (computeDefaultOutput inFile maybeOutFile ".asm") ToAssembly libOpts
 runCLI (CompileObjToExec inFile maybeOutFile libOpts) =
-  compilePipeline inFile (computeOutput libOpts maybeOutFile "a.out") (ToExecutable libOpts)
+  compilePipeline inFile (computeOutput libOpts maybeOutFile "a.out") (ToExecutable libOpts) libOpts
 
 computeOutput :: LibraryOptions -> Maybe FilePath -> String -> String
 computeOutput libOpts maybePath def = fromMaybe (defaultOutput libOpts def) maybePath
 
 defaultOutput :: LibraryOptions -> String -> String
-defaultOutput (LibraryOptions True _ _ _) _ = "libout.so"
-defaultOutput (LibraryOptions _ True _ _) _ = "libout.a"
+defaultOutput (LibraryOptions True _ _ _ _) _ = "libout.so"
+defaultOutput (LibraryOptions _ True _ _ _) _ = "libout.a"
 defaultOutput _ def = def
 
 computeDefaultOutput :: FilePath -> Maybe FilePath -> String -> String
@@ -209,7 +213,8 @@ parseLibraryOptions :: [String] -> Either String (LibraryOptions, [String])
 parseLibraryOptions args =
   let (paths, rest1) = extractPrefixed "-L" args
       (names, rest2) = extractPrefixed "-l" rest1
-   in Right (LibraryOptions False False paths names, rest2)
+      (includes, rest3) = extractPrefixed "-I" rest2
+   in Right (LibraryOptions False False paths names includes, rest3)
 
 extractPrefixed :: String -> [String] -> ([String], [String])
 extractPrefixed prefix xs =

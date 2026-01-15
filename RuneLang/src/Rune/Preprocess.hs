@@ -9,9 +9,8 @@ import Data.List (isSuffixOf, dropWhileEnd)
 import Data.Char (isSpace)
 
 -- | Preprocess 'use' statements by expanding them inline
-preprocessUseStatements :: FilePath -> String -> IO (Either String String)
--- preprocessUseStatements basePath content = do
-preprocessUseStatements _ content = do
+preprocessUseStatements :: [FilePath] -> String -> IO (Either String String)
+preprocessUseStatements includePaths content = do
   -- Preprocessing with duplicate prevention: track included files and skip duplicates
   processLines (lines content) [] []
   where
@@ -23,9 +22,9 @@ preprocessUseStatements _ content = do
           if fileName `elem` includedFiles
             then processLines rest acc includedFiles  -- Skip duplicate, don't include the use line
             else do
-              result <- safeRead fileName
+              result <- findAndReadFile fileName includePaths
               case result of
-                Left err -> pure $ Left $ "Failed to read " ++ fileName ++ ": " ++ err
+                Left err -> pure $ Left err
                 Right fileContent -> processLines rest (reverse (lines fileContent) ++ acc) (fileName : includedFiles)
         Nothing -> processLines rest (line : acc) includedFiles
     
@@ -43,6 +42,21 @@ preprocessUseStatements _ content = do
     
     strip :: String -> String
     strip = dropWhile isSpace . dropWhileEnd isSpace
+    
+    findAndReadFile :: FilePath -> [FilePath] -> IO (Either String String)
+    findAndReadFile fileName paths = do
+      -- Try current directory first, then each include path
+      let allPaths = "." : paths
+      tryPaths allPaths fileName
+      
+    tryPaths :: [FilePath] -> FilePath -> IO (Either String String)
+    tryPaths [] fileName = pure $ Left $ "File not found in any include path: " ++ fileName
+    tryPaths (dir:dirs) fileName = do
+      let fullPath = if dir == "." then fileName else dir ++ "/" ++ fileName
+      result <- safeRead fullPath
+      case result of
+        Right content' -> pure $ Right content'
+        Left _ -> tryPaths dirs fileName
     
     safeRead :: FilePath -> IO (Either String String)
     safeRead fp = (try (readFile fp) :: IO (Either IOException String)) <&> first (("Failed to read input file: " <>) . show)
