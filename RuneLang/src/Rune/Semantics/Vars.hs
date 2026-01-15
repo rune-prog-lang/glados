@@ -105,7 +105,7 @@ verifVars (Program n defs) = do
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
 
   fs <- findFunc (Program n concreteDefs)
-  (ss, globals) <- findStruct (Program n concreteDefs)
+  ss <- findStruct (Program n concreteDefs)
 
   let initialState = SemState
         { stFuncs = fs

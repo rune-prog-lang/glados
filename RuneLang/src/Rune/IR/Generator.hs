@@ -33,7 +33,7 @@ generateIR (Program name defs) fs =
   -- NOTE: uncomment for debugging
   -- trace ("AST: " <> prettyPrint (Program name defs)) $
   let (result, finalState) = runState (runExceptT (mapM genTopLevel defs)) (initialState fs)
-   in case trace (show finalState) result of
+   in case result of
         Left err -> Left err
         Right irDefs ->
           let -- INFO: gather all generated definitions (globals & functions)

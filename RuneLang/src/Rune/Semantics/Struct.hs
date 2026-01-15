@@ -18,7 +18,7 @@ import Text.Printf (printf)
 import Control.Monad (foldM)
 
 import Rune.AST.Nodes
-import Rune.Semantics.Type (StructStack, VarStack)
+import Rune.Semantics.Type (StructStack)
 import Rune.Semantics.Helper (SemanticError(..), formatSemanticError)
 import Rune.Semantics.Func (inferTypeFromExpr)
 
@@ -29,16 +29,9 @@ import qualified Data.List as List
 --- public
 ---
 
-findStruct :: Program -> Either String (StructStack, VarStack)
-findStruct (Program _ defs) = do
-  ss <- foldM addStruct HM.empty structs
-  let globals = HM.fromList
-        [ (sName ++ "_" ++ fieldName f, fieldType f)
-        | DefStruct sName fields _ <- defs
-        , f <- fields
-        , fieldIsStatic f
-        ]
-  pure (ss, globals)
+findStruct :: Program -> Either String StructStack
+findStruct (Program _ defs) =
+  foldM addStruct HM.empty structs
   where
     structs :: [TopLevelDef]
     structs = [d | d@DefStruct{} <- defs]
