@@ -31,7 +31,9 @@ parseTopLevelTests =
       testParseSomewhere,
       testParseFunctionSignatures,
       testParseFunctionSignature,
-      testParseParamTypeInSignature
+      testParseParamTypeInSignature,
+      testParseSomewhereDecl,
+      testStructureSignature
     ]
 
 --
@@ -168,4 +170,51 @@ testParseParamTypeInSignature :: TestTree
 testParseParamTypeInSignature = testGroup "parseParamTypeInSignature"
   [ testCase "try named success" $ assertS "named" parseParamTypeInSignature [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32] TypeI32
   , testCase "parseType branch"   $ assertS "anon"  parseParamTypeInSignature [tok T.TypeI32] TypeI32
+  ]
+
+testParseSomewhereDecl :: TestTree 
+testParseSomewhereDecl = testGroup "parseSomewhereDecl"
+  [ testCase "parse use statement" $ 
+      assertS "use statement" parseSomewhereDecl 
+      [tok T.KwUse, tok (T.Identifier "Vec"), tok T.Dot, tok (T.Identifier "sw"), tok T.Semicolon]
+      (DeclUse "Vec.sw")
+  , testCase "parse function signature" $
+      assertS "function signature" parseSomewhereDecl
+      [tok T.KwDef, tok (T.Identifier "test"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeI32, tok T.Semicolon]
+      (DeclFuncSig (FunctionSignature "test" [] TypeI32))
+  , testCase "parse struct definition" $
+      assertS "struct definition" parseSomewhereDecl
+      [tok T.KwStruct, tok (T.Identifier "Test"), tok T.LBrace, tok T.RBrace]
+      (DeclDefs (TopLevelDefStruct (Struct "Test" [] [])))
+  , testCase "invalid token fails" $
+      let result = runParser parseSomewhereDecl (ParserState [tok T.TypeI32] 0)
+      in case result of
+        Left err -> assertBool "Should contain error message" ("Expected use, function signature, or struct definition" `elem` words err)
+        Right _ -> fail "Should have failed on invalid token"
+  ]
+
+testStructureSignature :: TestTree
+testStructureSignature = testGroup "StructureSignature"
+  [ testCase "create StructureSignature" $ do
+      let sig = StructureSignature "TestStruct" [("field1", TypeI32), ("field2", TypeF32)] [FunctionSignature "method1" [TypeI32] TypeNull]
+      assertEqual "name should match" "TestStruct" (sigName sig)
+      assertEqual "attributes should match" [("field1", TypeI32), ("field2", TypeF32)] (sigAttributes sig) 
+      assertEqual "methods should match" [FunctionSignature "method1" [TypeI32] TypeNull] (sigMethods sig)
+  , testCase "empty StructureSignature" $ do
+      let sig = StructureSignature "Empty" [] []
+      assertEqual "name should match" "Empty" (sigName sig)
+      assertEqual "attributes should be empty" [] (sigAttributes sig)
+      assertEqual "methods should be empty" [] (sigMethods sig)
+  , testCase "StructureSignature equality" $ do
+      let sig1 = StructureSignature "Test" [("x", TypeI32)] []
+      let sig2 = StructureSignature "Test" [("x", TypeI32)] []
+      let sig3 = StructureSignature "Test" [("y", TypeI32)] []
+      assertEqual "identical signatures should be equal" sig1 sig2
+      assertBool "different signatures should not be equal" (sig1 /= sig3)
+  , testCase "StructureSignature show instance" $ do
+      let sig = StructureSignature "ShowTest" [("a", TypeI32)] [FunctionSignature "f" [] TypeNull]
+      let shown = show sig
+      assertBool "should contain struct name" ("ShowTest" `elem` words shown)
+      assertBool "should contain field info" ("TypeI32" `elem` words shown)
+      assertBool "should contain method info" ("FunctionSignature" `elem` words shown)
   ]
