@@ -400,7 +400,7 @@ emitCallGen mbExterns structs sm dest funcName args mbType =
       hiddenPtrSetup = if usesHiddenPtr
                        then [ emit 1 $ "lea rdi, " <> stackAddr sm dest ]
                        else []
-      argSetup    = setupCallArgs sm args usesHiddenPtr
+      argSetup    = setupCallArgs structs sm args usesHiddenPtr
       usePlt      = case mbExterns of
                       Just externs -> funcName `elem` externs
                       Nothing      -> False
@@ -409,8 +409,8 @@ emitCallGen mbExterns structs sm dest funcName args mbType =
       retSave     = saveCallResult structs sm dest mbType usesHiddenPtr
    in hiddenPtrSetup <> argSetup <> callInstr <> retSave
 
-setupCallArgs :: Map String Int -> [IROperand] -> Bool -> [String]
-setupCallArgs sm args usesHiddenPtr =
+setupCallArgs :: StructMap -> Map String Int -> [IROperand] -> Bool -> [String]
+setupCallArgs structs sm args usesHiddenPtr =
   let startIntIdx = if usesHiddenPtr then 1 else 0  -- Skip rdi if hidden pointer used
       (instrs, _, _) = foldl step ([], startIntIdx, 0) args
    in instrs
@@ -422,6 +422,29 @@ setupCallArgs sm args usesHiddenPtr =
 
     stepType (acc, intIdx, floatIdx) _ Nothing
       = (acc, intIdx, floatIdx)
+    stepType (acc, intIdx, floatIdx) op (Just (IRStruct sName))
+      -- Struct arguments: pass by value in registers according to System V ABI
+      | sizeOfStruct structs sName <= 8 =
+          -- Small struct (≤8 bytes): check if it contains only floats
+          if structIsAllFloats structs sName && floatIdx < length x86_64FloatArgsRegisters
+            then let xmm = x86_64FloatArgsRegisters !! floatIdx
+                     -- Load struct as 64-bit value into XMM register
+                     loadInstr = emit 1 $ "movq " <> xmm <> ", " <> stackAddr sm (getOpName op)
+                  in (acc <> [loadInstr], intIdx, floatIdx + 1)
+            else if intIdx < length x86_64ArgsRegisters
+              then let reg = x86_64ArgsRegisters !! intIdx
+                       loadInstr = emit 1 $ "mov " <> reg <> ", " <> stackAddr sm (getOpName op)
+                    in (acc <> [loadInstr], intIdx + 1, floatIdx)
+              else (acc, intIdx, floatIdx)
+      | sizeOfStruct structs sName <= 16 && intIdx < length x86_64ArgsRegisters - 1 =
+          -- Medium struct (≤16 bytes): pass in two registers
+          let reg1 = x86_64ArgsRegisters !! intIdx
+              reg2 = x86_64ArgsRegisters !! (intIdx + 1)
+              opName = getOpName op
+              load1 = emit 1 $ "mov " <> reg1 <> ", qword " <> stackAddr sm opName
+              load2 = emit 1 $ "mov " <> reg2 <> ", qword [rbp" <> show (getStackOffset sm opName + 8) <> "]"
+           in (acc <> [load1, load2], intIdx + 2, floatIdx)
+      | otherwise = (acc, intIdx, floatIdx)  -- Large structs passed by reference (handled elsewhere)
     stepType (acc, intIdx, floatIdx) op (Just t)
       | isFloatType t , floatIdx < length x86_64FloatArgsRegisters =
           let xmm = x86_64FloatArgsRegisters !! floatIdx
@@ -430,6 +453,17 @@ setupCallArgs sm args usesHiddenPtr =
           let reg = x86_64ArgsRegisters !! intIdx
           in (acc <> loadRegWithExt sm (reg, op) , intIdx + 1 , floatIdx)
       | otherwise = (acc, intIdx, floatIdx)
+    
+    getOpName :: IROperand -> String
+    getOpName (IRTemp n _) = n
+    getOpName (IRParam n _) = n
+    getOpName (IRGlobal n _) = n
+    getOpName op = error $ "setupCallArgs: unsupported operand type: " <> show op
+    
+    getStackOffset :: Map String Int -> String -> Int
+    getStackOffset stackMap name = case Map.lookup name stackMap of
+      Just off -> off
+      Nothing -> error $ "setupCallArgs: operand not found in stack: " <> name
 
 saveCallResult :: StructMap -> Map String Int -> String -> Maybe IRType -> Bool -> [String]
 saveCallResult _ _ "" _ _          = []
@@ -444,6 +478,13 @@ saveCallResult _ sm dest (Just t) _
     saveFloat IRF32 (xmmRet:_) = [ emit 1 $ "movss dword " <> stackAddr sm dest <> ", " <> xmmRet ]
     saveFloat IRF64 (xmmRet:_) = [ emit 1 $ "movsd qword " <> stackAddr sm dest <> ", " <> xmmRet ]
     saveFloat other _          = [ emit 1 $ "; TODO: unsupported float return type: " <> show other ]
+
+-- | Check if a struct contains only floating-point types
+structIsAllFloats :: StructMap -> String -> Bool
+structIsAllFloats structMap sName =
+  case Map.lookup sName structMap of
+    Nothing -> False
+    Just fields -> all (isFloatType . snd) fields
 
 -- | Save struct return value from registers (rax, rdx, rcx, r8)
 saveStructResult :: StructMap -> Map String Int -> String -> String -> [String]
