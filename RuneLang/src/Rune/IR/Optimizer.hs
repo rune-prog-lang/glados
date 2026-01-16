@@ -55,7 +55,8 @@ data OptState = OptState
   { osConsts :: ConstMap,
     osFuncs :: FuncMap,
     osKeepAssignments :: Bool,
-    osUseCounts :: UseCount
+    osUseCounts :: UseCount,
+    osAddrTaken :: S.Set String
   }
 
 type OptM = State OptState
@@ -109,7 +110,8 @@ optimizeFunction :: FuncMap -> IRFunction -> IRFunction
 optimizeFunction funcs f = f { irFuncBody = finalBody }
   where
     hasCF = any isControlFlow (irFuncBody f)
-    initialState = OptState M.empty funcs hasCF M.empty
+    addrTaken = getAddrTaken (irFuncBody f)
+    initialState = OptState M.empty funcs hasCF M.empty addrTaken
     (optimizedBody, _) = runState (optimizeBlock (irFuncBody f)) initialState
     useCounts = countUses optimizedBody
     withPeephole = peepholeOptimize useCounts optimizedBody
@@ -117,6 +119,12 @@ optimizeFunction funcs f = f { irFuncBody = finalBody }
     withJumpThread = jumpThreading withIncDec
     useCountsAfterPeep = countUses withJumpThread
     finalBody = eliminateDeadCode useCountsAfterPeep withJumpThread
+
+getAddrTaken :: [IRInstruction] -> S.Set String
+getAddrTaken = foldr collect S.empty
+  where
+    collect (IRADDR _ src _) s = S.insert src s
+    collect _ s = s
 
 -- Single instruction optimizations (e.g., x = x + 1 -> INC x)
 singleInstrOpt :: IRInstruction -> IRInstruction
@@ -182,6 +190,7 @@ getOperands (IRINC o) = [o]
 getOperands (IRDEC o) = [o]
 getOperands (IRJUMP_TEST_NZ o1 o2 _) = [o1, o2]
 getOperands (IRJUMP_TEST_Z o1 o2 _) = [o1, o2]
+getOperands (IRADDR _ source ty) = [IRTemp source ty]
 getOperands (IRCAST _ o _ _) = [o]
 getOperands _ = []
 
@@ -324,10 +333,25 @@ optimizeBlock (inst : rest) = do
 optimizeInstr :: IRInstruction -> [IRInstruction] -> OptM [IRInstruction]
 
 -- remember assignment for later; remove if safe
-optimizeInstr inst@(IRASSIGN target op _) rest =
-  modify' (\s -> s { osConsts = M.insert target op (osConsts s) })
-  >> gets osKeepAssignments
-  >>= \keep -> if keep then emitInstr inst rest else optimizeBlock rest
+optimizeInstr inst@(IRASSIGN target op _) rest = do
+  st <- get
+  let keep = osKeepAssignments st
+      addrTaken = S.member target (osAddrTaken st)
+      -- If address taken, keep assignment unless we can redirect the address to a valid lvalue
+      -- (like another variable/param). If op is constant, we must keep assignment.
+      canRedirect = case op of
+        IRTemp _ _ -> True
+        IRParam _ _ -> True
+        _ -> False
+      shouldKeep = keep || (addrTaken && not canRedirect)
+  
+  -- Only add to osConsts if we're going to eliminate the assignment
+  -- If address is taken, we must not substitute uses with the operand
+  if shouldKeep 
+    then emitInstr inst rest 
+    else do
+      modify' (\s -> s { osConsts = M.insert target op (osConsts s) })
+      optimizeBlock rest
 
 -- reset remembered values at labels
 optimizeInstr inst@(IRLABEL _) rest =
@@ -346,12 +370,16 @@ optimizeInstr (IRCALL target fun args retType) rest =
 optimizeInstr inst rest = emitInstr inst rest
 
 inlineFunction :: String -> String -> IRFunction -> [IROperand] -> [IRInstruction] -> OptM [IRInstruction]
-inlineFunction target fun callee args rest =
+inlineFunction target fun callee args rest = do
   let prefix = fun <> "_" <> target <> "_"
       renamedBody = renameInstr prefix <$> irFuncBody callee
       renamedParams = map (first (prefix <>)) $ irFuncParams callee
       assigns = zipWith (\(n, t) arg -> IRASSIGN n arg t) renamedParams args
-  in optimizeBlock (assigns <> replaceRet target renamedBody <> rest)
+      -- Get address-taken variables from inlined function and rename them
+      inlinedAddrTaken = S.map (prefix <>) (getAddrTaken (irFuncBody callee))
+  -- Update the state to include address-taken variables from inlined function
+  modify (\s -> s { osAddrTaken = S.union (osAddrTaken s) inlinedAddrTaken })
+  optimizeBlock (assigns <> replaceRet target renamedBody <> rest)
 
 --
 -- helpers
@@ -395,6 +423,7 @@ simplifyInstr (IRALLOC_ARRAY t ty elems) = IRALLOC_ARRAY t ty <$> mapM simplifyO
 simplifyInstr (IRGET_ELEM t arr idx ty) = IRGET_ELEM t <$> simplifyOp arr <*> simplifyOp idx <*> pure ty
 simplifyInstr (IRSET_ELEM arr idx val) = IRSET_ELEM <$> simplifyOp arr <*> simplifyOp idx <*> simplifyOp val
 simplifyInstr (IRBNOT_OP t o ty) = IRBNOT_OP t <$> simplifyOp o <*> pure ty
+simplifyInstr (IRADDR dest src ty) = pure $ IRADDR dest src ty
 
 simplifyInstr (IRADD_OP t o1 o2 ty) = do
   o1' <- simplifyOp o1

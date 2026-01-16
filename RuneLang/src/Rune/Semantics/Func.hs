@@ -37,30 +37,32 @@ findFunc (Program _ defs) = foldM findDefs HM.empty defs
 findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 
 findDefs s (DefFunction name params rType _ _) =
-    let paramTypes = map paramType params
-        sig = (rType, params)
-    in case HM.lookup name s of
-         Nothing -> Right $ HM.insert name sig s
-         Just (existingRet, existingArgs) ->
-             if existingRet == rType && existingArgs == params
-             then Left $ printf "FuncAlreadyExist: %s was already defined with same signature" name
-             else
-                 let mangledName = mangleFuncName name rType paramTypes
-                 in if HM.member mangledName s
-                    then Left $ printf "FuncAlreadyExist: %s (mangled: %s) was already defined" name mangledName
-                    else Right $ HM.insert mangledName sig s
-
--- | find function signatures defined somewhere else
-findDefs s (DefSomewhere sigs) = foldM addSig s [sig | DeclFuncSig sig <- sigs]
+    case HM.lookup finalName s of
+        Nothing       -> Right $ HM.insert finalName sig s
+        Just existing -> handleConflict existing
   where
-    addSig fs (FunctionSignature { sigFuncName = name, sigParams = paramTypes, sigReturnType = rType }) =
-      let params = map (\pType -> Parameter "" pType Nothing) paramTypes
-          sig = (rType, params)
-      in Right $ HM.insertWith (\_ old -> old) name sig fs
+    sig         = (rType, params)
+    pTypes      = map paramType params
+    mangledName = mangleFuncName name rType pTypes
+    finalName   = if name == "main" then name else mangledName
 
--- | find struct method definitions
-findDefs s (DefStruct name _ methods) =
-    foldM findDefs s (transformStructMethods name methods)
+    handleConflict (exRet, exArgs)
+        | exRet == rType && exArgs == params = Left errSameSig
+        | otherwise                          = Left errMangled
+
+    errSameSig = printf "FuncAlreadyExist: %s was already defined with same signature" name
+    errMangled = printf "FuncAlreadyExist: %s (mangled: %s) was already defined" name finalName
+
+findDefs s (DefSomewhere sigs) = foldM addSig s sigs
+  where
+    addSig fs (FunctionSignature name pTypes rType isExtern) =
+        Right $ HM.insert finalName sig fs
+      where
+        sig       = (rType, params)
+        params    = map (\t -> Parameter "" t Nothing) pTypes
+        finalName = if isExtern then name else mangleFuncName name rType pTypes
+
+findDefs s (DefStruct name _ methods) = foldM findDefs s $ transformStructMethods name methods
 
 -- | Infer parameter type from default value if type is TypeAny
 inferParamType :: Parameter -> Parameter
