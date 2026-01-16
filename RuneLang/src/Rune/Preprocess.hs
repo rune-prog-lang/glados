@@ -18,6 +18,7 @@ preprocessUseStatements includePaths content = do
     processLines [] acc _ = pure $ Right $ unlines (reverse acc)
     processLines (line:rest) acc includedFiles = 
       case parseUseLine (strip line) of
+        Nothing -> processLines rest (line : acc) includedFiles
         Just fileName -> 
           if fileName `elem` includedFiles
             then processLines rest acc includedFiles  -- Skip duplicate, don't include the use line
@@ -26,14 +27,14 @@ preprocessUseStatements includePaths content = do
               case result of
                 Left err -> pure $ Left err
                 Right fileContent -> do
-                  -- Recursively process the file content for nested use statements
+                  -- Recursively process the file content for nested use statements FIRST
                   nestedResult <- processLines (lines fileContent) [] (fileName : includedFiles)
                   case nestedResult of
                     Left err -> pure $ Left err
                     Right processedContent -> 
-                      let processedLines = lines processedContent
-                      in processLines rest (reverse processedLines ++ acc) (fileName : includedFiles)
-        Nothing -> processLines rest (line : acc) includedFiles
+                      -- Now remove comments and flatten the fully processed content
+                      let cleanedContent = removeCommentsAndFlatten processedContent
+                      in processLines rest (cleanedContent : acc) (fileName : includedFiles)
     
     parseUseLine :: String -> Maybe String
     parseUseLine line = 
@@ -49,6 +50,43 @@ preprocessUseStatements includePaths content = do
     
     strip :: String -> String
     strip = dropWhile isSpace . dropWhileEnd isSpace
+    
+    -- | Remove comments and flatten content to single line
+    removeCommentsAndFlatten :: String -> String
+    removeCommentsAndFlatten content = 
+      let contentLines = lines content
+          nonCommentLines = filter (not . isCommentLine . strip) contentLines
+          cleanedLines = map (removeInlineComments . strip) nonCommentLines
+          nonEmptyLines = filter (not . null) cleanedLines
+      in unwords nonEmptyLines
+      where
+        -- Check if a line is a comment line (starts with // or is inside /* */)
+        isCommentLine :: String -> Bool
+        isCommentLine line = 
+          case dropWhile isSpace line of
+            ('/':'/':_) -> True
+            ('/':'*':_) -> True  -- Simplified: treat /* as start of comment line
+            ('*':'/':_) -> True  -- Simplified: treat */ as end of comment line
+            ('*':_) -> True      -- Simplified: treat lines starting with * as comment continuation
+            _ -> False
+        
+        -- Remove inline comments from a line
+        removeInlineComments :: String -> String
+        removeInlineComments line = removeInlineComments' line ""
+          where
+            removeInlineComments' :: String -> String -> String
+            removeInlineComments' [] acc = reverse acc
+            removeInlineComments' ('/':'/':_) acc = reverse acc  -- Rest of line is comment
+            removeInlineComments' ('/':'*':rest) acc = 
+              case findBlockCommentEnd rest of
+                Just remaining -> removeInlineComments' remaining acc
+                Nothing -> reverse acc  -- Comment extends to end of line
+            removeInlineComments' (c:cs) acc = removeInlineComments' cs (c:acc)
+            
+            findBlockCommentEnd :: String -> Maybe String
+            findBlockCommentEnd [] = Nothing
+            findBlockCommentEnd ('*':'/':rest) = Just rest
+            findBlockCommentEnd (_:rest) = findBlockCommentEnd rest
     
     findAndReadFile :: FilePath -> [FilePath] -> IO (Either String String)
     findAndReadFile fileName paths = do
