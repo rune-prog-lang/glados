@@ -29,9 +29,18 @@ import qualified Data.List as List
 --- public
 ---
 
-findStruct :: Program -> Either String StructStack
-findStruct (Program _ defs) =
-  foldM addStruct HM.empty structs
+findStruct :: Program -> Either String (Program, StructStack)
+findStruct (Program n defs) = do
+  ss <- foldM addStruct HM.empty structs
+
+  let finalDefs = map (\d -> case d of
+                              defStruct@(DefStruct name _ _ _ _) ->
+                                case HM.lookup name ss of
+                                  Just updated -> updated
+                                  Nothing -> defStruct
+                              other -> other
+                       ) defs
+  Right (Program n finalDefs, ss)
   where
     structs :: [TopLevelDef]
     structs = [d | d@DefStruct{} <- defs]

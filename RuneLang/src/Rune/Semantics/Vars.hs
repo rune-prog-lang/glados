@@ -77,8 +77,6 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
-import Debug.Trace (trace)
-
 --
 -- state monad
 --
@@ -106,7 +104,7 @@ verifVars (Program n defs) = do
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
 
   fs <- findFunc (Program n concreteDefs)
-  ss <- findStruct (Program n concreteDefs)
+  (Program _ updatedDefs, ss) <- findStruct (Program n concreteDefs)
 
   let initialState = SemState
         { stFuncs = fs
@@ -117,7 +115,7 @@ verifVars (Program n defs) = do
         , stCurrentStruct = Nothing
         }
 
-  (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
+  (defs', finalState) <- runStateT (mapM verifTopLevel updatedDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
       finalFuncStack = mangleFuncStack $ stFuncs finalState
   pure (Program n allDefs, finalFuncStack)
