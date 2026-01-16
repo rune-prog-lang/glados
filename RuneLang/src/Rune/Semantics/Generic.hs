@@ -11,17 +11,15 @@ module Rune.Semantics.Generic (instantiate) where
 #endif
 
 import Rune.AST.Nodes
-import Rune.Semantics.Helper (mangleName)
 
 --
 -- public
 --
 
 instantiate :: TopLevelDef -> [Type] -> Type -> TopLevelDef
-instantiate (DefFunction name params _ body isExport visibility isStatic) argTypes retType =
-    let mangled = mangleName name retType argTypes
-        newParams = zipWith replaceParam params argTypes
-    in DefFunction mangled newParams retType body isExport visibility isStatic
+instantiate (DefFunction name params _ body isExport visibility isStatic isAbstract) argTypes retType =
+    let newParams = zipWith replaceParam params argTypes
+    in DefFunction name newParams retType body isExport visibility isStatic isAbstract
 instantiate def _ _ = def
 
 --

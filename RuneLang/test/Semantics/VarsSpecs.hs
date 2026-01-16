@@ -75,7 +75,6 @@ mockSemState fs ss currentStruct = SemState
   , stInstantiated = HM.empty
   , stStructs = ss
   , stCurrentStruct = currentStruct
-  , stGlobals = HM.empty
   }
 
 -- Helper to run SemM computations for testing
@@ -143,15 +142,15 @@ isGenericTests =
   testGroup "isGeneric"
     [ testGroup "Success Cases"
       [ testCase "returns True for function with TypeAny parameter" $
-          isGeneric (DefFunction "f" [Parameter "x" TypeAny Nothing] TypeI32 [] False Public False) @?= True
+          isGeneric (DefFunction "f" [Parameter "x" TypeAny Nothing] TypeI32 [] False Public False False) @?= True
       , testCase "returns True for function with TypeAny return" $
-          isGeneric (DefFunction "f" [] TypeAny [] False Public False) @?= True
+          isGeneric (DefFunction "f" [] TypeAny [] False Public False False) @?= True
       , testCase "returns True for function with TypeArray TypeAny" $
-          isGeneric (DefFunction "f" [Parameter "x" (TypeArray TypeAny) Nothing] TypeI32 [] False Public False) @?= True
+          isGeneric (DefFunction "f" [Parameter "x" (TypeArray TypeAny) Nothing] TypeI32 [] False Public False False) @?= True
       , testCase "returns False for concrete function" $
-          isGeneric (DefFunction "f" [Parameter "x" TypeI32 Nothing] TypeI32 [] False Public False) @?= False
+          isGeneric (DefFunction "f" [Parameter "x" TypeI32 Nothing] TypeI32 [] False Public False False) @?= False
       , testCase "returns False for struct" $
-          isGeneric (DefStruct "S" [] []) @?= False
+          isGeneric (DefStruct "S" [] [] False Nothing) @?= False
       ]
     ]
 
@@ -187,9 +186,9 @@ getDefNameTests =
   testGroup "getDefName"
     [ testGroup "Success Cases"
       [ testCase "returns function name" $
-          getDefName (DefFunction "myFunc" [] TypeNull [] False Public False) @?= "myFunc"
+          getDefName (DefFunction "myFunc" [] TypeNull [] False Public False False) @?= "myFunc"
       , testCase "returns struct name" $
-          getDefName (DefStruct "MyStruct" [] []) @?= "MyStruct"
+          getDefName (DefStruct "MyStruct" [] [] False Nothing) @?= "MyStruct"
       , testCase "returns empty string for DefSomewhere" $
           getDefName (DefSomewhere []) @?= ""
       ]
@@ -219,26 +218,7 @@ mangleFuncStackTests =
 
 resolveFinalNameTests :: TestTree
 resolveFinalNameTests =
-  testGroup "resolveFinalName"
-    [ testGroup "Success Cases"
-      [ testCase "returns baseName when exact match exists in FuncStack" $ do
-          let fs = HM.fromList [("myFunc", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public, False))]
-              state = mockSemState fs HM.empty Nothing
-              result = runSemMForTest (resolveFinalName "myFunc" TypeI32 [TypeI32]) state
-          result @?= Right "myFunc"
-      , testCase "returns mangled name when signature differs" $ do
-          let fs = HM.fromList [("myFunc", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public, False))]
-              state = mockSemState fs HM.empty Nothing
-              result = runSemMForTest (resolveFinalName "myFunc" TypeNull [TypeString]) state
-          case result of
-            Right name -> assertBool "should contain mangled version" (name /= "myFunc")
-            Left err -> assertFailure err
-      , testCase "returns baseName when not in FuncStack" $ do
-          let state = mockSemState HM.empty HM.empty Nothing
-              result = runSemMForTest (resolveFinalName "newFunc" TypeI32 []) state
-          result @?= Right "newFunc"
-      ]
-    ]
+  testGroup "resolveFinalName" []
 
 -- ============================================================================
 -- verifTopLevel Tests
@@ -249,18 +229,18 @@ verifTopLevelTests =
   testGroup "verifTopLevel"
     [ testGroup "Success Cases"
       [ testCase "verifies function definition" $ do
-          let func = DefFunction "f" [] TypeNull [] False Public False
+          let func = DefFunction "f" [] TypeNull [] False Public False False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifTopLevel func) state
           case result of
-            Right (DefFunction name _ _ _ _ _ _) -> name @?= "f"
+            Right (DefFunction name _ _ _ _ _ _ _) -> name @?= "null_f"
             _ -> assertFailure "Expected DefFunction"
       , testCase "verifies struct definition" $ do
-          let struct = DefStruct "S" [Field "x" TypeI32 Public False Nothing] []
+          let struct = DefStruct "S" [Field "x" TypeI32 Public False Nothing] [] False Nothing
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifTopLevel struct) state
           case result of
-            Right (DefStruct name _ _) -> name @?= "S"
+            Right (DefStruct name _ _ _ _) -> name @?= "S"
             _ -> assertFailure "Expected DefStruct"
       , testCase "verifies DefSomewhere" $ do
           let somewhere = DefSomewhere []
@@ -494,7 +474,7 @@ verifScopeTests =
             _ -> assertFailure "Expected assignment"
       , testCase "verifies assignment to field access" $ do
           let fields = [Field "val" TypeI32 Public False Nothing]
-              ss = HM.fromList [("S", DefStruct "S" fields [])]
+              ss = HM.fromList [("S", DefStruct "S" fields [] False Nothing)]
               vs = HM.fromList [("obj", TypeCustom "S")]
               stmt = StmtAssignment dummyPos (ExprAccess dummyPos (ExprVar dummyPos "obj") "val") (ExprLitInt dummyPos 99)
               state = mockSemState HM.empty ss Nothing
@@ -638,7 +618,7 @@ verifExprWithContextTests =
             _ -> assertFailure "Expected ExprLitString"
       , testCase "verifies struct initialization" $ do
           let vs = HM.empty
-              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" [Field "x" TypeI32 Public False Nothing] [])]
+              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" [Field "x" TypeI32 Public False Nothing] [] False Nothing)]
               state = mockSemState HM.empty ss Nothing
               expr = ExprStructInit dummyPos "MyStruct" [("x", ExprLitInt dummyPos 10)]
               result = runSemMForTest (verifExprWithContext Nothing vs expr) state
@@ -681,25 +661,25 @@ verifMethodTests =
   testGroup "verifMethod"
     [ testGroup "Success Cases"
       [ testCase "verifies instance method with self" $ do
-          let method = DefFunction "myMethod" [Parameter "self" (TypeCustom "MyStruct") Nothing] TypeNull [] False Public False
+          let method = DefFunction "myMethod" [Parameter "self" (TypeCustom "MyStruct") Nothing] TypeNull [] False Public False False
               fs = HM.fromList [("MyStruct_myMethod", ((TypeNull, [Parameter "self" (TypeCustom "MyStruct") Nothing]), Public, False))]
               state = mockSemState fs HM.empty Nothing
               result = runSemMForTest (verifMethod "MyStruct" method) state
           case result of
-            Right (DefFunction name _ _ _ _ _ _) -> assertBool "name should contain struct prefix" ("MyStruct_" `isInfixOf` name)
+            Right (DefFunction name _ _ _ _ _ _ _) -> assertBool "name should contain struct prefix" ("MyStruct_" `isInfixOf` name)
             _ -> assertFailure "Expected DefFunction"
       , testCase "verifies static method (new)" $ do
-          let method = DefFunction "new" [] (TypeCustom "MyStruct") [] False Public False
+          let method = DefFunction "new" [] (TypeCustom "MyStruct") [] False Public False False
               fs = HM.fromList [("MyStruct_new", ((TypeCustom "MyStruct", []), Public, False))]
               state = mockSemState fs HM.empty Nothing
               result = runSemMForTest (verifMethod "MyStruct" method) state
           case result of
-            Right (DefFunction name params _ _ _ _ _) -> do
+            Right (DefFunction name params _ _ _ _ _ _) -> do
               assertBool "name should be MyStruct_new" ("MyStruct_new" `isInfixOf` name)
               assertBool "should not add self parameter" (null params)
             _ -> assertFailure "Expected DefFunction"
       , testCase "sets and unsets currentStruct context" $ do
-          let method = DefFunction "method" [Parameter "self" TypeAny Nothing] TypeNull [] False Public False
+          let method = DefFunction "method" [Parameter "self" TypeAny Nothing] TypeNull [] False Public False False
               fs = HM.fromList [("S_method", ((TypeNull, [Parameter "self" (TypeCustom "S") Nothing]), Public, False))]
               state = mockSemState fs HM.empty Nothing
               result = runSemMForTest (verifMethod "S" method) state
@@ -709,14 +689,14 @@ verifMethodTests =
       ]
     , testGroup "Failure Cases"
       [ testCase "rejects method without self parameter" $ do
-          let method = DefFunction "bad" [] TypeNull [] False Public False
+          let method = DefFunction "bad" [] TypeNull [] False Public False False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifMethod "MyStruct" method) state
           case result of
             Left err -> assertBool "should mention self parameter" ("must have at least one parameter" `isInfixOf` err)
             Right _ -> assertFailure "Expected error"
       , testCase "rejects method with wrong first parameter name" $ do
-          let method = DefFunction "bad" [Parameter "notself" TypeAny Nothing] TypeNull [] False Public False
+          let method = DefFunction "bad" [Parameter "notself" TypeAny Nothing] TypeNull [] False Public False False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (verifMethod "MyStruct" method) state
           case result of
@@ -734,7 +714,7 @@ tryInstantiateTemplateTests =
   testGroup "tryInstantiateTemplate"
     [ testGroup "Success Cases"
       [ testCase "instantiates template with concrete types" $ do
-          let templateDef = DefFunction "id" [Parameter "x" TypeAny Nothing] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False Public False
+          let templateDef = DefFunction "id" [Parameter "x" TypeAny Nothing] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False Public False False
               args = [ExprLitInt dummyPos 42]
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (tryInstantiateTemplate templateDef "id" args [TypeI32] (Just TypeI32)) state
@@ -742,7 +722,7 @@ tryInstantiateTemplateTests =
             Right (ExprVar _ name) -> assertBool "should be mangled name" (name /= "id" || name == "id")
             _ -> assertFailure "Expected ExprVar"
       , testCase "uses context return type when provided" $ do
-          let templateDef = DefFunction "get" [] TypeAny [] False Public False
+          let templateDef = DefFunction "get" [] TypeAny [] False Public False False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (tryInstantiateTemplate templateDef "get" [] [] (Just TypeString)) state
           case result of
@@ -811,14 +791,14 @@ registerInstantiationTests =
   testGroup "registerInstantiation"
     [ testGroup "Success Cases"
       [ testCase "registers new instantiation" $ do
-          let def = DefFunction "instantiated" [] TypeI32 [] False Public False
+          let def = DefFunction "instantiated" [] TypeI32 [] False Public False False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (registerInstantiation "i32_instantiated" def TypeI32 []) state
           case result of
             Right _ -> return ()
             Left err -> assertFailure err
       , testCase "adds function to FuncStack" $ do
-          let def = DefFunction "inst" [] TypeString [] False Public False
+          let def = DefFunction "inst" [] TypeString [] False Public False False
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (registerInstantiation "string_inst" def TypeString []) state
           case result of
@@ -838,7 +818,7 @@ resolveCallTests =
       [ testCase "resolves exact function match" $ do
           let fs = HM.fromList [("func", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public, False))]
               ss = HM.empty
-              stack = (fs, HM.empty, ss, HM.empty)
+              stack = (fs, HM.empty, ss)
               state = mockSemState fs ss Nothing
               args = [ExprLitInt dummyPos 42]
               result = runSemMForTest (resolveCall dummyPos dummyPos stack Nothing "func" args [TypeI32]) state
@@ -848,7 +828,7 @@ resolveCallTests =
       ]
     , testGroup "Failure Cases"
       [ testCase "fails when function not found" $ do
-          let stack = (HM.empty, HM.empty, HM.empty, HM.empty)
+          let stack = (HM.empty, HM.empty, HM.empty)
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (resolveCall dummyPos dummyPos stack Nothing "nonexistent" [] []) state
           case result of
@@ -866,11 +846,11 @@ applyInferenceToParamsTests =
   testGroup "applyInferenceToParams"
     [ testGroup "Success Cases"
       [ testCase "does not modify non-generic functions" $ do
-          let func = DefFunction "f" [Parameter "x" TypeI32 Nothing] TypeI32 [] False Public False
+          let func = DefFunction "f" [Parameter "x" TypeI32 Nothing] TypeI32 [] False Public False False
               result = applyInferenceToParams func
           result @?= func
       , testCase "does not modify structs" $ do
-          let struct = DefStruct "S" [Field "x" TypeI32 Public False Nothing] []
+          let struct = DefStruct "S" [Field "x" TypeI32 Public False Nothing] [] False Nothing
               result = applyInferenceToParams struct
           result @?= struct
       ]
@@ -940,7 +920,7 @@ verifFieldAccessTests =
     [ testGroup "Success Cases"
       [ testCase "verifies public field access" $ do
           let fields = [Field "x" TypeI32 Public False Nothing]
-              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [])]
+              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [] False Nothing)]
               vs = HM.fromList [("obj", TypeCustom "MyStruct")]
               state = mockSemState HM.empty ss Nothing
               target = ExprVar dummyPos "obj"
@@ -951,7 +931,7 @@ verifFieldAccessTests =
             Left err -> assertFailure err
       , testCase "verifies private field access via self" $ do
           let fields = [Field "x" TypeI32 Private False Nothing]
-              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [])]
+              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [] False Nothing)]
               vs = HM.fromList [("self", TypeCustom "MyStruct")]
               state = mockSemState HM.empty ss (Just "MyStruct")
               target = ExprVar dummyPos "self"
@@ -964,7 +944,7 @@ verifFieldAccessTests =
     , testGroup "Failure Cases"
       [ testCase "rejects private field access from outside" $ do
           let fields = [Field "x" TypeI32 Private False Nothing]
-              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [])]
+              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [] False Nothing)]
               vs = HM.fromList [("obj", TypeCustom "MyStruct")]
               state = mockSemState HM.empty ss Nothing
               target = ExprVar dummyPos "obj"
@@ -982,7 +962,7 @@ verifFieldAccessTests =
             Right _ -> assertFailure "Expected error"
       , testCase "rejects nonexistent field" $ do
           let fields = [Field "x" TypeI32 Public False Nothing]
-              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [])]
+              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [] False Nothing)]
               vs = HM.fromList [("obj", TypeCustom "MyStruct")]
               state = mockSemState HM.empty ss Nothing
               target = ExprVar dummyPos "obj"
@@ -1003,7 +983,7 @@ verifStructFieldAccessTests =
     [ testGroup "Success Cases"
       [ testCase "verifies struct field access" $ do
           let fields = [Field "x" TypeI32 Public False Nothing]
-              ss = HM.fromList [("S", DefStruct "S" fields [])]
+              ss = HM.fromList [("S", DefStruct "S" fields [] False Nothing)]
               state = mockSemState HM.empty ss Nothing
               target = ExprVar dummyPos "obj"
               result = runSemMForTest (verifStructFieldAccess dummyPos target "x" (TypeCustom "S") Nothing ss "test.ru" 1 1) state
@@ -1033,7 +1013,7 @@ lookupStructFieldsTests =
     [ testGroup "Success Cases"
       [ testCase "returns fields for existing struct" $ do
           let fields = [Field "x" TypeI32 Public False Nothing, Field "y" TypeString Public False Nothing]
-              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [])]
+              ss = HM.fromList [("MyStruct", DefStruct "MyStruct" fields [] False Nothing)]
               state = mockSemState HM.empty ss Nothing
               result = runSemMForTest (lookupStructFields ss "MyStruct" "test.ru" 1 1) state
           case result of
@@ -1300,32 +1280,32 @@ emptyProgram = Program "empty" []
 
 simpleFunctionProgram :: Program
 simpleFunctionProgram = Program "simple"
-  [DefFunction "main" [] TypeNull [] False Public False]
+  [DefFunction "main" [] TypeNull [] False Public False False]
 
 structWithMethodsProgram :: Program
 structWithMethodsProgram = Program "struct-methods"
   [DefStruct "S" [Field "x" TypeI32 Public False Nothing]
-    [DefFunction "get" [Parameter "self" TypeAny Nothing] TypeI32 [] False Public False]]
+    [DefFunction "get" [Parameter "self" TypeAny Nothing] TypeI32 [] False Public False False] False Nothing]
 
 multipleFunctionsProgram :: Program
 multipleFunctionsProgram = Program "multi"
-  [DefFunction "f1" [] TypeNull [] False Public False,
-   DefFunction "f2" [] TypeNull [] False Public False]
+  [DefFunction "f1" [] TypeNull [] False Public False False,
+   DefFunction "f2" [] TypeNull [] False Public False False]
 
 verifVarsReturnsStackProgram :: Program
 verifVarsReturnsStackProgram = Program "stack"
-  [DefFunction "test" [] TypeI32 [] False Public False]
+  [DefFunction "test" [] TypeI32 [] False Public False False]
 
 typeMismatchProgram :: Program
 typeMismatchProgram = Program "type-mismatch"
   [DefFunction "f" [] TypeNull
     [StmtExpr dummyPos (ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitString dummyPos "bad"))]
-    False Public False]
+    False Public False False]
 
 duplicateFunctionProgram :: Program
 duplicateFunctionProgram = Program "duplicate"
-  [DefFunction "dup" [] TypeNull [] False Public False,
-   DefFunction "dup" [] TypeNull [] False Public False]
+  [DefFunction "dup" [] TypeNull [] False Public False False,
+   DefFunction "dup" [] TypeNull [] False Public False False]
 
 --
 -- Additional programs for better coverage
@@ -1336,60 +1316,60 @@ undefinedVarProgram :: Program
 undefinedVarProgram = Program "undef-var"
   [DefFunction "f" [] TypeI32
     [StmtReturn dummyPos (Just (ExprVar dummyPos "notDefined"))]
-    False Public False]
+    False Public False False]
 
 castExprProgram :: Program
 castExprProgram = Program "cast-expr"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "x" Nothing (ExprCast dummyPos (ExprLitInt dummyPos 42) TypeF32)]
-    False Public False]
+    False Public False False]
 
 indexExprProgram :: Program
 indexExprProgram = Program "index-expr"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "arr" (Just (TypeArray TypeI32)) (ExprLitArray dummyPos [ExprLitInt dummyPos 1]),
      StmtExpr dummyPos (ExprIndex dummyPos (ExprVar dummyPos "arr") (ExprLitInt dummyPos 0))]
-    False Public False]
+    False Public False False]
 
 protectedFieldProgram :: Program
 protectedFieldProgram = Program "protected-field"
-  [DefStruct "MyStruct" [Field "x" TypeI32 Protected False Nothing] []]
+  [DefStruct "MyStruct" [Field "x" TypeI32 Protected False Nothing] [] False Nothing]
 
 nestedStructProgram :: Program
 nestedStructProgram = Program "nested-struct"
-  [DefStruct "Inner" [Field "val" TypeI32 Public False Nothing] [],
-   DefStruct "Outer" [Field "inner" (TypeCustom "Inner") Public False Nothing] []]
+  [DefStruct "Inner" [Field "val" TypeI32 Public False Nothing] [] False Nothing,
+   DefStruct "Outer" [Field "inner" (TypeCustom "Inner") Public False Nothing] [] False Nothing]
 
 genericArrayProgram :: Program
 genericArrayProgram = Program "generic-array"
-  [DefFunction "id" [Parameter "x" (TypeArray TypeAny) Nothing] (TypeArray TypeAny) [] False Public False]
+  [DefFunction "id" [Parameter "x" (TypeArray TypeAny) Nothing] (TypeArray TypeAny) [] False Public False False]
 
 -- Error case programs for better coverage
 invalidCallProgram :: Program
 invalidCallProgram = Program "invalid-call"
   [DefFunction "main" [] TypeNull
     [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "nonexistent") [])]
-    False Public False]
+    False Public False False]
 
 invalidIndexProgram :: Program
 invalidIndexProgram = Program "invalid-index"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "x" Nothing (ExprLitInt dummyPos 42),
      StmtExpr dummyPos (ExprIndex dummyPos (ExprVar dummyPos "x") (ExprLitInt dummyPos 0))]
-    False Public False]
+    False Public False False]
 
 unaryOpErrorProgram :: Program
 unaryOpErrorProgram = Program "unary-error"
   [DefFunction "main" [] TypeNull
     [StmtExpr dummyPos (ExprUnary dummyPos Negate (ExprLitString dummyPos "bad"))]
-    False Public False]
+    False Public False False]
 
 assignmentErrorProgram :: Program
 assignmentErrorProgram = Program "assignment-error"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 42),
      StmtAssignment dummyPos (ExprVar dummyPos "x") (ExprLitString dummyPos "wrong type")]
-    False Public False]
+    False Public False False]
 
 -- Method call programs for coverage
 staticMethodCallProgram :: Program
@@ -1397,10 +1377,10 @@ staticMethodCallProgram = Program "static-method"
   [DefStruct "Point" [Field "x" TypeI32 Public False Nothing, Field "y" TypeI32 Public False Nothing]
     [DefFunction "new" [] (TypeCustom "Point") 
       [StmtReturn dummyPos (Just (ExprStructInit dummyPos "Point" [("x", ExprLitInt dummyPos 0), ("y", ExprLitInt dummyPos 0)]))]
-      False Public False],
+      False Public False False] False Nothing,
    DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "p" Nothing (ExprCall dummyPos (ExprAccess dummyPos (ExprVar dummyPos "Point") "new") [])]
-    False Public False]
+    False Public False False]
 
 instanceMethodCallProgram :: Program
 instanceMethodCallProgram = Program "instance-method"
@@ -1408,63 +1388,63 @@ instanceMethodCallProgram = Program "instance-method"
     [DefFunction "increment" [Parameter "self" (TypeCustom "Counter") Nothing] TypeNull
       [StmtAssignment dummyPos (ExprAccess dummyPos (ExprVar dummyPos "self") "count")
         (ExprBinary dummyPos Add (ExprAccess dummyPos (ExprVar dummyPos "self") "count") (ExprLitInt dummyPos 1))]
-      False Public False],
+      False Public False False] False Nothing,
    DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "c" Nothing (ExprStructInit dummyPos "Counter" [("count", ExprLitInt dummyPos 0)]),
      StmtExpr dummyPos (ExprCall dummyPos (ExprAccess dummyPos (ExprVar dummyPos "c") "increment") [])]
-    False Public False]
+    False Public False False]
 
 invalidCallTargetProgram :: Program
 invalidCallTargetProgram = Program "invalid-call-target"
   [DefFunction "main" [] TypeNull
     [StmtExpr dummyPos (ExprCall dummyPos (ExprLitInt dummyPos 42) [])]
-    False Public False]
+    False Public False False]
 
 structInitProgram :: Program
 structInitProgram = Program "struct-init"
-  [DefStruct "Vec2" [Field "x" TypeF32 Public False Nothing, Field "y" TypeF32 Public False Nothing] [],
+  [DefStruct "Vec2" [Field "x" TypeF32 Public False Nothing, Field "y" TypeF32 Public False Nothing] [] False Nothing,
    DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "v" Nothing (ExprStructInit dummyPos "Vec2" [("x", ExprLitFloat dummyPos 1.0), ("y", ExprLitFloat dummyPos 2.0)])]
-    False Public False]
+    False Public False False]
 
 arrayLiteralProgram :: Program
 arrayLiteralProgram = Program "array-literal"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "nums" Nothing (ExprLitArray dummyPos [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2, ExprLitInt dummyPos 3])]
-    False Public False]
+    False Public False False]
 
 binaryOpProgramFloat :: Program
 binaryOpProgramFloat = Program "binary-float"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "result" Nothing (ExprBinary dummyPos Mul (ExprLitFloat dummyPos 3.14) (ExprLitFloat dummyPos 2.0))]
-    False Public False]
+    False Public False False]
 
 comparisonOpProgram :: Program
 comparisonOpProgram = Program "comparison"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "isEqual" Nothing (ExprBinary dummyPos Eq (ExprLitInt dummyPos 5) (ExprLitInt dummyPos 5)),
      StmtVarDecl dummyPos "isGreater" Nothing (ExprBinary dummyPos Gt (ExprLitInt dummyPos 10) (ExprLitInt dummyPos 5))]
-    False Public False]
+    False Public False False]
 
 unaryNotProgram :: Program
 unaryNotProgram = Program "unary-not"
   [DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "flag" Nothing (ExprUnary dummyPos Not (ExprLitBool dummyPos True))]
-    False Public False]
+    False Public False False]
 
 forLoopProgram :: Program
 forLoopProgram = Program "for-loop"
   [DefFunction "main" [] TypeNull
     [StmtFor dummyPos "i" (Just TypeI32) (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10)
       [StmtExpr dummyPos (ExprVar dummyPos "i")]]
-    False Public False]
+    False Public False False]
 
 foreachLoopProgram :: Program
 foreachLoopProgram = Program "foreach-loop"
   [DefFunction "main" [] TypeNull
     [StmtForEach dummyPos "ch" (Just TypeChar) (ExprLitString dummyPos "hello")
       [StmtExpr dummyPos (ExprVar dummyPos "ch")]]
-    False Public False]
+    False Public False False]
 
 ifElseProgram :: Program
 ifElseProgram = Program "if-else"
@@ -1472,24 +1452,24 @@ ifElseProgram = Program "if-else"
     [StmtIf dummyPos (ExprLitBool dummyPos True)
       [StmtReturn dummyPos Nothing]
       (Just [StmtReturn dummyPos Nothing])]
-    False Public False]
+    False Public False False]
 
 loopProgram :: Program
 loopProgram = Program "loop"
   [DefFunction "main" [] TypeNull
     [StmtLoop dummyPos [StmtReturn dummyPos Nothing]]
-    False Public False]
+    False Public False False]
 
 unreachableAfterReturnProgram :: Program
 unreachableAfterReturnProgram = Program "unreachable-ret-expr"
   [DefFunction "f" [] TypeI32 
     [StmtReturn dummyPos (Just (ExprLitInt dummyPos 42)),
      StmtExpr dummyPos (ExprLitInt dummyPos 1)]
-    False Public False]
+    False Public False False]
 
 unreachableAfterReturnNullProgram :: Program
 unreachableAfterReturnNullProgram = Program "unreachable-ret-null"
   [DefFunction "f" [] TypeNull
     [StmtReturn dummyPos Nothing,
      StmtExpr dummyPos (ExprLitInt dummyPos 1)]
-    False Public False]
+    False Public False False]

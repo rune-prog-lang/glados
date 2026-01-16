@@ -113,6 +113,8 @@ data UnaryOp
   | PrefixDec -- --x
   | PostfixInc -- x++
   | PostfixDec -- x--
+  | Deref -- *x
+  | Reference -- &x
   deriving (Show, Eq)
 
 data Program = Program
@@ -134,7 +136,8 @@ data TopLevelDef
         funcBody :: Block,
         funcIsExport :: Bool,
         funcVisibility :: Visibility,
-        funcIsStatic :: Bool
+        funcIsStatic :: Bool,
+        funcIsAbstract :: Bool
       }
   | -- | struct definition
     -- struct Vec2f
@@ -151,7 +154,9 @@ data TopLevelDef
     DefStruct
       { structName :: String,
         structFields :: [Field],
-        structMethods :: [TopLevelDef]
+        structMethods :: [TopLevelDef],
+        structIsAbstract :: Bool,
+        structExtension :: Maybe [String]
       }
   | -- | somewhere block (forward declarations)
     -- somewhere

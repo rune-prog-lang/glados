@@ -63,8 +63,9 @@ emptyState = GenState
   , gsCalledFuncs = Set.empty
   , gsStringMap = Map.empty
   , gsFloatMap = Map.empty
-  , gsFuncStack = HM.empty,
-    gsVariadicPacks = Map.empty
+  , gsFuncStack = HM.empty
+  , gsVariadicPacks = Map.empty
+  , gsStaticVars = Map.empty
   }
 
 --

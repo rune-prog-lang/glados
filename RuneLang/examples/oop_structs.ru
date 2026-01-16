@@ -17,7 +17,7 @@ abstract struct Shape
         Shape.count
     }
 
-    public abstract def get_area(self) -> f32;
+    public abstract def get_area(self) -> f32 {}
 
     public def move(self, dx: f32, dy: f32) -> null
     {
@@ -43,7 +43,7 @@ struct Circle extends Shape
 
     public static def new(x: f32, y: f32, r: f32) -> Circle
     {
-        base = Shape.new(x, y);
+        base = super.new(x, y);
 
         Circle {
             base:   base,

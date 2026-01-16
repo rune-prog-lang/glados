@@ -579,10 +579,10 @@ emitDataSectionTests :: TestTree
 emitDataSectionTests = testGroup "emitDataSection"
   [ testCase "no static arrays" $
       let fs = [IRFunction "f" [] Nothing [] False]
-      in assertBool "should be empty" $ null (emitDataSection Map.empty fs)
+      in assertBool "should be empty" $ null (emitDataSection Map.empty fs [])
   , testCase "with static array" $
       let fs = [IRFunction "m" [] Nothing [IRALLOC_ARRAY "a" IRI32 [IRConstInt 1, IRConstInt 2]] False]
-          result = emitDataSection Map.empty fs
+          result = emitDataSection Map.empty fs []
       in assertBool "should format section and array definition" $
            take 1 result == ["section .data"] &&
            any (== "m_a_lit: dd 1, 2, 0") result

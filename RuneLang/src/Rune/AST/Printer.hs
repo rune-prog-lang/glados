@@ -34,6 +34,7 @@ where
 module Rune.AST.Printer (prettyPrint) where
 #endif
 
+import qualified Data.List as List
 import Control.Monad (void, when)
 import Control.Monad.State.Strict (State, execState, get, modify)
 import Rune.AST.Nodes
@@ -76,8 +77,12 @@ visitTopLevel d@DefStruct {} = visitStruct d
 visitTopLevel d@DefSomewhere {} = visitSomewhere d
 
 visitFunction :: TopLevelDef -> Printer ()
-visitFunction (DefFunction name params retType body isExport visibility isStatic) = do
-  emit $ show visibility <> (if isExport then " export " else " ") <> (if isStatic then "static " else "") <> "DefFunction " <> name
+visitFunction (DefFunction name params retType body isExport visibility isStatic isAbstract) = do
+  emit $ show visibility
+    <> (if isExport then "export " else " ")
+    <> (if isStatic then "static " else "")
+    <> (if isAbstract then "abstract " else "")
+    <> "DefFunction " <> name
   indent
   emitBlock "Parameters:" (mapM_ emitParam params)
   newLine
@@ -87,8 +92,11 @@ visitFunction (DefFunction name params retType body isExport visibility isStatic
 visitFunction _ = return ()
 
 visitStruct :: TopLevelDef -> Printer ()
-visitStruct (DefStruct name fields methods) = do
-  emit $ "DefStruct " <> name
+visitStruct (DefStruct name fields methods isAbstract extension) = do
+  emit $ (if isAbstract then "abstract " else "") <> "DefStruct " <> name <>
+    case extension of
+      Just exts -> " extends " <> (concat $ List.intersperse ", " exts)
+      Nothing   -> ""
   indent
   emitBlock "Fields:" (mapM_ emitField fields)
   emitBlock "Methods:" (mapM_ (\m -> newLine >> visitTopLevel m) methods)
@@ -367,3 +375,5 @@ showUnaryOp PrefixInc = "++(prefix)"
 showUnaryOp PrefixDec = "--(prefix)"
 showUnaryOp PostfixInc = "(postfix)++"
 showUnaryOp PostfixDec = "(postfix)--"
+showUnaryOp Deref = "*"
+showUnaryOp Reference = "&"

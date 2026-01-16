@@ -5,7 +5,6 @@ import Test.Tasty.HUnit (testCase, (@?=))
 
 import Rune.AST.Nodes
 import Rune.Semantics.Generic
-import Rune.Semantics.Helper (mangleName)
 
 --
 -- public
@@ -27,43 +26,40 @@ genericSemanticsTests =
 genericInstantiateTests :: TestTree
 genericInstantiateTests = testGroup "instantiate function"
     [ testCase "Instantiate DefFunction with TypeAny params" $
-        let 
-          def = DefFunction "foo" [Parameter "x" TypeAny Nothing] TypeAny [] False Public False
+        let
+          def = DefFunction "foo" [Parameter "x" TypeAny Nothing] TypeAny [] False Public False False
           args = [TypeI32]
           ret = TypeI32
-          expectedName = mangleName "foo" ret args
           instantiated = instantiate def args ret
         in case instantiated of
-            DefFunction n [Parameter "x" t _] r _ _ _ _ -> do
-                n @?= expectedName
+            DefFunction n [Parameter "x" t _] r _ _ _ _ _ -> do
+                n @?= "foo"
                 t @?= TypeI32
                 r @?= TypeI32
             _ -> error "Expected DefFunction"
 
     , testCase "Instantiate DefFunction with TypeAny params (was override)" $
         let 
-          def = DefFunction "bar" [Parameter "y" TypeAny Nothing] TypeAny [] False Public False
+          def = DefFunction "bar" [Parameter "y" TypeAny Nothing] TypeAny [] False Public False False
           args = [TypeF32]
           ret = TypeNull
-          expectedName = mangleName "bar" ret args
           instantiated = instantiate def args ret
         in case instantiated of
-            DefFunction n [Parameter "y" t _] r _ _ _ _ -> do
-                n @?= expectedName
+            DefFunction n [Parameter "y" t _] r _ _ _ _ _ -> do
+                n @?= "bar"
                 t @?= TypeF32
                 r @?= TypeNull
             _ -> error "Expected DefFunction"
 
     , testCase "Instantiate preserves non-TypeAny params" $
         let 
-          def = DefFunction "baz" [Parameter "a" TypeI32 Nothing, Parameter "b" TypeAny Nothing] TypeAny [] False Public False
+          def = DefFunction "baz" [Parameter "a" TypeI32 Nothing, Parameter "b" TypeAny Nothing] TypeAny [] False Public False False
           args = [TypeI32, TypeString]
           ret = TypeString
-          expectedName = mangleName "baz" ret args
           instantiated = instantiate def args ret
         in case instantiated of
-            DefFunction n [Parameter "a" t1 _, Parameter "b" t2 _] r _ _ _ _ -> do
-                n @?= expectedName
+            DefFunction n [Parameter "a" t1 _, Parameter "b" t2 _] r _ _ _ _ _ -> do
+                n @?= "baz"
                 t1 @?= TypeI32
                 t2 @?= TypeString
                 r @?= TypeString
@@ -71,7 +67,7 @@ genericInstantiateTests = testGroup "instantiate function"
 
     , testCase "Instantiate ignores DefStruct" $
         let 
-          def = DefStruct "MyStruct" [] []
+          def = DefStruct "MyStruct" [] [] False Nothing
           instantiated = instantiate def [TypeI32] TypeI32
         in instantiated @?= def
     ]
