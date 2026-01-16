@@ -8,7 +8,9 @@ module Rune.Semantics.Vars (
   verifScope,
   verifExpr,
   verifExprWithContext,
-  mangleFuncStack
+  mangleFuncStack,
+  hasImplicitOrExplicitReturn,
+  blockContainsReturn
 ) where
 #else
 module Rune.Semantics.Vars (verifVars) where
@@ -124,10 +126,27 @@ getDefName (DefSomewhere {}) = ""
 mangleFuncStack :: FuncStack -> FuncStack
 mangleFuncStack fs = fs
 
-hasExplicitReturn :: Block -> Bool
-hasExplicitReturn [] = False
-hasExplicitReturn (StmtReturn _ (Just _) : _) = True
-hasExplicitReturn (_ : stmts) = hasExplicitReturn stmts
+hasImplicitOrExplicitReturn :: Block -> Bool
+hasImplicitOrExplicitReturn [] = False
+hasImplicitOrExplicitReturn stmts = case last stmts of
+  StmtReturn _ (Just _) -> True
+  StmtReturn _ Nothing -> True
+  StmtExpr _ _ -> True
+  StmtIf _ _ thenB (Just elseB) -> 
+    hasImplicitOrExplicitReturn thenB && hasImplicitOrExplicitReturn elseB
+  StmtLoop _ body -> blockContainsReturn body
+  _ -> False
+
+blockContainsReturn :: Block -> Bool
+blockContainsReturn = any stmtContainsReturn
+  where
+    stmtContainsReturn (StmtReturn _ (Just _)) = True
+    stmtContainsReturn (StmtIf _ _ thenB elseB) = 
+      blockContainsReturn thenB || maybe False blockContainsReturn elseB
+    stmtContainsReturn (StmtFor _ _ _ _ _ body) = blockContainsReturn body
+    stmtContainsReturn (StmtForEach _ _ _ _ body) = blockContainsReturn body
+    stmtContainsReturn (StmtLoop _ body) = blockContainsReturn body
+    stmtContainsReturn _ = False
 
 checkFnReturn :: SourcePos -> String -> Type -> Block -> SemM ()
 checkFnReturn _ _ TypeNull _ = pure ()
@@ -137,7 +156,7 @@ checkFnReturn pos fnName _ [] =
     (printf "no return statement in function '%s'" fnName)
     ["function body", "return statement"]
 checkFnReturn pos fnName retType body =
-  unless (hasExplicitReturn body) $
+  unless (hasImplicitOrExplicitReturn body) $
     lift $ Left $ mkErrorReturn pos
       (printf "explicit return statement of type %s" (show retType))
       (printf "no return statement in function '%s'" fnName)
@@ -449,7 +468,6 @@ verifExprWithContext _ vs (ExprVar pos var)
 verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
-
 verifMethod sName (DefFunction methodName params retType body isExport) = do
   checkMethodParams methodName params
   let params' = if isStaticMethod methodName then params else fixSelfType sName params
@@ -466,9 +484,7 @@ verifMethod sName (DefFunction methodName params retType body isExport) = do
   modify $ \st -> st { stCurrentStruct = Just sName }
   body' <- verifScope vs body
   modify $ \st -> st { stCurrentStruct = oldStruct }
-  
   pure $ DefFunction finalName params' retType body' isExport
-
 verifMethod _ def = pure def
 
 --
