@@ -10,9 +10,9 @@ import Data.Char (isSpace)
 
 -- | Preprocess 'use' statements by expanding them inline
 preprocessUseStatements :: [FilePath] -> String -> IO (Either String String)
-preprocessUseStatements includePaths content = do
+preprocessUseStatements includePaths content' = do
   -- Preprocessing with duplicate prevention: track included files and skip duplicates
-  processLines (lines content) [] []
+  processLines (lines content') [] []
   where
     processLines :: [String] -> [String] -> [String] -> IO (Either String String)
     processLines [] acc _ = pure $ Right $ unlines (reverse acc)
