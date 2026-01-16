@@ -76,29 +76,29 @@ testCollectTopLevels :: TestTree
 testCollectTopLevels = testGroup "collectTopLevels"
   [ testCase "Collects externs" $
       let tls = [IRExtern "printf", IRExtern "malloc"]
-          (externs, _, _, _) = collectTopLevels tls
+          (externs, _, _, _, _) = collectTopLevels tls
       in externs @?= ["printf", "malloc"]
 
   , testCase "Collects global strings" $
       let tls = [IRGlobalDef "str1" (IRGlobalStringVal "hello"), IRGlobalDef "str2" (IRGlobalStringVal "world")]
-          (_, globals, _, _) = collectTopLevels tls
+          (_, globals, _, _, _) = collectTopLevels tls
       in length globals @?= 2
 
   , testCase "Collects functions" $
       let func = IRFunction "test" [] (Just IRNull) [] False
           tls = [IRFunctionDef func]
-          (_, _, funcs, _) = collectTopLevels tls
+          (_, _, funcs, _, _) = collectTopLevels tls
       in length funcs @?= 1
 
   , testCase "Filters duplicates in externs" $
       let tls = [IRExtern "printf", IRExtern "printf"]
-          (externs, _, _, _) = collectTopLevels tls
+          (externs, _, _, _, _) = collectTopLevels tls
       in externs @?= ["printf"]
 
   , testCase "Handles mixed top levels" $
       let func = IRFunction "f" [] (Just IRNull) [] False
           tls = [IRExtern "e", IRGlobalDef "s" (IRGlobalStringVal "v"), IRFunctionDef func]
-          (externs, globals, funcs, _) = collectTopLevels tls
+          (externs, globals, funcs, _, _) = collectTopLevels tls
       in do
         externs @?= ["e"]
         globals @?= [("s", IRGlobalStringVal "v")]
@@ -176,24 +176,24 @@ testAlignTo = testGroup "alignTo"
 testCollectTopLevel :: TestTree
 testCollectTopLevel = testGroup "collectTopLevel"
   [ testCase "Adds extern" $
-      let result = collectTopLevel (IRExtern "printf") ([], [], [], Map.empty)
-      in result @?= (["printf"], [], [], Map.empty)
+      let result = collectTopLevel (IRExtern "printf") ([], [], [], [], Map.empty)
+      in result @?= (["printf"], [], [], [], Map.empty)
 
   , testCase "Adds global string" $
-      let result = collectTopLevel (IRGlobalDef "s" (IRGlobalStringVal "val")) ([], [], [], Map.empty)
-      in result @?= ([], [("s", IRGlobalStringVal "val")], [], Map.empty)
+      let result = collectTopLevel (IRGlobalDef "s" (IRGlobalStringVal "val")) ([], [], [], [], Map.empty)
+      in result @?= ([], [("s", IRGlobalStringVal "val")], [], [], Map.empty)
 
   , testCase "Adds function" $
       let func = IRFunction "f" [] (Just IRNull) [] False
-          result = collectTopLevel (IRFunctionDef func) ([], [], [], Map.empty)
+          result = collectTopLevel (IRFunctionDef func) ([], [], [], [], Map.empty)
       in case result of
-        ([], [], [_], _) -> return ()
+        ([], [], [_], [], _) -> return ()
         _ -> assertBool "Expected one function" False
 
   , testCase "Ignores struct def" $
-      let result = collectTopLevel (IRStructDef "S" []) ([], [], [], Map.empty)
+      let result = collectTopLevel (IRStructDef "S" []) ([], [], [], [], Map.empty)
       in case result of
-        ([], [], [], m) -> Map.size m @?= 1
+        ([], [], [], [], m) -> Map.size m @?= 1
         _ -> assertBool "Expected one struct" False
   ]
 

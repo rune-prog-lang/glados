@@ -155,8 +155,8 @@ topLevelDefTests = testGroup "TopLevelDef Tests"
     param = Parameter "x" TypeI32 Nothing
     field = Field "x" TypeI32 Public False Nothing
     blockA = [StmtStop dummyPos]
-    defFunc = DefFunction "foo" [param] TypeI32 blockA False Public False
-    defStruct = DefStruct "Vec2f" [field] [defFunc]
+    defFunc = DefFunction "foo" [param] TypeI32 blockA False Public False False
+    defStruct = DefStruct "Vec2f" [field] [defFunc] False Nothing
 
 statementTests :: TestTree
 statementTests = testGroup "Statement Tests"

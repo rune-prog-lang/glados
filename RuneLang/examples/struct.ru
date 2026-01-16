@@ -8,7 +8,7 @@ somewhere
 abstract struct Vec2f
 {
     private x: f32 = 0.0;
-    private y: f32 = 1.0;
+    private y: f32 = 0.0;
 
     public static count: i32 = 20;
 
@@ -54,6 +54,11 @@ abstract struct Vec2f
     {
         show("Hello from Vec2f!\n");
     }
+
+    public static def get_count() -> i32
+    {
+        20
+    }
 }
 
 def show(prefix: string, v: Vec2f) -> null
@@ -68,4 +73,14 @@ def show(prefix: string, v: Vec2f) -> null
 
 def main() -> null
 {
+    v1 = Vec2f.new();
+    v2 = Vec2f.new(3.0, 4.0);
+    v3 = v1.add(v2);
+    v4 = v1.add(5.0);
+    show("v3 = v1 + v2 = ", v3);
+    show("v4 = v1 + 5.0 = ", v4);
+
+    count = Vec2f.get_count();
+    count2 = v4.get_count();
+    show(count);
 }

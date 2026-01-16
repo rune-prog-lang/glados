@@ -189,7 +189,8 @@ testTopLevelDefAccessors =
                   funcBody = dummyBlock,
                   funcIsExport = True,
                   funcVisibility = Public,
-                  funcIsStatic = False
+                  funcIsStatic = False,
+                  funcIsAbstract = False
                 }
          in do
               funcName def @?= "main"
@@ -197,13 +198,15 @@ testTopLevelDefAccessors =
               funcReturnType def @?= TypeNull
               funcBody def @?= dummyBlock
               funcIsExport def @?= True
-              show def @?= "DefFunction {funcName = \"main\", funcParams = [], funcReturnType = null, funcBody = [StmtReturn test.ru:0:0 Nothing], funcIsExport = True, funcVisibility = public, funcIsStatic = False}",
+              show def @?= "DefFunction {funcName = \"main\", funcParams = [], funcReturnType = null, funcBody = [StmtReturn test.ru:0:0 Nothing], funcIsExport = True, funcVisibility = public, funcIsStatic = False, funcIsAbstract = False}",
       testCase "DefStruct accessors" $
         let def =
               DefStruct
                 { structName = "Vec2",
                   structFields = [],
-                  structMethods = []
+                  structMethods = [],
+                  structIsAbstract = False,
+                  structExtension = Nothing
                 }
          in do
               structName def @?= "Vec2"

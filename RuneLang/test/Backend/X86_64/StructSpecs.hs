@@ -7,7 +7,6 @@ import Test.Tasty.HUnit (testCase, (@?=), assertBool)
 import qualified Data.Map.Strict as Map
 import Rune.Backend.X86_64.Struct
 import Rune.IR.Nodes (IRType(..), IROperand(..))
-import Rune.AST.Nodes (Expression)
 
 structTests :: TestTree
 structTests = testGroup "Rune.Backend.X86_64.Struct"
@@ -18,7 +17,7 @@ structTests = testGroup "Rune.Backend.X86_64.Struct"
   ]
 
 -- Mock data
-mockStructs :: Map.Map String [(String, IRType, Maybe Expression)]
+mockStructs :: Map.Map String [(String, IRType, Maybe IROperand)]
 mockStructs = Map.fromList
   [ ("Point", [("x", IRI32, Nothing), ("y", IRI32, Nothing)])
   , ("Mixed", [("a", IRI8, Nothing), ("b", IRI64, Nothing), ("c", IRI32, Nothing)]) -- a:0, padding:1-7, b:8, c:16 -> size 24 (aligned to 8)

@@ -126,7 +126,8 @@ testGenState =
                   gsStringMap = empty,
                   gsFloatMap = empty,
                   gsFuncStack = mempty,
-                  gsVariadicPacks = empty
+                  gsVariadicPacks = empty,
+                  gsStaticVars = empty
                 }
             dummyOp :: IRGen Int
             dummyOp = return 10
@@ -158,7 +159,8 @@ testGenState =
                   gsStringMap = empty,
                   gsFloatMap = empty,
                   gsFuncStack = mempty,
-                  gsVariadicPacks = empty
+                  gsVariadicPacks = empty,
+                  gsStaticVars = empty
                 }
             state2 =
               GenState
@@ -175,7 +177,8 @@ testGenState =
                   gsStringMap = empty,
                   gsFloatMap = empty,
                   gsFuncStack = mempty,
-                  gsVariadicPacks = empty
+                  gsVariadicPacks = empty,
+                  gsStaticVars = empty
                 }
          in state1 @?= state2
     ]

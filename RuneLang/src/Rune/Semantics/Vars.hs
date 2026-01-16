@@ -12,7 +12,6 @@ module Rune.Semantics.Vars (
   isGeneric,
   hasAny,
   getDefName,
-  resolveFinalName,
   verifTopLevel,
   verifMethod,
   tryInstantiateTemplate,
@@ -78,17 +77,19 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
+import Debug.Trace (trace)
+
 --
 -- state monad
 --
 
 data SemState = SemState
-  { stFuncs         :: FuncStack               -- << known signatures
-  , stTemplates     :: Templates               -- << generic functions ('any')
-  , stNewDefs       :: [TopLevelDef]           -- << new functions
-  , stInstantiated  :: HM.HashMap String Bool  -- << cache of instantiated templates
-  , stStructs       :: StructStack             -- << known structs
-  , stCurrentStruct :: Maybe String            -- << current struct context (for methods)
+  { stFuncs        :: FuncStack               -- << known signatures
+  , stTemplates    :: Templates               -- << generic functions ('any')
+  , stNewDefs      :: [TopLevelDef]           -- << new functions
+  , stInstantiated :: HM.HashMap String Bool  -- << cache of instantiated templates
+  , stStructs      :: StructStack             -- << known structs
+  , stCurrentStruct :: Maybe String           -- << current struct name (for method calls)
   }
 
 type SemM a = StateT SemState (Either String) a
@@ -108,7 +109,7 @@ verifVars (Program n defs) = do
   ss <- findStruct (Program n concreteDefs)
 
   let initialState = SemState
-        { stFuncs = fs
+        { stFuncs = trace (show fs) fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
@@ -157,20 +158,14 @@ mangleFuncStack fs = fs
 -- verif
 --
 
-resolveFinalName :: String -> Type -> [Type] -> SemM String
-resolveFinalName baseName retType paramTypes = do
-  fs <- gets stFuncs
-  pure $ case HM.lookup baseName fs of
-    Just ((exRet, exArgs), _, _) ->
-      if exRet == retType && map paramType exArgs == paramTypes
-      then baseName
-      else mangleName baseName retType paramTypes
-    Nothing -> baseName
-
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
 verifTopLevel (DefFunction name params r_t body isExport visibility isStatic isAbstract) = do
   let paramTypes = map paramType params
-  finalName <- resolveFinalName name r_t paramTypes
+      expectedMangled = mangleName name r_t paramTypes
+      -- Don't double-mangle: if name is already mangled form, use it as-is
+      finalName = if name == "main" || name == expectedMangled 
+                  then name 
+                  else mangleName name r_t paramTypes
 
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body' <- verifScope vs body
@@ -483,21 +478,19 @@ verifInstanceCall cPos vPos target method args' hint vs = do
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 verifMethod sName (DefFunction methodName params retType body isExport visibility isStatic isAbstract) = do
-  unless (isStaticMethod methodName isStatic) $
-    case params of
-      [] -> lift $ Left $ "Instance method '" ++ methodName ++ "' must have at least one parameter ('self')"
-      (p:_) -> unless (paramName p == "self") $
-        lift $ Left $ "First parameter of instance method '" ++ methodName ++ "' must be named 'self', got '" ++ paramName p ++ "'"
-  modify $ \st -> st {stCurrentStruct = Just sName}
-  let params' = if isStatic then params else fixSelfType sName params
+  checkMethodParams methodName isStatic params
+  let params' = if isStaticMethod methodName isStatic then params else fixSelfType sName params
       paramTypes = map paramType params'
       baseName = sName ++ "_" ++ methodName
+      finalName = mangleName baseName retType paramTypes
 
-  finalName <- resolveFinalName baseName retType paramTypes
-
-  let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
+      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
+  -- Set struct context for method body verification
+  oldStruct <- gets stCurrentStruct
+  modify $ \st -> st { stCurrentStruct = Just sName }
   body' <- verifScope vs body
-  modify $ \st -> st {stCurrentStruct = Nothing}
+  modify $ \st -> st { stCurrentStruct = oldStruct }
+
   pure $ DefFunction finalName params' retType body' isExport visibility isStatic isAbstract
 verifMethod _ def = pure def
 
@@ -568,14 +561,30 @@ resolveCall cPos vPos s hint name args argTypes = do
   let file = posFile cPos
       line = posLine cPos
       col = posCol cPos
-      match = checkParamType s (name, argTypes) file line col args
-  case match of
-    Right foundName -> pure $ ExprVar vPos foundName
-    Left err -> do
-      templates <- gets stTemplates
-      case HM.lookup name templates of
-        Nothing -> lift $ Left $ formatSemanticError err
-        Just templateDef -> tryInstantiateTemplate templateDef name args argTypes hint
+  
+  -- First, try to resolve as a struct method if we're inside a struct
+  currentStruct <- gets stCurrentStruct
+  case currentStruct of
+    Just sName -> do
+      let structMethodName = sName ++ "_" ++ name
+          matchStruct = checkParamType s (structMethodName, argTypes) file line col args
+      case matchStruct of
+        Right foundName -> pure $ ExprVar vPos foundName
+        Left _ -> resolveRegular
+    Nothing -> resolveRegular
+  where
+    resolveRegular = do
+      let file = posFile cPos
+          line = posLine cPos
+          col = posCol cPos
+          match = checkParamType s (name, argTypes) file line col args
+      case match of
+        Right foundName -> pure $ ExprVar vPos foundName
+        Left err -> do
+          templates <- gets stTemplates
+          case HM.lookup name templates of
+            Nothing -> lift $ Left $ formatSemanticError err
+            Just templateDef -> tryInstantiateTemplate templateDef name args argTypes hint
 
 
 
@@ -604,6 +613,15 @@ isStaticMethod :: String -> Bool -> Bool
 isStaticMethod _ True = True
 isStaticMethod "new" _ = True
 isStaticMethod _ False = False
+
+checkMethodParams :: String -> Bool -> [Parameter] -> SemM ()
+checkMethodParams methodName isStatic params
+  | isStaticMethod methodName isStatic = pure ()  -- Static methods don't need self
+  | otherwise = case params of
+      [] -> lift $ Left $ printf "Instance method '%s' must have at least one parameter (self)" methodName
+      (p:_) | paramName p /= "self" ->
+        lift $ Left $ printf "First parameter of method '%s' must be 'self', got '%s'" methodName (paramName p)
+      _ -> pure ()
 
 -- | Verify field access with visibility checking
 verifFieldAccess :: SourcePos -> Expression -> String -> Maybe Type -> VarStack -> SemM Expression
