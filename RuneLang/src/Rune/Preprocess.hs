@@ -104,7 +104,7 @@ preprocessUseStatements includePaths content' = do
                           else [basePath, basePath ++ ".sw", basePath ++ ".somewhere"]  -- Try multiple extensions
       result <- tryFiles candidateFiles
       case result of
-        Right content' -> pure $ Right content'
+        Right cont -> pure $ Right cont
         Left _ -> tryPaths dirs fileName
     
     tryFiles :: [FilePath] -> IO (Either String String)
@@ -112,7 +112,7 @@ preprocessUseStatements includePaths content' = do
     tryFiles (file:files) = do
       result <- safeRead file
       case result of
-        Right content' -> pure $ Right content'
+        Right cont -> pure $ Right cont
         Left _ -> tryFiles files
     
     safeRead :: FilePath -> IO (Either String String)
