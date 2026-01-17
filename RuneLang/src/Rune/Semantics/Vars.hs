@@ -66,6 +66,34 @@ data SemState = SemState
 
 type SemM a = StateT SemState (Either String) a
 
+-- | Extract all DeclDefs from somewhere blocks and return them as separate top-level definitions
+-- Also return cleaned somewhere blocks with only signatures  
+-- Note: DeclUse statements should have been preprocessed away by this point
+extractAndCleanSomewhereDefs :: [TopLevelDef] -> ([TopLevelDef], [TopLevelDef])
+extractAndCleanSomewhereDefs defs =
+  let (extracted, cleaned) = unzip $ map processTopLevel defs
+  in (concat extracted, cleaned)
+  where
+    processTopLevel :: TopLevelDef -> ([TopLevelDef], TopLevelDef)
+    processTopLevel (DefSomewhere decls) =
+      let (extractedDefs, remainingDecls) = partitionSomewhereDecls decls
+      in (extractedDefs, DefSomewhere remainingDecls)
+    processTopLevel other = ([], other)
+    
+    partitionSomewhereDecls :: [SomewhereDecl] -> ([TopLevelDef], [SomewhereDecl])
+    partitionSomewhereDecls decls =
+      let extractedDefs = [def | DeclDefs def <- decls]
+          remainingDecls = [decl | decl <- decls, not (isDeclDefs decl) && not (isDeclUse decl)]
+      in (extractedDefs, remainingDecls)
+    
+    isDeclDefs :: SomewhereDecl -> Bool
+    isDeclDefs (DeclDefs _) = True
+    isDeclDefs _ = False
+    
+    isDeclUse :: SomewhereDecl -> Bool
+    isDeclUse (DeclUse _) = True
+    isDeclUse _ = False
+
 --
 -- public
 --
@@ -76,9 +104,13 @@ verifVars (Program n defs) = do
   let defsWithInferredTypes = map applyInferenceToParams defs
       (templatesList, concreteDefs) = List.partition isGeneric defsWithInferredTypes
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
+      
+      -- Extract all full definitions from somewhere blocks and flatten them  
+      (flattenedDefs, cleanedDefs) = extractAndCleanSomewhereDefs concreteDefs
+      allConcreteDefs = flattenedDefs ++ cleanedDefs
 
-  fs <- findFunc (Program n concreteDefs)
-  ss <- findStruct (Program n concreteDefs)
+  fs <- findFunc (Program n allConcreteDefs)
+  ss <- findStruct (Program n allConcreteDefs)
 
   let initialState = SemState
         { stFuncs = fs
@@ -89,7 +121,7 @@ verifVars (Program n defs) = do
         , stCurrentStruct = Nothing
         }
 
-  (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
+  (defs', finalState) <- runStateT (mapM verifTopLevel allConcreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
       finalFuncStack = mangleFuncStack $ stFuncs finalState
   pure (Program n allDefs, finalFuncStack)
@@ -121,7 +153,7 @@ hasAny _ = False
 getDefName :: TopLevelDef -> String
 getDefName (DefFunction n _ _ _ _) = n
 getDefName (DefStruct n _ _) = n
-getDefName (DefSomewhere {}) = ""
+getDefName (DefSomewhere _) = ""
 
 mangleFuncStack :: FuncStack -> FuncStack
 mangleFuncStack fs = fs
