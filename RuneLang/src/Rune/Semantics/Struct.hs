@@ -29,21 +29,31 @@ import qualified Data.List as List
 --- public
 ---
 
-findStruct :: Program -> Either String StructStack
-findStruct (Program _ defs) =
-  foldM addStruct HM.empty structs
+findStruct :: Program -> Either String (Program, StructStack)
+findStruct (Program n defs) = do
+  ss <- foldM addStruct HM.empty structs
+
+  let finalDefs = map (\d -> case d of
+                              defStruct@(DefStruct name _ _ _ _) ->
+                                case HM.lookup name ss of
+                                  Just updated -> updated
+                                  Nothing -> defStruct
+                              other -> other
+                       ) defs
+  Right (Program n finalDefs, ss)
   where
     structs :: [TopLevelDef]
     structs = [d | d@DefStruct{} <- defs]
 
     addStruct :: StructStack -> TopLevelDef -> Either String StructStack
-    addStruct acc def@(DefStruct name fields methods isAbstract exts)
+    addStruct acc def@(DefStruct name _ methods isAbstract exts)
       | HM.member name acc =
           Left $ mkError pos
             (printf "struct '%s' to be unique" name)
             "duplicate struct definition"
       | otherwise = do
-          checkedFields  <- checkFields name pos acc fields
+          extendedFields <- checkExtensions pos def acc
+          checkedFields  <- checkFields name pos acc extendedFields
           checkedMethods <- checkMethods name pos methods
           Right $ HM.insert name
             (DefStruct name checkedFields checkedMethods isAbstract exts) acc
@@ -66,6 +76,29 @@ mkError (SourcePos file line col) expected got =
 getStructPos :: TopLevelDef -> SourcePos
 getStructPos (DefStruct {}) = SourcePos "<unknown>" 0 0
 getStructPos _ = SourcePos "<unknown>" 0 0
+
+checkExtensions :: SourcePos -> TopLevelDef -> StructStack -> Either String [Field]
+checkExtensions pos (DefStruct name fields _ _ (Just exts)) ss = do
+  checkedExts <- mapM (checkExt pos ss name) exts
+  case checkedExts of
+    (ext:_) -> Right $ addBaseField fields ext
+    [] -> Right fields
+checkExtensions _ (DefStruct _ fields _ _ Nothing) _ = Right fields
+checkExtensions pos _ _ =
+  Left $ mkError pos
+    "only struct definitions can have extensions"
+    "invalid top-level definition"
+
+checkExt :: SourcePos -> StructStack -> String -> String -> Either String String
+checkExt pos ss sName extName =
+  if HM.member extName ss
+    then Right extName
+    else Left $ mkError pos
+      (printf "struct '%s' to extend defined struct '%s'" sName extName)
+      "unknown struct in extends"
+
+addBaseField :: [Field] -> String -> [Field]
+addBaseField fields ext = Field "__base" (TypeCustom ext) Public False Nothing : fields
 
 checkMethods :: String -> SourcePos -> [TopLevelDef] -> Either String [TopLevelDef]
 checkMethods _ _ = Right

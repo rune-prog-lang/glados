@@ -132,8 +132,10 @@ parseStructExtensions = do
   case T.tokenKind t of
     T.KwExtends -> do
       _ <- advance
-      names <- sepBy parseIdentifier (expect T.Comma)
-      pure $ Just names
+      -- names <- sepBy parseIdentifier (expect T.Comma)  -- ? These lines will be useful when implementing multi inheritance
+      -- pure $ Just names                                -- ? Same as above. For now, only single inheritance is supported
+      name <- parseIdentifier
+      pure $ Just [name]
     _ -> pure Nothing
 
 --
