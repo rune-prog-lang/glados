@@ -6,8 +6,8 @@ somewhere
 
 abstract struct Shape
 {
-    protected x: f32;
-    protected y: f32;
+    private x: f32;
+    private y: f32;
 
     private   id: i32;
     private static count: i32 = 0;
@@ -24,6 +24,11 @@ abstract struct Shape
         self.x += dx;
         self.y += dy;
         showln("Shape moved.");
+    }
+
+    protected def add(self, other: Shape) -> Shape
+    {
+        Shape.new(self.x + other.x, self.y + other.y)
     }
 
     protected def new(x: f32, y: f32) -> Shape
@@ -43,22 +48,30 @@ struct Circle extends Shape
 
     public static def new(x: f32, y: f32, r: f32) -> Circle
     {
-        base = super.new(x, y);
-
         Circle {
-            base:   base,
+            __base: Shape.new(x, y),
             radius: r
         }
     }
 
-    public override def get_area(self) -> f32
+    public def get_area(self) -> f32
     {
         3.14159 * self.radius * self.radius
     }
 
-    public override def move(self, dx: f32, dy: f32) -> null
+    public def move(self, dx: f32, dy: f32) -> null
     {
         showln("Circle is rolling...");
-        super.move(dx, dy);
+        __base.move(dx, dy);
     }
+}
+
+def main() -> null
+{
+    c = Circle.new(0.0, 0.0, 5.0);
+    area = c.get_area();
+    showln("Circle area: " + area);
+    c.move(2.0, 3.0);
+    total = Shape.get_total_shapes();
+    showln("Total shapes created: " + total);
 }

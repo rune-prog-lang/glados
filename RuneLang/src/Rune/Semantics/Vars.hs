@@ -631,11 +631,11 @@ canAccessMember _ Public _ _ _ = True
 canAccessMember _ Private currentStruct targetStruct isSelf =
   case currentStruct of
     Nothing -> False
-    Just ctx -> ctx == targetStruct && isSelf
+    Just ctx -> ctx == targetStruct && (isSelf || ctx == targetStruct)
 canAccessMember ss Protected currentStruct targetStruct isSelf =
   case currentStruct of
     Nothing -> False
-    Just ctx -> (ctx == targetStruct || (isSelf && isDescendantOf ss ctx targetStruct))
+    Just ctx -> ctx == targetStruct || (isSelf && isDescendantOf ss ctx targetStruct)
 
 -- | Check if we can access an abstract struct from current context
 canAccessAbstractStruct :: StructStack -> Maybe String -> String -> String -> String -> String -> Int -> Int -> SemM ()
