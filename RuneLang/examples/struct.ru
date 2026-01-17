@@ -2,85 +2,56 @@ somewhere
 {
     def show(v: string) -> i32;
     def show(v: f32) -> i32;
-    def show(v: i32) -> i32;
 }
 
-abstract struct Vec2f
+struct Vec2f
 {
-    private x: f32 = 0.0;
-    private y: f32 = 0.0;
+    x: f32;
+    y: f32;
 
-    public static count: i32 = 20;
-
-    public def new() -> Vec2f
+    def new() -> Vec2f
     {
-        Vec2f.count += 1;
-        Vec2f {}
+        Vec2f { x: 0.0, y: 0.0 }
     }
 
-    public def new(x: f32, y: f32) -> Vec2f
+    def new(x: f32, y: f32) -> Vec2f
     {
-        Vec2f.count += 1;
         Vec2f { x: x, y: y }
     }
 
-    public def add(self, other: Vec2f) -> Vec2f
+    def add(self, other: Vec2f) -> Vec2f
     {
         Vec2f {
-            x: self.x + other.get_x(),
-            y: self.y + other.get_y()
+            x: self.x + other.x,
+            y: self.y + other.y
         }
     }
 
-    public def add(self, f: f32) -> Vec2f
+    def add(self, f: f32) -> Vec2f
     {
         Vec2f {
             x: self.x + f,
             y: self.y + f
         }
     }
-
-    public def get_x(self) -> f32
-    {
-        self.x
-    }
-
-    public def get_y(self) -> f32
-    {
-        self.y
-    }
-
-    private def print_hello(self) -> null
-    {
-        show("Hello from Vec2f!\n");
-    }
-
-    public static def get_count() -> i32
-    {
-        20
-    }
 }
 
-def show(prefix: string, v: Vec2f) -> null
+def show(v: Vec2f) -> null
 {
-    show(prefix);
-    show("(x: ");
-    show(v.get_x());
+    show("Vec2f(x: ");
+    show(v.x);
     show(", y: ");
-    show(v.get_y());
+    show(v.y);
     show(")\n");
 }
 
 def main() -> null
 {
-    v1 = Vec2f.new();
-    v2 = Vec2f.new(3.0, 4.0);
-    v3 = v1.add(v2);
-    v4 = v1.add(5.0);
-    show("v3 = v1 + v2 = ", v3);
-    show("v4 = v1 + 5.0 = ", v4);
+    a = Vec2f { x: 1.0, y: 2.0 };
+    b = Vec2f.new(3.0, 4.0);
 
-    count = Vec2f.get_count();
-    count2 = v4.get_count();
-    show(count);
+    c = a.add(b);
+    d = a.add(5.0);
+
+    show(c);
 }

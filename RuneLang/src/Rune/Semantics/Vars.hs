@@ -29,7 +29,6 @@ module Rune.Semantics.Vars (
   checkFieldVisibility,
   verifStaticMethodCall,
   verifInstanceMethodCall,
-  checkMethodVisibility,
   applyInferenceToParams,
   verifStaticCall,
   verifInstanceCall,
@@ -421,7 +420,7 @@ verifExprWithContext hint vs (ExprAccess pos expr@(ExprVar vPos target) field) =
               (printf "static field access '%s.%s'" target field)
               (printf "field '%s' is not static, use an instance instead" field)
               ["static field access"]
-          checkFieldVisibility visibility currentStruct target False field file line col
+          checkFieldVisibility ss visibility currentStruct target (isSelfAccess expr) field file line col
           let globalVarName = target ++ "_" ++ field
           pure $ ExprVar vPos globalVarName
         Nothing -> verifFieldAccess pos (ExprVar vPos target) field hint vs
@@ -476,7 +475,7 @@ verifStaticCall cPos accPos target method args' hint vs = do
   let baseName = sName ++ "_" ++ method
   callExpr <- resolveCall cPos accPos s hint baseName args' argTypes
   let mangledName = case callExpr of ExprVar _ n -> n; _ -> ""
-  verifStaticMethodCall fs mangledName currentStruct sName method file line col
+  verifStaticMethodCall ss fs mangledName currentStruct sName method file line col
   pure $ ExprCall cPos callExpr args'
 
 verifInstanceCall :: SourcePos -> SourcePos -> Expression -> String -> [Expression] -> Maybe Type -> VarStack -> SemM Expression
@@ -502,7 +501,7 @@ verifInstanceCall cPos accPos target method args' hint vs = do
 
   callExpr <- resolveCall cPos accPos s hint baseName allArgs allArgTypes
   let mangledName = case callExpr of ExprVar _ n -> n; _ -> ""
-  verifInstanceMethodCall fs mangledName currentStruct sName (isSelfAccess target') method file line col
+  verifInstanceMethodCall ss fs mangledName currentStruct sName (isSelfAccess target') method file line col
   pure $ ExprCall cPos callExpr allArgs
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
@@ -618,22 +617,30 @@ resolveCall cPos vPos s hint name args argTypes = do
 
 -- | Check if a member (field or method) can be accessed based on visibility rules
 -- Returns True if access is allowed, False otherwise
-canAccessMember :: Visibility -> Maybe String -> String -> Bool -> Bool
-canAccessMember Public _ _ _ = True
-canAccessMember Private currentStruct targetStruct isSelf =
+-- | Check if a member (field or method) can be accessed based on visibility rules
+-- Returns True if access is allowed, False otherwise
+canAccessMember :: StructStack -> Visibility -> Maybe String -> String -> Bool -> Bool
+canAccessMember _ Public _ _ _ = True
+canAccessMember _ Private currentStruct targetStruct isSelf =
   case currentStruct of
     Nothing -> False
     Just ctx -> ctx == targetStruct && isSelf
-canAccessMember Protected currentStruct targetStruct isSelf =
+canAccessMember ss Protected currentStruct targetStruct isSelf =
   case currentStruct of
     Nothing -> False
-    Just ctx -> (ctx == targetStruct || isChildOf ctx targetStruct) && isSelf
+    Just ctx -> (ctx == targetStruct || (isSelf && isDescendantOf ctx targetStruct))
   where
-    isChildOf _ _ = True  -- TODO: implement inheritance checking
+    isDescendantOf ctx target
+      | ctx == target = True
+      | otherwise = case HM.lookup ctx ss of
+          Just (DefStruct _ _ _ _ (Just (ext:_))) ->
+            isDescendantOf ext target
+          _ -> False
 
 isSelfAccess :: Expression -> Bool
 isSelfAccess (ExprVar _ "self") = True
-isSelfAccess _                  = False
+isSelfAccess (ExprAccess _ target "__base") = isSelfAccess target
+isSelfAccess _ = False
 
 -- This function is used to check if a function is static or not.
 -- It's here just to declare 'new' as a default static method.
@@ -677,7 +684,7 @@ verifStructFieldAccess pos target' field targetType currentStruct ss file line c
           (printf "instance field access on '%s'" field)
           (printf "field '%s' is static, call it with '%s.%s' instead" field sName field)
           ["instance field access"]
-      checkFieldVisibility visibility currentStruct sName (isSelfAccess target') field file line col
+      checkFieldVisibility ss visibility currentStruct sName (isSelfAccess target') field file line col
       pure $ ExprAccess pos target' field
     _ -> lift $ Left $ formatSemanticError $ SemanticError file line col
       "struct type for field access"
@@ -709,9 +716,9 @@ findField fields targetFieldName sName file line col =
     Just f -> pure f
 
 -- | Raise a visibility error if access is not allowed
-raiseVisibilityError :: Visibility -> Maybe String -> String -> Bool -> String -> String -> String -> Int -> Int -> String -> SemM ()
-raiseVisibilityError visibility currentStruct sName isSelf memberName memberType file line col context =
-  unless (canAccessMember visibility currentStruct sName isSelf) $
+raiseVisibilityError :: StructStack -> Visibility -> Maybe String -> String -> Bool -> String -> String -> String -> Int -> Int -> String -> SemM ()
+raiseVisibilityError ss visibility currentStruct sName isSelf memberName memberType file line col context =
+  unless (canAccessMember ss visibility currentStruct sName isSelf) $
     lift $ Left $ formatSemanticError $ SemanticError file line col
       (printf "access to %s %s '%s' of struct '%s'" (show visibility) memberType memberName sName)
       (if isSelf
@@ -720,8 +727,8 @@ raiseVisibilityError visibility currentStruct sName isSelf memberName memberType
       [context, "visibility"]
 
 -- | Verify static method call - checks that the resolved method is actually static
-verifStaticMethodCall :: FuncStack -> String -> Maybe String -> String -> String -> String -> Int -> Int -> SemM ()
-verifStaticMethodCall fs mangledName currentStruct target method file line col = do
+verifStaticMethodCall :: StructStack -> FuncStack -> String -> Maybe String -> String -> String -> String -> Int -> Int -> SemM ()
+verifStaticMethodCall ss fs mangledName currentStruct target method file line col = do
   case HM.lookup mangledName fs of
     Just (_, visibility, isStatic) -> do
       unless (isStaticMethod method isStatic) $
@@ -729,12 +736,12 @@ verifStaticMethodCall fs mangledName currentStruct target method file line col =
           (printf "static method call '%s.%s'" target method)
           (printf "method '%s' is not static, use an instance instead" method)
           ["static method call"]
-      raiseVisibilityError visibility currentStruct target False method "method" file line col "static method call"
+      raiseVisibilityError ss visibility currentStruct target False method "method" file line col "static method call"
     Nothing -> pure ()
 
 -- | Verify instance method call - checks visibility only
-verifInstanceMethodCall :: FuncStack -> String -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()
-verifInstanceMethodCall fs mangledName currentStruct sName isSelf method file line col = do
+verifInstanceMethodCall :: StructStack -> FuncStack -> String -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()
+verifInstanceMethodCall ss fs mangledName currentStruct sName isSelf method file line col = do
   case HM.lookup mangledName fs of
     Just (_, visibility, isStatic) -> do
       when (isStaticMethod method isStatic) $
@@ -742,24 +749,13 @@ verifInstanceMethodCall fs mangledName currentStruct sName isSelf method file li
           (printf "instance method call on '%s'" method)
           (printf "method '%s' is static, call it with '%s.%s' instead" method sName method)
           ["instance method call"]
-      raiseVisibilityError visibility currentStruct sName isSelf method "method" file line col "method call"
+      raiseVisibilityError ss visibility currentStruct sName isSelf method "method" file line col "method call"
     Nothing -> pure ()
 
 -- | Check if field access is allowed based on visibility rules
-checkFieldVisibility :: Visibility -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()
-checkFieldVisibility visibility currentStruct sName isSelf field file line col =
-  raiseVisibilityError visibility currentStruct sName isSelf field "field" file line col "field access"
-
--- | Check if method call is allowed based on visibility rules
-checkMethodVisibility :: FuncStack -> String -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()
-checkMethodVisibility fs baseName currentStruct sName isSelf method file line col = do
-  let prefix = baseName ++ "$"
-      matchingMethods = HM.filterWithKey (\k _ -> k == baseName || prefix `List.isPrefixOf` k) fs
-      visibilities = map (\(_, (_, vis, _)) -> vis) (HM.toList matchingMethods)
-  case visibilities of
-    [] -> pure ()
-    (visibility:_) ->
-      raiseVisibilityError visibility currentStruct sName isSelf method "method" file line col "method call"
+checkFieldVisibility :: StructStack -> Visibility -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()
+checkFieldVisibility ss visibility currentStruct sName isSelf field file line col =
+  raiseVisibilityError ss visibility currentStruct sName isSelf field "field" file line col "field access"
 
 -- | 1. Get the current struct in the stack
 -- | 2. Check if the struct inherit from another
