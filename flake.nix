@@ -56,27 +56,9 @@
           version = "1.0.0";
           src = ./RuneLang;
 
-          nativeBuildInputs = nativeBuildInputs;
-          # buildInputs = [ ];
+          nativeBuildInputs = nativeBuildInputs ++ [ makeWrapper ];
+          # buildInputs = [ nasm gcc ];
 
-#           # the stack way
-#           buildPhase = ''
-#             export HOME=$TMPDIR
-#             export STACK_ROOT=$TMPDIR/.stack
-#             export STACK_IN_NIX_SHELL=1
-#
-#             # Create a minimal stack config that doesn't need to go online
-#             cat > stack.yaml <<EOF
-# resolver: ghc-9.10.2
-# system-ghc: true
-# install-ghc: false
-# packages:
-#   - '.'
-# EOF
-#             stack config set system-ghc --global true
-#             make all STACK_NIX_FLAGS="--system-ghc --no-install-ghc --offline --nix"
-#           '';
-          # the cabal way
           buildPhase = ''
               export HOME=$TMPDIR
               export CABAL_DIR=$TMPDIR/.cabal
@@ -86,7 +68,6 @@
               mkdir -p $CABAL_DIR
               touch $CABAL_DIR/config
 
-              # cabal build --offline --ghc-options="-O2"
               cabal v2-build \
                 --offline \
                 --with-compiler=${haskellEnv}/bin/ghc \
@@ -96,8 +77,21 @@
                 all
           '';
           installPhase = ''
-            mkdir -p $out/bin
-            find dist-newstyle -type f -name "rune-exe" -exec cp {} ./rune \;
+              mkdir -p $out/bin
+              BINARY_PATH=$(find dist-newstyle -type f -executable -name "rune-exe" | head -n 1)
+
+              if [ -n "$BINARY_PATH" ]; then
+                echo "Found binary at $BINARY_PATH"
+                cp "$BINARY_PATH" $out/bin/.rune-wrapped
+                makeWrapper $out/bin/.rune-wrapped $out/bin/rune \
+                    --prefix PATH : ${lib.makeBinPath [ nasm gcc binutils ]}
+                # chmod +x $out/bin/rune
+                # cp $out/bin/rune .
+              else
+                echo "Could not find 'rune-exe' in dist-newstyle"
+                find dist-newstyle -type f
+                exit 1
+              fi
           '';
         };
         # nix dev shell
