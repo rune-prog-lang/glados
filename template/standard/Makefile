@@ -25,7 +25,7 @@ FLAGS 		:= -I$(INC_PATH) -L$(LIB_PATH) -lstd
 all: $(NAME)
 
 $(NAME):
-	$(RUNE) build $(SRC) -o $(NAME) $(FLAGS)
+	@$(RUNE) build $(SRC) -o $(NAME) $(FLAGS)
 
 init:
 	nix build $(REPO_PATH) --refresh
