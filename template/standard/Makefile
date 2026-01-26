@@ -35,6 +35,9 @@ init:
 	@rm $(RESULT_PATH)
 	@echo "Init complete. Compiler and StdLib copied to ./bin and ./lib"
 
+run: all
+	./$(NAME)
+
 clean:
 	rm -rf $(shell find . -type f -name "*.o")
 
