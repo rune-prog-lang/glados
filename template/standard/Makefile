@@ -11,6 +11,9 @@ LIB_PATH	:= ./lib
 INC_PATH	:= ./inc
 SRC_PATH 	:= ./src
 
+REPO_PATH	:= github:rune-prog-lang/glados/344-nix-build
+RESULT_PATH := ./result
+
 RUNE		:= $(BIN_PATH)/.rune-raw
 
 NAME 		:= my_project
@@ -19,6 +22,12 @@ SRC			:= $(SRC_PATH)/main.ru
 
 FLAGS 		:= -I$(INC_PATH) -L$(LIB_PATH) -lstd
 
+init:
+	@echo "Building Rune compiler via Nix..."
+	nix build $(REPO_PATH) --refresh
+	@cp -rf $(RESULT_PATH)/* .
+	@rm $(RESULT_PATH)
+	@echo "Init complete. Compiler and StdLib copied to ./bin and ./lib"
 
 all: $(NAME)
 
