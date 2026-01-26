@@ -26,23 +26,20 @@ all: $(NAME)
 
 $(NAME):
 	$(RUNE) build $(SRC) -o $(NAME) $(FLAGS)
-	@echo "Build complete: ./$(NAME)"
 
 init:
-	@echo "Building Rune compiler via Nix..."
 	nix build $(REPO_PATH) --refresh
 	@cp -rf $(RESULT_PATH)/* .
 	@rm $(RESULT_PATH)
-	@echo "Init complete. Compiler and StdLib copied to ./bin and ./lib"
 
 run: all
-	./$(NAME)
+	@./$(NAME)
 
 clean:
-	rm -rf $(shell find . -type f -name "*.o")
+	@rm -rf $(shell find . -type f -name "*.o")
 
 fclean: clean
-	rm -f $(NAME)
+	@rm -f $(NAME)
 
 re: fclean all
 
