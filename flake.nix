@@ -82,17 +82,23 @@
 
               mkdir -p $out/bin
               mkdir -p $out/lib
+              mkdir -p $out/inc
 
               BINARY_PATH=$(find dist-newstyle -type f -executable -name "rune-exe" | head -n 1)
 
               LIB_PATH=./lib/std
               LIB_SRC_PATH=$(find $LIB_PATH -name "*.ru" -type f)
 
+              INC_PATH=./inc
+              cp $INC_PATH $out/inc
+
               if [ -z "$BINARY_PATH" ]; then echo "Error: rune-exe not found"; exit 1; fi
 
               $BINARY_PATH build $LIB_SRC_PATH -shared -o $out/lib/libstd.so
 
-              makeWrapper $BINARY_PATH $out/bin/rune \
+               cp "$BINARY_PATH" $out/bin/.rune-raw
+ 
+               makeWrapper $out/bin/.rune-raw $out/bin/rune \
                   --prefix PATH : ${lib.makeBinPath [ nasm gcc binutils ]} \
                   --set LD_LIBRARY_PATH "$out/lib" \
                   --set RUNE_LIB_DIR "$out/lib"
